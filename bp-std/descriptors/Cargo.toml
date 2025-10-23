@@ -1,0 +1,28 @@
+[package]
+name = "descriptors"
+version = { workspace = true }
+description = "Bitcoin descriptors library (part of Bitcoin Protocol stack)"
+keywords = { workspace = true }
+categories = { workspace = true }
+readme = "../README.md"
+authors = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[lib]
+name = "descriptors"
+
+[dependencies]
+amplify = { workspace = true }
+bp-derive = { workspace = true }
+commit_verify = { workspace = true }
+indexmap = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+all = ["serde"]
+serde = ["dep:serde", "bp-derive/serde", "indexmap/serde"]

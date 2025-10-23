@@ -1,0 +1,30 @@
+[package]
+name = "bp-invoice"
+description = "Bitcoin addresses and invoices"
+readme = "../README.md"
+version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "invoice"
+
+[dependencies]
+amplify = { workspace = true }
+commit_verify = { workspace = true }
+strict_encoding = { workspace = true, optional = true }
+bech32 = { workspace = true }
+bp-consensus = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+all = ["serde", "strict_encoding"]
+strict_encoding = ["dep:strict_encoding"]
+serde = ["dep:serde", "bp-consensus/serde"]

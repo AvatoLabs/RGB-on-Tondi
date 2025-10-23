@@ -1,0 +1,39 @@
+{-
+  Id: stl:t1kptI_t-R8Ei0Wa-e0m53SK-toGi5AC-si8GK5F-MbQp588#reward-accent-swim
+  Name: AluVM
+  Version: 0.1.0
+  Description: AluVM data type library
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2024-2025 Laboratories for Ubiquitous Deterministic Computing (UBIDECO),
+                          Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
+  Copyright (C) 2021-2025 Dr Maxim Orlovsky.
+  License: Apache-2.0
+-}
+
+@context
+typelib AluVM
+
+import Std#delete-roman-hair
+  use Bool#oxygen-complex-duet
+  use AlphaCapsNum#aladdin-zebra-marble
+
+
+@mnemonic(ventura-ibiza-special)
+data CoreConfig        : halt Std.Bool, complexityLim U64?
+
+@mnemonic(mobile-letter-absorb)
+data IsaId             : Std.AlphaCapsNum, [Std.AlphaCapsNum ^ ..0xf]
+
+@mnemonic(pinball-legend-camel)
+data Lib               : isae {IsaId ^ ..0xff}
+                       , code [Byte]
+                       , data [Byte]
+                       , libs {LibId ^ ..0xff}
+
+@mnemonic(germany-culture-olivia)
+data LibId             : [Byte ^ 32]
+
+@mnemonic(friend-beatles-carlo)
+data LibSite           : libId LibId, offset U16
+
+

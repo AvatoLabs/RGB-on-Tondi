@@ -1,0 +1,93 @@
+{-
+  Id: stl:nvSE47Z1-CpbRP8D-m2tdzo3-zmE6UE9-kU~HJm~-0pTqlGo#lagoon-concept-trade
+  Name: BPCore
+  Version: 0.1.0
+  Description: Bitcoin client-side-validation library
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib BPCore
+
+import Bitcoin#extend-crimson-cable
+  use Vout#brush-gloria-heroic
+  use ScriptBytes#equator-cockpit-gong
+  use TapNodeHash#paprika-amanda-hunter
+  use LeafScript#bison-doctor-oscar
+  use Txid#shallow-light-reverse
+  use InternalPk#habitat-paprika-oliver
+  use LeafVer#benefit-carbon-africa
+  use Outpoint#logo-alamo-madam
+  use XOnlyPk#clever-swim-carpet
+
+import Std#delete-roman-hair
+  use U5#orbit-graph-sonic
+
+import CommitVerify#biology-news-adam
+  use Method#subject-justin-cowboy
+  use ProtocolId#shadow-eclipse-program
+  use Message#druid-blitz-rover
+  use MerkleHash#horse-popcorn-bundle
+  use MerkleProof#austria-jaguar-donald
+  use ReservedBytes1#origin-roger-relax
+
+
+@mnemonic(choice-chemist-brigade)
+data Anchor            : mmbProof BundleProof
+                       , mpcProtocol CommitVerify.ProtocolId
+                       , mpcProof CommitVerify.MerkleProof
+                       , dbcProof TapretProof?
+                       , fallbackProof CommitVerify.ReservedBytes1
+
+@mnemonic(beast-normal-road)
+data BundleProof       : map {U32 -> Message}
+
+@mnemonic(druid-blitz-rover)
+data Message           : [Byte ^ 32]
+
+@mnemonic(detect-status-goblin)
+data MessageMap        : {CommitVerify.ProtocolId -> ^ ..0xffffff MessageSource}
+
+@mnemonic(clone-beach-america)
+data MessageSource     : single#1 CommitVerify.Message
+                       | mmb BundleProof
+
+@mnemonic(bruce-gravity-titanic)
+data Noise             : [Byte ^ 40]
+
+@mnemonic(polygon-nixon-guitar)
+data Source            : minDepth Std.U5
+                       , entropy U64
+                       , messages MessageMap
+
+@mnemonic(cabinet-agent-stella)
+data TapretNodePartner : leftNode Bitcoin.TapNodeHash
+                       | rightLeaf Bitcoin.LeafScript
+                       | rightBranch TapretRightBranch
+
+@mnemonic(cotton-ventura-clean)
+data TapretPathProof   : partnerNode TapretNodePartner?, nonce U8
+
+@mnemonic(eternal-druid-round)
+data TapretProof       : pathProof TapretPathProof, internalPk Bitcoin.InternalPk
+
+@mnemonic(miracle-patriot-touch)
+data TapretRightBranch : leftNodeHash Bitcoin.TapNodeHash, rightNodeHash Bitcoin.TapNodeHash
+
+@mnemonic(email-mercy-shock)
+data TxoSeal           : primary Bitcoin.Outpoint, secondary TxoSealExt
+
+@mnemonic(stamp-morning-tulip)
+data TxoSealExt        : noise Noise
+                       | fallback Bitcoin.Outpoint
+
+@mnemonic(clock-absorb-side)
+data WOutpoint         : wout Bitcoin.Vout
+                       | extern Bitcoin.Outpoint
+
+@mnemonic(rapid-arsenal-shirt)
+data WTxoSeal          : primary WOutpoint, secondary TxoSealExt
+
+

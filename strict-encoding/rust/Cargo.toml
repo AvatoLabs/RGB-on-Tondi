@@ -1,0 +1,59 @@
+[package]
+name = "strict_encoding"
+version = { workspace = true }
+description = "Strict encoding: deterministic & confined binary serialization for strict types"
+keywords = ["strict-types", "gadt", "serialization", "serde", "protobuf"]
+categories = ["encoding", "parsing"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+readme = "README.md"
+exclude = ["derive", "test_helpers"]
+
+[dependencies]
+amplify = { workspace = true, features = ["proc_attr"] }
+strict_encoding_derive = { version = "2.8.0", path = "derive" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+amplify = { workspace = true, features = ["proc_attr", "hex"] }
+ciborium = "0.2.2"
+half = "<2.5.0"
+serde_json = "1.0.140"
+serde_yaml = "0.9.34"
+strict_encoding_test = { path = "./test_helpers" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+rand = { version = "0.9.1", optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom2 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[features]
+default = [
+    "derive"
+]
+all = [
+    "float",
+    "derive",
+    "serde"
+]
+derive = []
+float = [
+    "amplify/apfloat",
+]
+half = [] # TODO: Remove this with major version update
+serde = [
+    "dep:serde",
+    "amplify/serde"
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = ["--cfg", "docsrs"]

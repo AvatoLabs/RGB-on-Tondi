@@ -1,0 +1,50 @@
+[package]
+name = "bp-esplora"
+version = "0.12.0-rc.3"
+edition = "2021"
+authors = ["Alekos Filini <alekos.filini@gmail.com>", "Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
+license = "MIT"
+homepage = "https://github.com/BP-WG/bp-esplora-client"
+repository = "https://github.com/BP-WG/bp-esplora-client"
+documentation = "https://docs.rs/bp-esplora/"
+description = "Bitcoin Esplora API client library not using rust-bitcoin. Blocking or async"
+keywords = ["bitcoin", "esplora"]
+readme = "README.md"
+rust-version = "1.82.0"
+
+[lib]
+name = "esplora"
+path = "src/lib.rs"
+
+[dependencies]
+amplify = { version = "4.9.0", features = ["serde"] }
+sha2 = "0.10.8"
+bp-core = { version = "0.12.0-rc.3", features = ["serde"] }
+bp-invoice = "0.12.0-rc.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_with = { version = "3.11", features = ["hex"] }
+log = "^0.4"
+minreq = { version = "2.11.0", features = ["json-using-serde"], optional = true }
+reqwest = { version = "0.12", features = ["json"], default-features = false, optional = true }
+
+# default async runtime
+tokio = { version = "1", features = ["time"], optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.2"
+
+[features]
+default = ["blocking", "async", "async-https", "tokio"]
+blocking = ["minreq", "minreq/proxy"]
+blocking-https = ["blocking", "minreq/https"]
+blocking-https-rustls = ["blocking", "minreq/https-rustls"]
+blocking-https-native = ["blocking", "minreq/https-native"]
+blocking-https-bundled = ["blocking", "minreq/https-bundled"]
+blocking-wasm = ["minreq"]
+
+tokio = ["dep:tokio"]
+async = ["reqwest", "reqwest/socks", "tokio?/time"]
+async-https = ["async", "reqwest/default-tls"]
+async-https-native = ["async", "reqwest/native-tls"]
+async-https-rustls = ["async", "reqwest/rustls-tls"]
+async-https-rustls-manual-roots = ["async", "reqwest/rustls-tls-manual-roots"]

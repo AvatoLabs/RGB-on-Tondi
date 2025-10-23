@@ -1,0 +1,27 @@
+[package]
+name = "commit_encoding_derive"
+version = { workspace = true }
+description = "Commitment encoding derivation macros"
+keywords = ["commitments", "proc-macro"]
+categories = ["development-tools", "encoding"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+readme = "README.md"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+amplify = { workspace = true }
+quote = "1"
+syn = { version = "1", features = ["full"] }
+proc-macro2 = "1"
+amplify_syn = "2.0.1"
+
+[dev-dependencies]
+commit_verify = { path = ".." }
+strict_encoding = { workspace = true }

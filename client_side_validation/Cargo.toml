@@ -1,0 +1,67 @@
+[workspace]
+members = [
+    ".",
+    "commit_verify",
+    "commit_verify/derive",
+    "single_use_seals",
+]
+default-members = [
+    ".",
+    "commit_verify",
+    "commit_verify/derive",
+    "single_use_seals",
+]
+
+[workspace.package]
+version = "0.12.0"
+authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
+homepage = "https://github.com/LNP-BP"
+repository = "https://github.com/LNP-BP/client_side_validation"
+rust-version = "1.81.0" # Due to Error in core
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+amplify = "~4.9.0"
+strict_encoding = "~2.9.1"
+strict_types = "~2.9.0"
+serde = { version = "1", features = ["derive"] }
+
+[package]
+name = "client_side_validation"
+version = { workspace = true }
+description = "Client-side validation foundation library"
+keywords = ["lnp-bp", "smart-contracts", "blockchain"]
+categories = ["cryptography"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+readme = "README.md"
+exclude = [".github", "commit_verify", "single_use_seals"]
+
+[lib]
+name = "client_side_validation"
+path = "src/lib.rs"
+
+[dependencies]
+commit_verify = { version = "0.12.0", path = "./commit_verify", default-features = false }
+single_use_seals = { version = "0.12.0", path = "./single_use_seals", features = ["strict_encoding"] }
+serde = { workspace = true, optional = true }
+
+[features]
+default = ["derive"]
+all = ["serde", "rand", "stl", "vesper"]
+derive = ["commit_verify/derive"]
+rand = ["commit_verify/rand"]
+stl = ["commit_verify/stl"]
+vesper = ["commit_verify/vesper"]
+serde = ["dep:serde", "commit_verify/serde"]
+
+[package.metadata.docs.rs]
+features = ["all"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }

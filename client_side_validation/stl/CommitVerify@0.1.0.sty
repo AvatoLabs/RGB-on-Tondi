@@ -1,0 +1,178 @@
+{-
+  Id: stl:wH1wmGy2-0vBNWxL-MK~_eQb-Ayskv~e-oFmDrzI-O_IW_P0#biology-news-adam
+  Name: CommitVerify
+  Version: 0.1.0
+  Description: Client-side-validation deterministic commitments
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib CommitVerify
+
+import Std#delete-roman-hair
+  use U5#orbit-graph-sonic
+
+
+@mnemonic(miami-legacy-empire)
+data Commitment        : [Byte ^ 32]
+
+@mnemonic(model-tourist-formal)
+data Leaf              : inhabited#16 (protocol ProtocolId, message Message)
+                       | entropy (entropy U64, pos U32)
+
+@mnemonic(gong-elite-seminar)
+data MerkleBlock       : method Method
+                       , depth Std.U5
+                       , cofactor U16
+                       , crossSection [TreeNode ^ 1..0xffffffff]
+                       , entropy U64?
+
+@mnemonic(aztec-miracle-igloo)
+data MerkleConcealed   : depth Std.U5
+                       , cofactor U16
+                       , merkleRoot MerkleHash
+
+@mnemonic(horse-popcorn-bundle)
+data MerkleHash        : [Byte ^ 32]
+
+@mnemonic(cadet-guitar-trilogy)
+data MerkleNode        : branching NodeBranching
+                       , depth U8
+                       , width U256
+                       , node1 MerkleHash
+                       , node2 MerkleHash
+
+@mnemonic(edison-pablo-orinoco)
+data MerkleProof       : method Method
+                       , pos U32
+                       , cofactor U16
+                       , path [MerkleHash ^ ..0x20]
+
+@mnemonic(jump-respond-panda)
+data MerkleTree        : method Method
+                       , depth Std.U5
+                       , entropy U64
+                       , cofactor U16
+                       , messages {ProtocolId -> ^ ..0xffffff Message}
+                       , map {U32 -> ^ ..0xffffff ProtocolId, Message}
+
+@mnemonic(druid-blitz-rover)
+data Message           : [Byte ^ 32]
+
+@mnemonic(subject-justin-cowboy)
+data Method            : sha256t | (|)
+
+
+@mnemonic(member-dexter-price)
+data NodeBranching     : void | single | branch
+
+
+@mnemonic(shadow-eclipse-program)
+data ProtocolId        : [Byte ^ 32]
+
+@mnemonic(origin-roger-relax)
+data ReservedBytes1    : [Byte ^ 1]
+
+@mnemonic(marble-prepare-arnold)
+data ReservedBytes10   : [Byte ^ 10]
+
+@mnemonic(bazooka-orchid-mike)
+data ReservedBytes11   : [Byte ^ 11]
+
+@mnemonic(panther-andrea-granite)
+data ReservedBytes12   : [Byte ^ 12]
+
+@mnemonic(chief-pattern-evita)
+data ReservedBytes13   : [Byte ^ 13]
+
+@mnemonic(prize-edison-classic)
+data ReservedBytes14   : [Byte ^ 14]
+
+@mnemonic(dispute-yoga-july)
+data ReservedBytes15   : [Byte ^ 15]
+
+@mnemonic(romeo-imitate-shelter)
+data ReservedBytes16   : [Byte ^ 16]
+
+@mnemonic(basic-alert-tomato)
+data ReservedBytes17   : [Byte ^ 17]
+
+@mnemonic(pioneer-jupiter-salary)
+data ReservedBytes18   : [Byte ^ 18]
+
+@mnemonic(reunion-druid-postage)
+data ReservedBytes19   : [Byte ^ 19]
+
+@mnemonic(florida-libra-circus)
+data ReservedBytes2    : [Byte ^ 2]
+
+@mnemonic(bingo-ventura-reflex)
+data ReservedBytes20   : [Byte ^ 20]
+
+@mnemonic(taxi-roman-vision)
+data ReservedBytes21   : [Byte ^ 21]
+
+@mnemonic(almond-airline-igor)
+data ReservedBytes22   : [Byte ^ 22]
+
+@mnemonic(express-initial-nixon)
+data ReservedBytes23   : [Byte ^ 23]
+
+@mnemonic(elvis-uniform-invite)
+data ReservedBytes24   : [Byte ^ 24]
+
+@mnemonic(ginger-pump-toyota)
+data ReservedBytes25   : [Byte ^ 25]
+
+@mnemonic(mouse-america-basket)
+data ReservedBytes26   : [Byte ^ 26]
+
+@mnemonic(senator-summer-jason)
+data ReservedBytes27   : [Byte ^ 27]
+
+@mnemonic(lagoon-target-viva)
+data ReservedBytes28   : [Byte ^ 28]
+
+@mnemonic(france-finland-edition)
+data ReservedBytes29   : [Byte ^ 29]
+
+@mnemonic(avatar-deal-product)
+data ReservedBytes3    : [Byte ^ 3]
+
+@mnemonic(lotus-asia-rodent)
+data ReservedBytes30   : [Byte ^ 30]
+
+@mnemonic(sharp-habitat-first)
+data ReservedBytes31   : [Byte ^ 31]
+
+@mnemonic(turbo-denmark-earth)
+data ReservedBytes32   : [Byte ^ 32]
+
+@mnemonic(young-goblin-academy)
+data ReservedBytes4    : [Byte ^ 4]
+
+@mnemonic(violin-journal-service)
+data ReservedBytes5    : [Byte ^ 5]
+
+@mnemonic(joker-peru-brave)
+data ReservedBytes6    : [Byte ^ 6]
+
+@mnemonic(ricardo-domino-logic)
+data ReservedBytes7    : [Byte ^ 7]
+
+@mnemonic(rudolf-tape-adrian)
+data ReservedBytes8    : [Byte ^ 8]
+
+@mnemonic(slow-sport-radical)
+data ReservedBytes9    : [Byte ^ 9]
+
+@mnemonic(pizza-sherman-sound)
+data StrictHash        : [Byte ^ 32]
+
+@mnemonic(bahama-toyota-disco)
+data TreeNode          : concealedNode (depth Std.U5, hash MerkleHash)
+                       | commitmentLeaf (protocolId ProtocolId, message Message)
+
+
