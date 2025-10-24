@@ -1,24 +1,24 @@
 [package]
 name = "sonare-inmem"
-version.workspace = true
-authors.workspace = true
+version = "0.12.0-alpha.1"
+authors = ["Dr Maxim Orlovsky <orlovsky@ubideco.org>"]
 description = "In-memory persistence for SONARE"
-repository.workspace = true
-homepage.workspace = true
-keywords.workspace = true
+repository = "https://github.com/AluVM/sonare"
+homepage = "https://ubideco.org/SONARE"
+keywords = ["state-machines", "distributed-systems", "decentralized", "partially-replicated", "runtime-environment"]
 categories = ["algorithms", "cryptography", "science", "no-std"]
-readme.workspace = true
-license.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+readme = "README.md"
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.77.0"
 exclude = [".github"]
 
 [dependencies]
-amplify.workspace = true
-strict_encoding.workspace = true
+amplify = { workspace = true }
+strict_encoding = { workspace = true }
 strict_types = { workspace = true, optional = true }
-ultrasonic.workspace = true
-sonic.workspace = true
+ultrasonic = { workspace = true }
+sonic = { git = "https://github.com/AluVM/sonic" }
 sonare = { version = "0.12.0-alpha.1", path = ".." }
 serde = { workspace = true, optional = true }
 

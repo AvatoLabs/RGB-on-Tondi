@@ -1,15 +1,15 @@
 [package]
 name = "single_use_seals"
-version = { workspace = true }
+version = "0.12.0"
 description = "Single-use-seals foundation API"
 keywords = ["lnp-bp", "smart-contracts", "blockchain", "single-use-seals"]
 categories = ["cryptography"]
-authors = { workspace = true }
-repository = { workspace = true }
-homepage = { workspace = true }
-edition = { workspace = true }
-license = { workspace = true }
-rust-version = { workspace = true }
+authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
+repository = "https://github.com/LNP-BP/client_side_validation"
+homepage = "https://github.com/LNP-BP"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.81.0"
 readme = "README.md"
 
 [lib]

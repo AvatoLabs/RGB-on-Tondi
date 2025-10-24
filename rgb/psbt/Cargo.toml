@@ -1,15 +1,15 @@
 [package]
 name = "rgb-psbt"
 description = "Partially-signed transaction support for RGB protocol"
-version.workspace = true
-keywords.workspace = true
-categories.workspace = true
-authors.workspace = true
-homepage.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-edition.workspace = true
-license.workspace = true
+version = "0.12.0-rc.3"
+keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+categories = ["cryptography::cryptocurrencies"]
+authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
+homepage = "https://rgb.tech"
+repository = "https://github.com/RGB-WG/rgb"
+rust-version = "1.85.0"
+edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "rgpsbt"

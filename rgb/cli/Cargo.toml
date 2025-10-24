@@ -1,15 +1,15 @@
 [package]
 name = "rgb-wallet"
 description = "RGB smart contracts command-line wallet"
-version.workspace = true
-authors.workspace = true
-repository.workspace = true
-homepage.workspace = true
-keywords.workspace = true
-readme.workspace = true
-license.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+version = "0.12.0-rc.3"
+authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
+repository = "https://github.com/RGB-WG/rgb"
+homepage = "https://rgb.tech"
+keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+readme = "README.md"
+license = "Apache-2.0"
+edition = "2021"
+rust-version = "1.85.0"
 
 [[bin]]
 path = "src/main.rs"

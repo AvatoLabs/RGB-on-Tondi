@@ -1,54 +1,18 @@
-[workspace]
-members = [".", "cli", "invoice", "persistence/fs"]
-default-members = [".", "invoice", "persistence/fs"]
+# This project is now part of the RgbWorkspace
+# See the root Cargo.toml for workspace configuration
 
-[workspace.package]
+[package]
+name = "rgb-std"
+description = "Standard Library for RGB smart contracts"
 version = "0.12.0-rc.3"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://rgb.tech"
 repository = "https://github.com/RGB-WG/rgb-std"
-rust-version = "1.85.0" # Due to associated types generic bound requirements
+rust-version = "1.85.0"
 edition = "2021"
 license = "Apache-2.0"
-
-[workspace.dependencies]
-amplify = "4.9.0"
-strict_encoding = "2.9.1"
-strict_types = "2.9.0"
-commit_verify = "0.12.0"
-single_use_seals = "0.12.0"
-hypersonic = "0.12.0"
-sonic-callreq = "0.12.0"
-sonic-persist-fs = "0.12.0"
-sonix = "0.12.0"
-bp-core = "0.12.0"
-bp-invoice = "0.12.0-rc.2"
-rgb-core = "0.12.0"
-rgb-std = { version = "0.12.0-rc.3", path = "." }
-rgb-invoice = { version = "0.12.0-rc.3", path = "./invoice" }
-rgb-persist-fs = { version = "0.12.0-rc.3", path = "./persistence/fs" }
-aora = ">=0.6.4"
-baid64 = "0.4.2"
-binfile = "0.2.0"
-indexmap = "2.9.0"
-chrono = "0.4.41"
-serde = "1.0"
-serde_with = "1.14"
-
-[package]
-name = "rgb-std"
-description = "Standard Library for RGB smart contracts"
-version.workspace = true
-keywords.workspace = true
-categories.workspace = true
-authors.workspace = true
-homepage.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-edition.workspace = true
-license.workspace = true
 readme = "README.md"
 
 [[bin]]
@@ -60,26 +24,26 @@ name = "rgb"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
-amplify.workspace = true
-strict_encoding.workspace = true
-strict_types.workspace = true
-commit_verify.workspace = true
-single_use_seals.workspace = true
-aora.workspace = true
+amplify = { workspace = true }
+strict_encoding = { workspace = true }
+strict_types = { workspace = true }
+commit_verify = { workspace = true }
+single_use_seals = { workspace = true }
+aora = { workspace = true }
 binfile = { workspace = true, optional = true }
-hypersonic.workspace = true
+hypersonic = "0.12.0"
 bp-core = { workspace = true, optional = true }
 bp-invoice = { workspace = true, optional = true }
-rgb-core.workspace = true
-rgb-invoice.workspace = true
-indexmap.workspace = true
-chrono.workspace = true
+rgb-core = { workspace = true }
+rgb-invoice = { workspace = true }
+indexmap = { workspace = true }
+chrono = { workspace = true }
 serde = { workspace = true, optional = true }
-serde_with = { workspace = true, optional = true }
+serde_with = { version = "1.14", optional = true }
 
 [dev-dependencies]
-rand = "0.9.1"
-rgb-persist-fs.workspace = true
+rand = { workspace = true }
+rgb-persist-fs = { workspace = true }
 
 [features]
 default = ["std", "bitcoin"]

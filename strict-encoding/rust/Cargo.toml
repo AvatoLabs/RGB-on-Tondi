@@ -1,15 +1,15 @@
 [package]
 name = "strict_encoding"
-version = { workspace = true }
+version = "2.9.1"
 description = "Strict encoding: deterministic & confined binary serialization for strict types"
 keywords = ["strict-types", "gadt", "serialization", "serde", "protobuf"]
 categories = ["encoding", "parsing"]
-authors = { workspace = true }
-repository = { workspace = true }
-homepage = { workspace = true }
-edition = { workspace = true }
-license = { workspace = true }
-rust-version = { workspace = true }
+authors = ["Dr Maxim Orlovsky <orlovsky@ubideco.org>"]
+repository = "https://github.com/strict-types/strict-encoding"
+homepage = "https://strict-types.org"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.77.0"
 readme = "README.md"
 exclude = ["derive", "test_helpers"]
 

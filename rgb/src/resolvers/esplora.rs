@@ -197,6 +197,9 @@ impl From<EsploraError> for ResolverError {
             | EsploraError::Hex(_) => ResolverError::Protocol,
 
             EsploraError::TransactionNotFound(_) => ResolverError::Logic,
+            
+            // Catch-all for any additional error variants
+            _ => ResolverError::Connectivity,
         }
     }
 }
