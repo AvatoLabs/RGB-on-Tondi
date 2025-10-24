@@ -1,0 +1,76 @@
+{-
+  Id: stl:hS_TcpfI-JCz36Es-E8NtlsS-bG0A68X-Te6ouRs-7_FNDhE#prelude-chicago-filter
+  Name: RGB21
+  Version: 0.12.0
+  RGB21 smart contract interface
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2019-2025 RGB Consortium members & contributors.
+                          All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib RGB21
+
+import RGBContract#viva-comrade-bernard
+  use ProofOfReserves#harmony-dolby-golf
+  use AssetName#shelf-prism-civil
+
+import Std#delete-roman-hair
+  use AsciiPrintable#ultra-sunset-format
+  use AlphaSmall#magnum-martin-soviet
+
+import Bitcoin#signal-color-cipher
+  use Vout#brush-gloria-heroic
+  use Txid#shallow-light-reverse
+  use Outpoint#logo-alamo-madam
+
+
+@mnemonic(cyclone-polo-fruit)
+data Attachment        : mime MediaType, digest [Byte ^ 32]
+
+@mnemonic(lithium-beauty-avalon)
+data EmbeddedMedia     : mime MediaType, data [Byte]
+
+@mnemonic(taboo-pogo-exile)
+data MediaRegName      : Std.AlphaSmall, [MimeChar ^ ..0x3f]
+
+@mnemonic(brother-burma-book)
+data MediaType         : type MediaRegName
+                       , subtype MediaRegName?
+                       , charset MediaRegName?
+
+@mnemonic(amber-alarm-satire)
+data MimeChar          : excl#33 | hash#35 | dollar | amp#38
+                       | plus#43 | dash#45 | dot | zero#48
+                       | one | two | three | four
+                       | five | six | seven | eight
+                       | nine | caret#94 | lodash | a#97
+                       | b | c | d | e
+                       | f | g | h | i
+                       | j | k | l | m
+                       | n | o | p | q
+                       | r | s | t | u
+                       | v | w | x | y
+                       | z
+
+
+@mnemonic(vatican-outside-daniel)
+data Nft               : tokenNo TokenNo, fractions TokenFractions
+
+@mnemonic(hippie-sabine-aurora)
+data NftSpec           : name RGBContract.AssetName?
+                       , embedded EmbeddedMedia
+                       , external Attachment?
+                       , reserves RGBContract.ProofOfReserves?
+
+@mnemonic(chamber-south-factor)
+data OwnedNft          : tokenNo TokenNo, fractions TokenFractions
+
+@mnemonic(tropic-police-fortune)
+data TokenFractions    : U64
+
+@mnemonic(spider-harris-china)
+data TokenNo           : U32
+
+

@@ -50,6 +50,9 @@ members = [
     "rgb/descriptors",
     "rgb/cli",
     
+    # RGB Interfaces (Standard RGB20/21/25)
+    "rgb-interfaces",
+    
     # Sonare - currently disabled due to sonic dependency issues
     # "sonare",
     # "sonare/cli",
@@ -133,6 +136,9 @@ rgb-psbt = { version = "0.12.0-rc.3", path = "./rgb/psbt" }
 rgb-descriptors = { version = "0.12.0-rc.3", path = "./rgb/descriptors" }
 rgb-runtime = { version = "0.12.0-rc.3", path = "./rgb" }
 
+# RGB Interfaces (RGB20/21/25 Standards)
+rgb-interfaces = { version = "0.12.0", path = "./rgb-interfaces" }
+
 # Workspace internal dependencies - Sonare
 sonare = { version = "0.12.0-alpha.1", path = "./sonare" }
 
@@ -170,6 +176,7 @@ bp-invoice = { path = "./bp-std/invoice" }
 bp-std = { path = "./bp-std" }
 rgb-core = { path = "./rgb-core" }
 rgb-std = { path = "./rgb-std" }
+rgb-interfaces = { path = "./rgb-interfaces" }
 
 # External dependencies from git repositories are specified in individual crates
 
