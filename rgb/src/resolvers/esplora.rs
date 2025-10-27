@@ -116,7 +116,7 @@ impl Resolver for EsploraResolver {
                         Ok(Utxo {
                             outpoint: Outpoint::new(
                                 utxo.txid,
-                                Vout::from_u32(utxo.vout.value as u32),
+                                Vout::from_u32(utxo.vout),
                             ),
                             value: Sats::from_sats(utxo.value),
                             terminal,
