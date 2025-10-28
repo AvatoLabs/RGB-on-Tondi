@@ -38,6 +38,8 @@ pub struct AsyncClient<S = DefaultSleeper> {
     client: Client,
     /// Number of times to retry a request
     max_retries: usize,
+    /// OAuth token manager for Enterprise API
+    oauth_manager: Option<crate::OAuthManager>,
 
     /// Marker for the type of sleeper used
     marker: PhantomData<S>,
@@ -74,6 +76,7 @@ impl<S: Sleeper> AsyncClient<S> {
             url: builder.base_url,
             client: client_builder.build()?,
             max_retries: builder.max_retries,
+            oauth_manager: builder.oauth_manager,
             marker: PhantomData,
         })
     }
@@ -89,6 +92,7 @@ impl<S: Sleeper> AsyncClient<S> {
             url,
             client,
             max_retries: crate::DEFAULT_MAX_RETRIES,
+            oauth_manager: None,
             marker: PhantomData,
         }
     }
@@ -489,12 +493,30 @@ impl<S: Sleeper> AsyncClient<S> {
         let mut delay = BASE_BACKOFF_MILLIS;
         let mut attempts = 0;
 
+        // Build request with OAuth token if configured
+        let mut request = self.client.get(url);
+        
+        if let Some(ref oauth_manager) = self.oauth_manager {
+            let token = oauth_manager.get_access_token_async().await
+                .map_err(|e| Error::OAuth(e.to_string()))?;
+            request = request.header("Authorization", format!("Bearer {}", token));
+        }
+
         loop {
-            match self.client.get(url).send().await? {
+            match request.send().await? {
                 resp if attempts < self.max_retries && is_status_retryable(resp.status()) => {
                     S::sleep(delay).await;
                     attempts += 1;
                     delay *= 2;
+                    
+                    // Rebuild request for retry
+                    let mut retry_request = self.client.get(url);
+                    if let Some(ref oauth_manager) = self.oauth_manager {
+                        let token = oauth_manager.get_access_token_async().await
+                            .map_err(|e| Error::OAuth(e.to_string()))?;
+                        retry_request = retry_request.header("Authorization", format!("Bearer {}", token));
+                    }
+                    request = retry_request;
                 }
                 resp => return Ok(resp),
             }

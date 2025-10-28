@@ -23,7 +23,9 @@ bp-core = { workspace = true, features = ["serde"] }
 bp-invoice = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["hex"] }
+serde_json = { workspace = true }
 log = { workspace = true }
+urlencoding = "3"
 minreq = { version = "2.11.0", features = ["json-using-serde"], optional = true }
 reqwest = { workspace = true, features = ["json"], default-features = false, optional = true }
 
@@ -32,6 +34,16 @@ tokio = { version = "1", features = ["time"], optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2"
+
+[[example]]
+name = "oauth_example"
+path = "examples/oauth_example.rs"
+required-features = ["blocking"]
+
+[[example]]
+name = "oauth_async_example"
+path = "examples/oauth_async_example.rs"
+required-features = ["async", "tokio"]
 
 [features]
 default = ["blocking", "async", "async-https", "tokio"]

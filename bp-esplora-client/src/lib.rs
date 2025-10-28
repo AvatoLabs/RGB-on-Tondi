@@ -79,6 +79,8 @@ use std::time::Duration;
 use amplify::hex;
 use bp::Txid;
 
+pub use oauth::{OAuthConfig, OAuthManager};
+
 #[cfg(feature = "async")]
 pub use r#async::Sleeper;
 
@@ -87,6 +89,7 @@ pub mod api;
 pub mod r#async;
 #[cfg(feature = "blocking")]
 pub mod blocking;
+pub mod oauth;
 
 pub use api::*;
 #[cfg(feature = "blocking")]
@@ -175,6 +178,8 @@ pub struct Builder {
     pub headers: HashMap<String, String>,
     /// Max retries
     pub max_retries: usize,
+    /// OAuth manager for Enterprise API authentication
+    pub oauth_manager: Option<OAuthManager>,
 }
 
 impl Builder {
@@ -186,6 +191,7 @@ impl Builder {
             timeout: None,
             headers: HashMap::new(),
             max_retries: DEFAULT_MAX_RETRIES,
+            oauth_manager: None,
         }
     }
 
@@ -197,6 +203,7 @@ impl Builder {
             timeout: config.timeout,
             headers: config.headers,
             max_retries: config.max_retries,
+            oauth_manager: None,
         }
     }
 
@@ -222,6 +229,19 @@ impl Builder {
     /// is one of [`RETRYABLE_ERROR_CODES`].
     pub fn max_retries(mut self, count: usize) -> Self {
         self.max_retries = count;
+        self
+    }
+
+    /// Enable OAuth authentication for Enterprise API
+    pub fn with_oauth(mut self, client_id: String, client_secret: String) -> Self {
+        let config = OAuthConfig::new(client_id, client_secret);
+        self.oauth_manager = Some(OAuthManager::new(config));
+        self
+    }
+
+    /// Set OAuth configuration with custom parameters
+    pub fn with_oauth_config(mut self, config: OAuthConfig) -> Self {
+        self.oauth_manager = Some(OAuthManager::new(config));
         self
     }
 
@@ -294,4 +314,8 @@ pub enum Error {
     /// Invalid HTTP Header value specified
     #[display(doc_comments)]
     InvalidHttpHeaderValue(String),
+
+    /// OAuth authentication error
+    #[display(doc_comments)]
+    OAuth(String),
 }

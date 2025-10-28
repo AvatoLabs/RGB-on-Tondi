@@ -43,6 +43,8 @@ pub struct BlockingClient {
     pub headers: HashMap<String, String>,
     /// Number of times to retry a request
     pub max_retries: usize,
+    /// OAuth token manager for Enterprise API
+    pub oauth_manager: Option<crate::OAuthManager>,
 }
 
 impl BlockingClient {
@@ -54,6 +56,7 @@ impl BlockingClient {
             timeout: builder.timeout,
             headers: builder.headers,
             max_retries: builder.max_retries,
+            oauth_manager: builder.oauth_manager,
         })
     }
 
@@ -84,6 +87,13 @@ impl BlockingClient {
             for (key, value) in &self.headers {
                 request = request.with_header(key, value);
             }
+        }
+
+        // Add OAuth Authorization header if OAuth manager is configured
+        if let Some(ref oauth_manager) = self.oauth_manager {
+            let token = oauth_manager.get_access_token()
+                .map_err(|e| Error::OAuth(e.to_string()))?;
+            request = request.with_header("Authorization", &format!("Bearer {}", token));
         }
 
         Ok(request)
