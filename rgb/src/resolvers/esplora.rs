@@ -30,7 +30,7 @@ use bpstd::{Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout};
 use esplora::AsyncClient as EsploraAsyncClient;
 #[cfg(not(feature = "async"))]
 use esplora::BlockingClient as EsploraClient;
-use esplora::{Error as EsploraError, TxStatus};
+use esplora::{Error as EsploraError, TxStatus ,Config as EsploraConfig};
 use rgb::{Outpoint, WitnessStatus};
 
 use super::{Resolver, ResolverError};
@@ -57,6 +57,12 @@ impl EsploraResolver {
         let client = Self(inner);
         Ok(client)
     }
+
+    pub fn from_config(url: &str, config: EsploraConfig) -> Result<Self, ResolverError> {
+        let inner = esplora::Builder::from_config(url, config).build_blocking()?;
+        let client = Self(inner);
+        Ok(client)
+    }
 }
 
 #[cfg(feature = "async")]
@@ -72,6 +78,12 @@ impl EsploraAsyncResolver {
     /// Returns an error if the client fails to connect to the Esplora server.
     pub fn new(url: &str) -> Result<Self, ResolverError> {
         let inner = esplora::Builder::new(url).build_async()?;
+        let client = Self(inner);
+        Ok(client)
+    }
+
+    pub fn from_config(url: &str, config: EsploraConfig) -> Result<Self, ResolverError> {
+        let inner = esplora::Builder::from_config(url, config).build_async()?;
         let client = Self(inner);
         Ok(client)
     }
