@@ -63,6 +63,19 @@ impl EsploraResolver {
         let client = Self(inner);
         Ok(client)
     }
+
+    pub fn new_with_oauth(
+        url: &str,
+        client_id: String,
+        client_secret: String,
+    ) -> Result<Self, ResolverError> {
+        let inner = esplora::Builder::new(url)
+            .with_oauth(client_id, client_secret)
+            .build_blocking()?;
+        let client = Self(inner);
+        Ok(client gather)
+    }
+    
 }
 
 #[cfg(feature = "async")]
