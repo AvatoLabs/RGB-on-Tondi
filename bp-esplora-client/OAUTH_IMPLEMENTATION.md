@@ -194,3 +194,12 @@ cargo run --example oauth_async_example --features "async tokio"
 
 所有修改都保持了向后兼容性，不影响现有功能。
 
+## 修复记录
+
+### 修复的问题
+1. **错误类型定义冲突**: 修复了 `Http` 变体在 blocking 和 async 功能中的命名冲突，改为 `HttpBlocking` 和 `HttpAsync`
+2. **Debug trait**: 为 `OAuthManager` 和 `OAuthManagerInner` 添加了 `Debug` derive
+3. **minreq API**: 修复了 minreq 的 API 使用，使用 `Request::new()` 代替 `Request::post()`
+4. **类型不匹配**: 修复了 HashMap 参数类型和错误处理函数签名
+5. **代码清理**: 移除了未使用的导入和变量
+

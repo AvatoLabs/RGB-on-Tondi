@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Clone, Debug)]
 pub struct OAuthConfig {
@@ -37,6 +37,7 @@ impl OAuthConfig {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct TokenResponse {
     access_token: String,
@@ -62,11 +63,12 @@ impl TokenInfo {
 }
 
 /// Thread-safe OAuth token manager
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OAuthManager {
     inner: Arc<Mutex<OAuthManagerInner>>,
 }
 
+#[derive(Debug)]
 struct OAuthManagerInner {
     config: OAuthConfig,
     token_info: Option<TokenInfo>,
@@ -78,13 +80,13 @@ pub enum OAuthError {
     /// OAuth authentication failed: {0}
     OAuth(String),
     
-    /// Error during HTTP request
+    /// Error during HTTP request (blocking)
     #[cfg(feature = "blocking")]
-    Http(minreq::Error),
+    HttpBlocking(minreq::Error),
     
-    /// Error during reqwest HTTP request
+    /// Error during HTTP request (async)
     #[cfg(feature = "async")]
-    Http(reqwest::Error),
+    HttpAsync(reqwest::Error),
     
     /// JSON deserialization error
     Deserialize(serde_json::Error),
@@ -95,9 +97,9 @@ impl Display for OAuthError {
         match self {
             OAuthError::OAuth(msg) => write!(f, "OAuth authentication failed: {}", msg),
             #[cfg(feature = "blocking")]
-            OAuthError::Http(e) => write!(f, "HTTP error: {}", e),
+            OAuthError::HttpBlocking(e) => write!(f, "HTTP error (blocking): {}", e),
             #[cfg(feature = "async")]
-            OAuthError::Http(e) => write!(f, "HTTP error: {}", e),
+            OAuthError::HttpAsync(e) => write!(f, "HTTP error (async): {}", e),
             OAuthError::Deserialize(e) => write!(f, "JSON deserialization error: {}", e),
         }
     }
@@ -107,7 +109,10 @@ impl StdError for OAuthError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             OAuthError::OAuth(_) => None,
-            OAuthError::Http(e) => Some(e),
+            #[cfg(feature = "blocking")]
+            OAuthError::HttpBlocking(e) => Some(e),
+            #[cfg(feature = "async")]
+            OAuthError::HttpAsync(e) => Some(e),
             OAuthError::Deserialize(e) => Some(e),
         }
     }
@@ -116,14 +121,14 @@ impl StdError for OAuthError {
 #[cfg(feature = "blocking")]
 impl From<minreq::Error> for OAuthError {
     fn from(e: minreq::Error) -> Self {
-        OAuthError::Http(e)
+        OAuthError::HttpBlocking(e)
     }
 }
 
 #[cfg(feature = "async")]
 impl From<reqwest::Error> for OAuthError {
     fn from(e: reqwest::Error) -> Self {
-        OAuthError::Http(e)
+        OAuthError::HttpAsync(e)
     }
 }
 
@@ -200,24 +205,23 @@ impl OAuthManager {
 
     #[cfg(feature = "blocking")]
     fn fetch_token_blocking(&self, config: &OAuthConfig) -> Result<TokenResponse, OAuthError> {
-        use minreq::Request;
+        use minreq::Method;
 
         let mut params = HashMap::new();
-        params.insert("client_id", &config.client_id);
-        params.insert("client_secret", &config.client_secret);
+        params.insert("client_id", config.client_id.as_str());
+        params.insert("client_secret", config.client_secret.as_str());
         params.insert("grant_type", "client_credentials");
-        params.insert("scope", &config.scope);
+        params.insert("scope", config.scope.as_str());
 
         let body = params.iter()
             .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
             .collect::<Vec<_>>()
             .join("&");
 
-        let request = Request::post(&config.token_url)
+        let response = minreq::Request::new(Method::Post, &config.token_url)
             .with_header("Content-Type", "application/x-www-form-urlencoded")
-            .with_body(body);
-
-        let response = request.send()?;
+            .with_body(body)
+            .send()?;
 
         if response.status_code != 200 {
             return Err(OAuthError::OAuth(format!(
@@ -236,11 +240,12 @@ impl OAuthManager {
 
         let client = Client::new();
 
-        let mut params = HashMap::new();
-        params.insert("client_id", &config.client_id);
-        params.insert("client_secret", &config.client_secret);
-        params.insert("grant_type", "client_credentials");
-        params.insert("scope", &config.scope);
+        let params = vec![
+            ("client_id", config.client_id.as_str()),
+            ("client_secret", config.client_secret.as_str()),
+            ("grant_type", "client_credentials"),
+            ("scope", config.scope.as_str()),
+        ];
 
         let response = client
             .post(&config.token_url)
@@ -258,7 +263,8 @@ impl OAuthManager {
             )));
         }
 
-        response.json::<TokenResponse>().await.map_err(OAuthError::Deserialize)
+        let text = response.text().await?;
+        serde_json::from_str(&text).map_err(OAuthError::Deserialize)
     }
 }
 
