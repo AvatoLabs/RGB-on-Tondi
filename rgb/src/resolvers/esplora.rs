@@ -73,7 +73,7 @@ impl EsploraResolver {
             .with_oauth(client_id, client_secret)
             .build_blocking()?;
         let client = Self(inner);
-        Ok(client gather)
+        Ok(client)
     }
     
 }
