@@ -32,6 +32,7 @@ use esplora::AsyncClient as EsploraAsyncClient;
 use esplora::BlockingClient as EsploraClient;
 use esplora::{Error as EsploraError, TxStatus ,Config as EsploraConfig};
 use rgb::{Outpoint, WitnessStatus};
+use bpstd::{Address, AddressNetwork};
 
 use super::{Resolver, ResolverError};
 
@@ -75,7 +76,16 @@ impl EsploraResolver {
         let client = Self(inner);
         Ok(client)
     }
-    
+
+    pub fn network(&self) -> AddressNetwork {
+        if self.0.url().contains("testnet") {
+            AddressNetwork::Testnet
+        } else if self.0.url().contains("regtest") {
+            AddressNetwork::Regtest
+        } else {
+            AddressNetwork::Mainnet
+        }
+    }
 }
 
 #[cfg(feature = "async")]
@@ -132,8 +142,9 @@ impl Resolver for EsploraResolver {
         &self,
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
+        let network = self.network();
         iter.into_iter()
-            .flat_map(|(terminal, spk)| match self.0.scripthash_utxo(&spk) {
+            .flat_map(move |(terminal, spk)| match self.0.address_utxo(&Address::with(&spk, network).unwrap()) {
                 Err(err) => vec![Err(ResolverError::from(err))],
                 Ok(list) => list
                     .into_iter()
