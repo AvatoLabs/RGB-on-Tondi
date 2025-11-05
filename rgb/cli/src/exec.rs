@@ -510,6 +510,13 @@ impl Args {
                 let runtime = self.runtime(wallet);
                 let mut psbt_file = File::open(psbt_filename).context("Unable to open PSBT")?;
                 let mut psbt = Psbt::decode(&mut psbt_file)?;
+
+                for input in psbt.inputs_mut() {
+                    if input.final_script_sig.is_none() {
+                        input.final_script_sig = Some(Default::default());
+                    }
+                }
+                
                 let inputs = psbt.finalize(runtime.wallet.descriptor());
                 eprint!("{inputs} of {} inputs were finalized", psbt.inputs().count());
                 if psbt.is_finalized() {
