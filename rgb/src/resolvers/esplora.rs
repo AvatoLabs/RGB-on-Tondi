@@ -144,21 +144,70 @@ impl Resolver for EsploraResolver {
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
         let network = self.network();
         iter.into_iter()
-            .flat_map(move |(terminal, spk)| match self.0.address_utxo(&Address::with(&spk, network).unwrap()) {
-                Err(err) => vec![Err(ResolverError::from(err))],
-                Ok(list) => list
-                    .into_iter()
-                    .map(|utxo| {
-                        Ok(Utxo {
-                            outpoint: Outpoint::new(
-                                utxo.txid,
-                                Vout::from_u32(utxo.vout),
-                            ),
-                            value: Sats::from_sats(utxo.value),
-                            terminal,
-                        })
-                    })
-                    .collect::<Vec<_>>(),
+            .flat_map(move |(terminal, spk)| {
+                // Add logging for address derivation
+                let address = match Address::with(&spk, network) {
+                    Ok(addr) => {
+                        eprintln!("[DEBUG] EsploraResolver: Derived address from ScriptPubkey: {} (network: {:?})", addr, network);
+                        addr
+                    }
+                    Err(e) => {
+                        eprintln!("[ERROR] EsploraResolver: Failed to create address from ScriptPubkey: {:?}, network: {:?}, spk: {:?}", e, network, spk);
+                        return vec![Err(ResolverError::Protocol)];
+                    }
+                };
+                
+                // Add logging for Esplora query
+                eprintln!("[DEBUG] EsploraResolver: Querying UTXO for address: {}", address);
+                match self.0.address_utxo(&address) {
+                    Err(err) => {
+                        // Check if this is a "Too many history entries" error (HTTP 400)
+                        // This happens when an address has too many transactions for Esplora to return
+                        // We should skip this address and continue with others
+                        let should_skip = match &err {
+                            EsploraError::HttpResponse { status, message } => {
+                                *status == 400 && message.contains("Too many history entries")
+                            }
+                            _ => {
+                                let err_str = format!("{:?}", err);
+                                err_str.contains("Too many history entries") || 
+                                (err_str.contains("400") && err_str.contains("history"))
+                            }
+                        };
+                        
+                        if should_skip {
+                            eprintln!("[WARN] EsploraResolver: Address {} has too many history entries (HTTP 400), skipping and continuing with other addresses", address);
+                            // Return empty list instead of error to continue processing other addresses
+                            vec![]
+                        } else {
+                            eprintln!("[ERROR] EsploraResolver: address_utxo failed for {}: {:?}", address, err);
+                            vec![Err(ResolverError::from(err))]
+                        }
+                    },
+                    Ok(list) => {
+                        if list.is_empty() {
+                            eprintln!("[DEBUG] EsploraResolver: address_utxo returned empty list for address: {}", address);
+                        } else {
+                            eprintln!("[DEBUG] EsploraResolver: address_utxo returned {} UTXO(s) for address: {}", list.len(), address);
+                            for (i, utxo) in list.iter().enumerate() {
+                                eprintln!("[DEBUG] EsploraResolver:   UTXO {}: txid={}, vout={}, value={} sats", 
+                                    i + 1, utxo.txid, utxo.vout, utxo.value);
+                            }
+                        }
+                        list.into_iter()
+                            .map(|utxo| {
+                                Ok(Utxo {
+                                    outpoint: Outpoint::new(
+                                        utxo.txid,
+                                        Vout::from_u32(utxo.vout),
+                                    ),
+                                    value: Sats::from_sats(utxo.value),
+                                    terminal,
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    }
+                }
             })
     }
 

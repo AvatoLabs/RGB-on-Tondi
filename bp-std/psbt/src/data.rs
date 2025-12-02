@@ -787,12 +787,24 @@ impl Input {
     }
 
     fn to_signed_txin(&self) -> TxIn {
+        // For Taproot key-path spend: if we have tap_key_sig but no final_witness,
+        // construct the witness from the signature
+        let witness = if let Some(witness) = &self.final_witness {
+            witness.clone()
+        } else if let Some(sig) = &self.tap_key_sig {
+            // Construct witness for Taproot key-path spend
+            // Witness for key-path spend contains only the signature
+            Witness::from_consensus_stack([sig.to_vec()])
+        } else {
+            Witness::default()
+        };
+        
         TxIn {
             prev_output: self.previous_outpoint,
             // TODO #45: Figure out default SeqNo
-            sig_script: self.final_script_sig.clone().expect("non-finalized input"),
+            sig_script: self.final_script_sig.clone().unwrap_or_default(),
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
-            witness: self.final_witness.clone().unwrap_or_default(),
+            witness,
         }
     }
 
@@ -867,7 +879,16 @@ impl Input {
 
     #[must_use]
     pub fn is_finalized(&self) -> bool {
-        self.final_witness.is_some() || self.final_script_sig.is_some()
+        // Check for traditional finalized fields
+        if self.final_witness.is_some() || self.final_script_sig.is_some() {
+            return true;
+        }
+        // For Taproot key-path spend: if tap_key_sig is present, treat as finalized
+        // This is compatible with BDK which sets tap_key_sig but may not set final_script_witness
+        if self.tap_key_sig.is_some() && self.tap_internal_key.is_some() {
+            return true;
+        }
+        false
     }
 
     pub fn finalize<D: Descriptor<K, V>, K, V>(&mut self, descriptor: &D) -> bool {

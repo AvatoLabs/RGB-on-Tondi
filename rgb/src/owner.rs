@@ -245,27 +245,54 @@ where
     fn update_utxos(&mut self) -> Result<(), Self::Error> {
         let mut new = set![];
         let mut not_found = self.provider.utxos().outpoints().collect::<HashSet<_>>();
+        eprintln!("[DEBUG] update_utxos: Starting UTXO update");
+        eprintln!("[DEBUG] update_utxos: Available keychains: {:?}", self.provider.descriptor().keychains().into_iter().collect::<Vec<_>>());
+        eprintln!("[DEBUG] update_utxos: Default keychain: {:?}", self.provider.descriptor().default_keychain());
+        eprintln!("[DEBUG] update_utxos: Expected address: tb1p475g7ttjev5pn8mdnlf0qgrmsgnkhdkkvjjd6sr7p93ccfu8q94qp076t4");
+        
         for keychain in self.provider.descriptor().keychains() {
+            eprintln!("[DEBUG] update_utxos: Processing keychain: {:?}", keychain);
             let mut index = NormalIndex::ZERO;
             let last_index = self.provider.utxos().next_index_noshift(keychain);
+            eprintln!("[DEBUG] update_utxos: Starting from index: {:?}, last_index: {:?}", index, last_index);
             loop {
-                let Some(to) = index.checked_add(20u16) else {
-                    break;
-                };
+            let Some(to) = index.checked_add(20u16) else {
+                break;
+            };
 
-                let mut range = Vec::with_capacity(20);
-                while index < to {
-                    let terminal = Terminal::new(keychain, index);
-                    let iter = self.provider.descriptor().derive(keychain, index);
+            let mut range = Vec::with_capacity(20);
+            while index < to {
+                let terminal = Terminal::new(keychain, index);
+                let iter = self.provider.descriptor().derive(keychain, index);
 
-                    range.extend(iter.map(|d| (terminal, d.to_script_pubkey())));
-
-                    if index.checked_inc_assign().is_none() {
-                        break;
+                // Add logging for address derivation
+                let mut derived_addresses = Vec::new();
+                for derived in iter {
+                    let spk = derived.to_script_pubkey();
+                    // Try to convert to address for logging
+                    if let Ok(addr) = Address::with(&spk, self.network()) {
+                        derived_addresses.push(format!("{}", addr));
+                        // Check if this is the expected address
+                        if addr.to_string() == "tb1p475g7ttjev5pn8mdnlf0qgrmsgnkhdkkvjjd6sr7p93ccfu8q94qp076t4" {
+                            eprintln!("[DEBUG] ✅ FOUND EXPECTED ADDRESS! keychain={:?}, index={:?}", keychain, index);
+                        }
                     }
+                    range.push((terminal, spk));
+                }
+                if !derived_addresses.is_empty() {
+                    eprintln!("[DEBUG] update_utxos: Derived {} address(es) for keychain={:?}, index={:?}: {:?}", 
+                        derived_addresses.len(), keychain, index, derived_addresses);
+                } else {
+                    eprintln!("[DEBUG] update_utxos: Derived ScriptPubkey for keychain={:?}, index={:?} (could not convert to address for logging)", 
+                        keychain, index);
                 }
 
-                let set = self.resolver.resolve_utxos(range);
+                if index.checked_inc_assign().is_none() {
+                    break;
+                }
+            }
+
+            let set = self.resolver.resolve_utxos(range);
                 let prev_len = self.provider.utxos().len();
                 for utxo in set {
                     let utxo = utxo?;
