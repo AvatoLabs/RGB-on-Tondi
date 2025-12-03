@@ -1,11 +1,12 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2025 AvatoLabs. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +29,7 @@ use std::str::FromStr;
 
 use amplify::hex::{self, FromHex, ToHex};
 use amplify::{ByteArray, Bytes32StrRev, Wrapper};
-use commit_verify::{DigestExt, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
     ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime, NonStandardValue,
@@ -465,11 +466,51 @@ impl Tx {
 
     /// Computes the [`Txid`].
     ///
+    /// For Tondi L1: Uses BLAKE3 with "tondi.txid" domain separation (single hash).
+    /// For Bitcoin compatibility: Uses double SHA256.
+    ///
     /// Hashes the transaction **excluding** the segwit data (i.e. the marker,
     /// flag bytes, and the witness fields themselves). For non-segwit
     /// transactions which do not have any segwit data, this will be equal
     /// to [`Tx::wtxid()`].
     pub fn txid(&self) -> Txid {
+        // Tondi L1: Use BLAKE3 with domain separation (single hash)
+        let mut hasher = TondiBlake3::for_transaction();
+        self.version.consensus_encode(&mut hasher).expect("engines don't error");
+        self.inputs.consensus_encode(&mut hasher).expect("engines don't error");
+        self.outputs.consensus_encode(&mut hasher).expect("engines don't error");
+        self.lock_time.consensus_encode(&mut hasher).expect("engines don't error");
+        Txid::from_byte_array(hasher.finish())
+    }
+
+    /// Computes the Tondi transaction ID using BLAKE3.
+    ///
+    /// This is the canonical method for Tondi L1 transactions.
+    #[inline]
+    pub fn tondi_txid(&self) -> Txid {
+        self.txid()
+    }
+
+    /// Computes the segwit version of the transaction id.
+    ///
+    /// For Tondi L1: Uses BLAKE3 with "tondi.wtxid" domain separation.
+    ///
+    /// Hashes the transaction **including** all segwit data (i.e. the marker,
+    /// flag bytes, and the witness fields themselves). For non-segwit
+    /// transactions which do not have any segwit data, this will be equal
+    /// to [`Transaction::txid()`].
+    pub fn wtxid(&self) -> Wtxid {
+        // Tondi L1: Use BLAKE3 with domain separation
+        let mut hasher = TondiBlake3::from_context("tondi.wtxid");
+        self.consensus_encode(&mut hasher).expect("engines don't error");
+        Wtxid::from_byte_array(hasher.finish())
+    }
+
+    /// Computes the Bitcoin-compatible transaction ID using double SHA256.
+    ///
+    /// For cross-chain operations or Bitcoin compatibility.
+    #[cfg(feature = "bitcoin-compat")]
+    pub fn bitcoin_txid(&self) -> Txid {
         let mut enc = Sha256::default();
         self.version.consensus_encode(&mut enc).expect("engines don't error");
         self.inputs.consensus_encode(&mut enc).expect("engines don't error");
@@ -480,13 +521,11 @@ impl Tx {
         Txid::from_byte_array(double.finish())
     }
 
-    /// Computes the segwit version of the transaction id.
+    /// Computes the Bitcoin-compatible witness transaction ID using double SHA256.
     ///
-    /// Hashes the transaction **including** all segwit data (i.e. the marker,
-    /// flag bytes, and the witness fields themselves). For non-segwit
-    /// transactions which do not have any segwit data, this will be equal
-    /// to [`Transaction::txid()`].
-    pub fn wtxid(&self) -> Wtxid {
+    /// For cross-chain operations or Bitcoin compatibility.
+    #[cfg(feature = "bitcoin-compat")]
+    pub fn bitcoin_wtxid(&self) -> Wtxid {
         let mut enc = Sha256::default();
         self.consensus_encode(&mut enc).expect("engines don't error");
         let mut double = Sha256::default();

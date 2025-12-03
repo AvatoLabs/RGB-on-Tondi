@@ -1,11 +1,12 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2025 AvatoLabs. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +23,7 @@
 use std::borrow::Borrow;
 
 use amplify::{Bytes32, IoError};
-use commit_verify::{Digest, DigestExt, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
     Annex, ConsensusEncode, Sats, ScriptCode, ScriptPubkey, SeqNo, SigScript, Sighash, SighashFlag,
@@ -236,7 +237,7 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
         //      sha_annex (32): the SHA256 of (compact_size(size of annex) || annex),
         // where annex      includes the mandatory 0x50 prefix.
         if let Some(annex) = annex {
-            let mut enc = Sha256::default();
+            let mut enc = TondiBlake3::default();
             annex.consensus_encode(&mut enc)?;
             let hash = enc.finish();
             hash.consensus_encode(&mut hasher)?;
@@ -247,7 +248,7 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
         //      sha_single_output (32): the SHA256 of the corresponding output in CTxOut
         // format.
         if sighash_flag == SighashFlag::Single {
-            let mut enc = Sha256::default();
+            let mut enc = TondiBlake3::default();
             tx.outputs
                 .get(input_index)
                 .ok_or(SighashError::NoSingleOutputMatch {
@@ -451,13 +452,13 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
     fn common_cache(&mut self) -> &CommonCache {
         let tx = self.tx.borrow();
         self.common_cache.get_or_insert_with(|| {
-            let mut enc_prevouts = Sha256::default();
-            let mut enc_sequences = Sha256::default();
+            let mut enc_prevouts = TondiBlake3::default();
+            let mut enc_sequences = TondiBlake3::default();
             for txin in &tx.inputs {
                 let _ = txin.prev_output.consensus_encode(&mut enc_prevouts);
                 let _ = txin.sequence.consensus_encode(&mut enc_sequences);
             }
-            let mut enc_outputs = Sha256::default();
+            let mut enc_outputs = TondiBlake3::default();
             for txout in &tx.outputs {
                 let _ = txout.consensus_encode(&mut enc_outputs);
             }
@@ -472,16 +473,16 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
     fn segwit_cache(&mut self) -> &SegwitCache {
         let common_cache = *self.common_cache();
         self.segwit_cache.get_or_insert_with(|| SegwitCache {
-            prevouts: <[u8; 32]>::from(Sha256::digest(common_cache.prevouts)).into(),
-            sequences: <[u8; 32]>::from(Sha256::digest(common_cache.sequences)).into(),
-            outputs: <[u8; 32]>::from(Sha256::digest(common_cache.outputs)).into(),
+            prevouts: TondiBlake3::hash(common_cache.prevouts.as_slice()).into(),
+            sequences: TondiBlake3::hash(common_cache.sequences.as_slice()).into(),
+            outputs: TondiBlake3::hash(common_cache.outputs.as_slice()).into(),
         })
     }
 
     fn taproot_cache(&mut self) -> &TaprootCache {
         self.taproot_cache.get_or_insert_with(|| {
-            let mut enc_amounts = Sha256::default();
-            let mut enc_script_pubkeys = Sha256::default();
+            let mut enc_amounts = TondiBlake3::default();
+            let mut enc_script_pubkeys = TondiBlake3::default();
             for prevout in &self.prevouts {
                 let _ = prevout.borrow().value.consensus_encode(&mut enc_amounts);
                 let _ = prevout.borrow().script_pubkey.consensus_encode(&mut enc_script_pubkeys);

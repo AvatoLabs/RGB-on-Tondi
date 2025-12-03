@@ -29,12 +29,11 @@
 #[cfg(all(
     feature = "async",
     any(
-        feature = "resolver-esplora",
         feature = "resolver-electrum",
         /*feature = "resolver-bitcoinrpc"*/
     )
 ))]
-compile_error!("async feature must not be used with non-async resolvers");
+compile_error!("async feature must not be used with non-async resolvers (except Tondi which is async-only)");
 #[cfg(all(feature = "async", feature = "fs"))]
 compile_error!("async feature must not be used with fs feature");
 

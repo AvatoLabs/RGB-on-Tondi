@@ -23,7 +23,7 @@
 //! RGB.
 
 use bc::{Outpoint, Vout};
-use commit_verify::{Sha256, StrictHash};
+use commit_verify::{TondiBlake3, StrictHash};
 
 use crate::{Noise, TxoSealExt};
 
@@ -72,7 +72,7 @@ impl WTxoSeal {
     ///
     /// `nonce` is a deterministic incremental number, preventing from creating the same seal if the
     /// same output is used.
-    pub fn vout_no_fallback(vout: Vout, noise_engine: Sha256, nonce: u64) -> Self {
+    pub fn vout_no_fallback(vout: Vout, noise_engine: TondiBlake3, nonce: u64) -> Self {
         Self::with(WOutpoint::Wout(vout), noise_engine, nonce)
     }
 
@@ -82,7 +82,7 @@ impl WTxoSeal {
     ///
     /// `nonce` is a deterministic incremental number, preventing from creating the same seal if the
     /// same output is used.
-    pub fn no_fallback(outpoint: Outpoint, noise_engine: Sha256, nonce: u64) -> Self {
+    pub fn no_fallback(outpoint: Outpoint, noise_engine: TondiBlake3, nonce: u64) -> Self {
         Self::with(WOutpoint::Extern(outpoint), noise_engine, nonce)
     }
 
@@ -92,7 +92,7 @@ impl WTxoSeal {
     ///
     /// `nonce` is a deterministic incremental number, preventing from creating the same seal if the
     /// same output is used.
-    pub fn with(outpoint: WOutpoint, noise_engine: Sha256, nonce: u64) -> Self {
+    pub fn with(outpoint: WOutpoint, noise_engine: TondiBlake3, nonce: u64) -> Self {
         Self {
             primary: outpoint,
             secondary: TxoSealExt::Noise(Noise::with(outpoint, noise_engine, nonce)),

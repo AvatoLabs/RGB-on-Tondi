@@ -26,7 +26,7 @@ use core::str::FromStr;
 
 use amplify::{ByteArray, Bytes32, Wrapper};
 use commit_verify::{
-    CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, ReservedBytes, Sha256,
+    CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, ReservedBytes, TondiBlake3,
 };
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode, TypeName};
 
@@ -120,25 +120,40 @@ pub enum Consensus {
     #[strict_type(dumb)]
     None = 0,
 
-    /// Bitcoin PoW consensus.
-    Bitcoin = 0x10,
+    /// Tondi BlockDAG + PoW consensus (primary for this workspace).
+    Tondi = 0x30,
 
-    /// Liquid federation consensus.
-    Liquid = 0x11,
+    /// Tondi testnet consensus.
+    TondiTestnet = 0x31,
 
     /// Prime consensus.
     Prime = 0x20,
+
+    // Legacy variants kept for backward compatibility with external crates.
+    // These should not be used for new Tondi contracts.
+
+    /// Bitcoin PoW consensus (deprecated, kept for external crate compatibility).
+    #[deprecated(note = "Use Tondi consensus instead")]
+    Bitcoin = 0x10,
+
+    /// Liquid federation consensus (deprecated, kept for external crate compatibility).
+    #[deprecated(note = "Use Tondi consensus instead")]
+    Liquid = 0x11,
 }
 
 impl FromStr for Consensus {
     type Err = String;
 
+    #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "none" => Ok(Consensus::None),
+            "tondi" => Ok(Consensus::Tondi),
+            "tondi-testnet" | "tondi_testnet" => Ok(Consensus::TondiTestnet),
+            "prime" => Ok(Consensus::Prime),
+            // Legacy support
             "bitcoin" => Ok(Consensus::Bitcoin),
             "liquid" => Ok(Consensus::Liquid),
-            "prime" => Ok(Consensus::Prime),
             _ => Err(s.to_owned()),
         }
     }
@@ -204,12 +219,12 @@ pub struct ContractId(
 #[cfg(all(feature = "serde", feature = "baid64"))]
 impl_serde_str_bin_wrapper!(ContractId, Bytes32);
 
-impl From<Sha256> for ContractId {
-    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+impl From<TondiBlake3> for ContractId {
+    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
 }
 
 impl CommitmentId for ContractId {
-    const TAG: &'static str = "urn:ubideco:sonic:contract#2024-11-16";
+    const TAG: &'static str = "urn:tondi:sonic:contract#2025-01-01";
 }
 
 #[cfg(feature = "baid64")]
@@ -244,13 +259,18 @@ mod test {
     #![cfg_attr(coverage_nightly, coverage(off))]
 
     use amplify::ByteArray;
-    use commit_verify::Digest;
 
     use super::*;
 
+    fn blake3_hash(data: &[u8]) -> [u8; 32] {
+        let mut hasher = TondiBlake3::from_tag("test");
+        hasher.input_raw(data);
+        hasher.finish()
+    }
+
     #[test]
     fn contract_id_display() {
-        let id = ContractId::from_byte_array(Sha256::digest(b"test"));
+        let id = ContractId::from_byte_array(blake3_hash(b"test"));
         assert_eq!(format!("{id}"), "contract:n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg");
         assert_eq!(format!("{id:-}"), "n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg");
         assert_eq!(
@@ -261,7 +281,7 @@ mod test {
 
     #[test]
     fn contract_id_from_str() {
-        let id = ContractId::from_byte_array(Sha256::digest(b"test"));
+        let id = ContractId::from_byte_array(blake3_hash(b"test"));
         assert_eq!(
             ContractId::from_str("contract:n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg")
                 .unwrap(),

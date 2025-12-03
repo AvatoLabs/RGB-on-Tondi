@@ -1,12 +1,12 @@
 [package]
 name = "bp-consensus"
 version = "0.12.0"
-description = "Bitcoin protocol consensus library"
-keywords = ["lnp-bp", "smart-contracts", "bitcoin", "blockchain"]
+description = "Tondi protocol consensus library"
+keywords = ["tondi", "smart-contracts", "kaspa", "blockchain", "blake3"]
 categories = ["cryptography"]
-authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
-repository = "https://github.com/BP-WG/bp-core"
-homepage = "https://github.com/BP-WG"
+authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>", "AvatoLabs"]
+repository = "https://github.com/AvatoLabs/RGB-on-Tondi"
+homepage = "https://github.com/AvatoLabs/RGB-on-Tondi"
 edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.81.0"

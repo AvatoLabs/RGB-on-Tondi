@@ -1,0 +1,49 @@
+[package]
+name = "sonic-callreq"
+version.workspace = true
+authors.workspace = true
+description = "Structured calls to for SONIC distributed contracts"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories = ["algorithms", "cryptography", "science", "no-std"]
+readme.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+exclude = [".github"]
+
+[dependencies]
+amplify.workspace = true
+strict_encoding.workspace = true
+strict_types.workspace = true
+baid64.workspace = true
+ultrasonic.workspace = true
+indexmap = { workspace = true, optional = true }
+chrono.workspace = true
+fluent-uri = { version = "0.3.2", optional = true }
+percent-encoding = { version = "2.3.1", optional = true }
+serde = { workspace = true, optional = true }
+
+[features]
+default = ["std"]
+all = ["std", "uri"]
+
+std = ["amplify/std", "indexmap/std", "chrono/std", "fluent-uri/std"]
+uri = ["dep:fluent-uri", "dep:percent-encoding", "dep:indexmap"]
+serde = ["dep:serde", "strict_types/serde", "amplify/serde", "chrono/serde", "ultrasonic/serde"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+rand = { version = "0.9.1", optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom2 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.docs.rs]
+features = ["all"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }

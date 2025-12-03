@@ -27,12 +27,12 @@ use std::collections::{BTreeSet, HashMap};
 
 use amplify::confinement::KeyedCollection;
 use amplify::MultiError;
-use bpstd::psbt::{
-    Beneficiary, ConstructionError, DbcPsbtError, PsbtConstructor, PsbtMeta, TxParams,
+use bpstd::pstt::{
+    Beneficiary, ConstructionError, DbcPsttError, PsttConstructor, PsttMeta, TxParams,
     UnfinalizedInputs,
 };
 use bpstd::seals::TxoSeal;
-use bpstd::{Address, IdxBase, Psbt, Sats, Tx, Vout};
+use bpstd::{Address, IdxBase, Pstt, Sats, Tx, Vout};
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{
     BundleError, Coinselect, FulfillError, IncludeError, OpRequestSet, PaymentScript, PrefabBundle,
@@ -42,7 +42,7 @@ use rgb::{
     AuthToken, CodexId, Contract, ContractId, Contracts, EitherSeal, Issuer, Pile, RgbSealDef,
     Stock, Stockpile,
 };
-use rgpsbt::{RgbPsbt, RgbPsbtCsvError, RgbPsbtPrepareError, ScriptResolver};
+use rgpstt::{RgbPstt, RgbPsttCsvError, RgbPsttPrepareError, ScriptResolver};
 
 use crate::CoinselectStrategy;
 
@@ -50,11 +50,11 @@ use crate::CoinselectStrategy;
 /// [`RgbRuntime::pay_invoice`] method when the original transaction is created, and then must be
 /// provided to [`RgbRuntime::rbf`] to do the RBF transaction.
 #[derive(Clone, Eq, PartialEq, Debug)]
-// TODO: Add Deserialize once implemented in Psbt
+// TODO: Add Deserialize once implemented in Pstt
 //#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct Payment {
-    pub uncomit_psbt: Psbt,
-    pub psbt_meta: PsbtMeta,
+    pub uncomit_pstt: Pstt,
+    pub pstt_meta: PsttMeta,
     pub bundle: PrefabBundle,
     pub terminals: BTreeSet<AuthToken>,
 }
@@ -65,8 +65,8 @@ pub struct Payment {
 /// It provides
 /// - synchronization for the history of witness transactions, extending the main wallet UTXO set
 ///   synchronization ([`Self::sync`]);
-/// - low-level methods for working with PSBTs using `bp-std` library (these methods utilize
-///   [`rgb-psbt`] crate) - like [`Self::compose_psbt`] and [`Self::color_psbt`];
+/// - low-level methods for working with PSTTs using `bp-std` library (these methods utilize
+///   [`rgb-pstt`] crate) - like [`Self::compose_pstt`] and [`Self::color_pstt`];
 /// - high-level payment methods ([`Self::pay`], [`Self::rbf`]) relaying on the above.
 pub struct RgbRuntime<
     W,
@@ -131,20 +131,20 @@ where
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
 where
-    W: PsbtConstructor + WalletProvider,
+    W: PsttConstructor + WalletProvider,
     Sp: Stockpile,
     Sp::Pile: Pile<Seal = TxoSeal>,
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    /// Pay an invoice producing PSBT ready to be signed.
+    /// Pay an invoice producing PSTT ready to be signed.
     ///
-    /// Should not be used in multi-party protocols like coinjoins, when a PSBT may need to be
-    /// modified in the number of inputs or outputs. Use the `construct_psbt` method for such
+    /// Should not be used in multi-party protocols like coinjoins, when a PSTT may need to be
+    /// modified in the number of inputs or outputs. Use the `construct_pstt` method for such
     /// scenarios.
     ///
     /// If you need more flexibility in constructing payments (do multiple payments with multiple
-    /// contracts, use global state etc.) in a single PSBT, please use `pay_custom` APIs and
+    /// contracts, use global state etc.) in a single PSTT, please use `pay_custom` APIs and
     /// [`PrefabBundleSet`] instead of this simplified API.
     #[allow(clippy::type_complexity)]
     pub fn pay_invoice(
@@ -153,38 +153,38 @@ where
         strategy: impl Coinselect,
         params: TxParams,
         giveaway: Option<Sats>,
-    ) -> Result<(Psbt, Payment), MultiError<PayError, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<(Pstt, Payment), MultiError<PayError, <Sp::Stock as Stock>::Error>> {
         let request = self
             .fulfill(invoice, strategy, giveaway)
             .map_err(MultiError::from_a)?;
         let script = OpRequestSet::with(request.clone());
-        let (psbt, mut payment) = self
+        let (pstt, mut payment) = self
             .transfer(script, params)
             .map_err(MultiError::from_other_a)?;
         let terminal = match invoice.auth {
             RgbBeneficiary::Token(auth) => auth,
             RgbBeneficiary::WitnessOut(wout) => request
-                .resolve_seal(wout, psbt.script_resolver())
-                .expect("witness out must be present in the PSBT")
+                .resolve_seal(wout, pstt.script_resolver())
+                .expect("witness out must be present in the PSTT")
                 .auth_token(),
         };
         payment.terminals.insert(terminal);
-        Ok((psbt, payment))
+        Ok((pstt, payment))
     }
 
-    pub fn rbf(&mut self, payment: &Payment, fee: impl Into<Sats>) -> Result<Psbt, PayError> {
-        let mut psbt = payment.uncomit_psbt.clone();
+    pub fn rbf(&mut self, payment: &Payment, fee: impl Into<Sats>) -> Result<Pstt, PayError> {
+        let mut pstt = payment.uncomit_pstt.clone();
         let change = payment
-            .psbt_meta
+            .pstt_meta
             .change
             .expect("Can't RBF when no change is present");
-        let old_fee = psbt.fee().expect("Invalid PSBT with zero inputs");
-        let out = psbt
+        let old_fee = pstt.fee().expect("Invalid PSTT with zero inputs");
+        let out = pstt
             .output_mut(change.vout.into_usize())
-            .expect("invalid PSBT meta-information in the payment");
+            .expect("invalid PSTT meta-information in the payment");
         out.amount -= fee.into() - old_fee;
 
-        Ok(self.complete(psbt, &payment.bundle)?)
+        Ok(self.complete(pstt, &payment.bundle)?)
     }
 
     /// Convert invoice into a payment script.
@@ -198,26 +198,26 @@ where
         Ok(OpRequestSet::with(request))
     }
 
-    /// Construct transfer, consisting of PSBT and a consignment stream
+    /// Construct transfer, consisting of PSTT and a consignment stream
     // TODO: Return a dedicated Transfer object which can stream a consignment
     #[allow(clippy::type_complexity)]
     pub fn transfer(
         &mut self,
         script: PaymentScript,
         params: TxParams,
-    ) -> Result<(Psbt, Payment), MultiError<TransferError, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<(Pstt, Payment), MultiError<TransferError, <Sp::Stock as Stock>::Error>> {
         let payment = self.exec(script, params)?;
-        let psbt = self
-            .complete(payment.uncomit_psbt.clone(), &payment.bundle)
+        let pstt = self
+            .complete(payment.uncomit_pstt.clone(), &payment.bundle)
             .map_err(MultiError::A)?;
-        Ok((psbt, payment))
+        Ok((pstt, payment))
     }
 
-    pub fn compose_psbt(
+    pub fn compose_pstt(
         &mut self,
         bundle: &PaymentScript,
         params: TxParams,
-    ) -> Result<(Psbt, PsbtMeta), ConstructionError> {
+    ) -> Result<(Pstt, PsttMeta), ConstructionError> {
         let closes = bundle
             .iter()
             .flat_map(|params| &params.using)
@@ -236,24 +236,24 @@ where
                     .expect("script pubkey which is not representable as an address");
                 Beneficiary::new(address, seal.sats)
             });
-        self.wallet.construct_psbt(closes, beneficiaries, params)
+        self.wallet.construct_pstt(closes, beneficiaries, params)
     }
 
-    /// Fill in RGB information into a pre-composed PSBT, aligning it with the provided payment
+    /// Fill in RGB information into a pre-composed PSTT, aligning it with the provided payment
     /// script.
     ///
     /// This procedure internally calls [`RgbWallet::bundle`], ensuring all other RGB data (from
     /// other contracts) which were assigned to the UTXOs spent by this RGB, are not lost and
-    /// re-assigned to the change output(s) of the PSBT.
-    pub fn color_psbt(
+    /// re-assigned to the change output(s) of the PSTT.
+    pub fn color_pstt(
         &mut self,
-        mut psbt: Psbt,
-        mut meta: PsbtMeta,
+        mut pstt: Pstt,
+        mut meta: PsttMeta,
         script: PaymentScript,
     ) -> Result<Payment, MultiError<TransferError, <Sp::Stock as Stock>::Error>> {
         // From this moment the transaction becomes unmodifiable
         let mut change_vout = meta.change.map(|c| c.vout);
-        let request = psbt
+        let request = pstt
             .rgb_resolve(script, &mut change_vout)
             .map_err(MultiError::from_a)?;
         if let Some(c) = meta.change.as_mut() {
@@ -266,57 +266,57 @@ where
             .bundle(request, meta.change.map(|c| c.vout))
             .map_err(MultiError::from_other_a)?;
 
-        psbt.rgb_fill_csv(&bundle).map_err(MultiError::from_a)?;
+        pstt.rgb_fill_csv(&bundle).map_err(MultiError::from_a)?;
 
         Ok(Payment {
-            uncomit_psbt: psbt,
-            psbt_meta: meta,
+            uncomit_pstt: pstt,
+            pstt_meta: meta,
             bundle,
             terminals: none!(),
         })
     }
 
-    /// Execute payment script creating PSBT and prefabricated operation bundle.
+    /// Execute payment script creating PSTT and prefabricated operation bundle.
     ///
-    /// The returned PSBT contains only anonymous client-side validation information and is
+    /// The returned PSTT contains only anonymous client-side validation information and is
     /// not modifiable, since it contains RGB data.
     pub fn exec(
         &mut self,
         script: PaymentScript,
         params: TxParams,
     ) -> Result<Payment, MultiError<TransferError, <Sp::Stock as Stock>::Error>> {
-        let (psbt, meta) = self
-            .compose_psbt(&script, params)
+        let (pstt, meta) = self
+            .compose_pstt(&script, params)
             .map_err(MultiError::from_a)?;
-        self.color_psbt(psbt, meta, script)
+        self.color_pstt(pstt, meta, script)
     }
 
-    /// Completes PSBT and includes the prefabricated bundle into the contract.
+    /// Completes PSTT and includes the prefabricated bundle into the contract.
     pub fn complete(
         &mut self,
-        mut psbt: Psbt,
+        mut pstt: Pstt,
         bundle: &PrefabBundle,
-    ) -> Result<Psbt, TransferError> {
-        let (mpc, dbc) = psbt.dbc_commit()?;
-        let tx = psbt.to_unsigned_tx();
+    ) -> Result<Pstt, TransferError> {
+        let (mpc, dbc) = pstt.dbc_commit()?;
+        let tx = pstt.to_unsigned_tx();
 
-        let prevouts = psbt
+        let prevouts = pstt
             .inputs()
             .map(|inp| inp.previous_outpoint)
             .collect::<Vec<_>>();
         self.include(bundle, &tx.into(), mpc, dbc, &prevouts)?;
 
-        Ok(psbt)
+        Ok(pstt)
     }
 
     #[allow(clippy::type_complexity)]
     fn finalize_inner(
         &mut self,
-        mut psbt: Psbt,
-        meta: PsbtMeta,
+        mut pstt: Pstt,
+        meta: PsttMeta,
     ) -> Result<(Tx, Option<(Vout, u32, u32)>), FinalizeError<W::Error>> {
-        psbt.finalize(self.wallet.descriptor());
-        let tx = psbt.extract()?;
+        pstt.finalize(self.wallet.descriptor());
+        let tx = pstt.extract()?;
         let change = meta.change.map(|change| {
             (change.vout, change.terminal.keychain.index(), change.terminal.index.index())
         });
@@ -324,10 +324,10 @@ where
     }
 
     #[cfg(not(feature = "async"))]
-    /// Finalizes PSBT, extracts the signed transaction, broadcasts it and updates wallet UTXO set
+    /// Finalizes PSTT, extracts the signed transaction, broadcasts it and updates wallet UTXO set
     /// accordingly.
-    pub fn finalize(&mut self, psbt: Psbt, meta: PsbtMeta) -> Result<(), FinalizeError<W::Error>> {
-        let (tx, change) = self.finalize_inner(psbt, meta)?;
+    pub fn finalize(&mut self, pstt: Pstt, meta: PsttMeta) -> Result<(), FinalizeError<W::Error>> {
+        let (tx, change) = self.finalize_inner(pstt, meta)?;
         self.wallet
             .broadcast(&tx, change)
             .map_err(FinalizeError::Broadcast)?;
@@ -335,14 +335,14 @@ where
     }
 
     #[cfg(feature = "async")]
-    /// Finalizes PSBT, extracts the signed transaction, broadcasts it and updates wallet UTXO set
+    /// Finalizes PSTT, extracts the signed transaction, broadcasts it and updates wallet UTXO set
     /// accordingly.
     pub async fn finalize_async(
         &mut self,
-        psbt: Psbt,
-        meta: PsbtMeta,
+        pstt: Pstt,
+        meta: PsttMeta,
     ) -> Result<(), FinalizeError<W::Error>> {
-        let (tx, change) = self.finalize_inner(psbt, meta)?;
+        let (tx, change) = self.finalize_inner(pstt, meta)?;
         self.wallet
             .broadcast_async(&tx, change)
             .await
@@ -364,16 +364,16 @@ pub enum PayError {
 #[display(inner)]
 pub enum TransferError {
     #[from]
-    PsbtConstruct(ConstructionError),
+    PsttConstruct(ConstructionError),
 
     #[from]
-    PsbtRgbCsv(RgbPsbtCsvError),
+    PsttRgbCsv(RgbPsttCsvError),
 
     #[from]
-    PsbtDbc(DbcPsbtError),
+    PsttDbc(DbcPsttError),
 
     #[from]
-    PsbtPrepare(RgbPsbtPrepareError),
+    PsttPrepare(RgbPsttPrepareError),
 
     #[from]
     Bundle(BundleError),
@@ -386,7 +386,7 @@ pub enum TransferError {
 #[display(inner)]
 pub enum FinalizeError<E: core::error::Error> {
     #[from]
-    UnfinalizedPsbt(UnfinalizedInputs),
+    UnfinalizedPstt(UnfinalizedInputs),
     Broadcast(E),
 }
 
@@ -406,7 +406,7 @@ pub mod file {
     }
 
     pub struct Transfer<C: ConsignmentStream> {
-        pub psbt: Psbt,
+        pub pstt: Pstt,
         pub consignment: C,
     }
 }

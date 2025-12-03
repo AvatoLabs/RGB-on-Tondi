@@ -28,8 +28,8 @@ use std::fs::File;
 use std::str::FromStr;
 
 use anyhow::Context;
-use bpstd::psbt::{PsbtConstructor, TxParams};
-use bpstd::{ConsensusEncode, Outpoint, Psbt, PsbtVer, Wpkh, XpubDerivable};
+use bpstd::pstt::{PsttConstructor, TxParams};
+use bpstd::{ConsensusEncode, Outpoint, Pstt, PsttVer, Wpkh, XpubDerivable};
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{PaymentScript, PrefabBundle, WalletProvider};
 use rgb::{CallScope, Consensus, CreateParams, Issuer};
@@ -374,9 +374,14 @@ impl Args {
                 };
                 // TODO: Support parsing values with the new StrictTypes update
                 let value = value.map(StrictVal::num);
+                let consensus = if self.network.is_testnet() {
+                    Consensus::TondiTestnet
+                } else {
+                    Consensus::Tondi
+                };
                 let mut invoice = RgbInvoice::new(
                     contract_id,
-                    Consensus::Bitcoin,
+                    consensus,
                     self.network.is_testnet(),
                     beneficiary,
                     value,
@@ -400,33 +405,33 @@ impl Args {
                 invoice,
                 sats,
                 fee,
-                psbt2,
+                pstt2,
                 print,
                 force,
-                psbt: psbt_filename,
+                pstt: pstt_filename,
                 consignment: consignment_path,
             } => {
                 let mut runtime = self.runtime(wallet);
                 // TODO: sync wallet if needed
                 // TODO: Add params and giveway to arguments
                 let params = TxParams::with(*fee);
-                let (mut psbt, payment) = runtime.pay_invoice(invoice, *strategy, params, *sats)?;
-                let ver = if *psbt2 { PsbtVer::V2 } else { PsbtVer::V0 };
+                let (mut pstt, payment) = runtime.pay_invoice(invoice, *strategy, params, *sats)?;
+                let ver = if *pstt2 { PsttVer::V2 } else { PsttVer::V0 };
 
-                let psbt_filename = psbt_filename
+                let pstt_filename = pstt_filename
                     .as_ref()
                     .unwrap_or(consignment_path)
-                    .with_extension("psbt");
-                let mut psbt_file = if *force {
-                    File::create(psbt_filename).context("Unable to create PSBT")?
+                    .with_extension("pstt");
+                let mut pstt_file = if *force {
+                    File::create(pstt_filename).context("Unable to create PSTT")?
                 } else {
-                    File::create_new(psbt_filename)
-                        .context("Unable to create PSBT; try `--force`")?
+                    File::create_new(pstt_filename)
+                        .context("Unable to create PSTT; try `--force`")?
                 };
-                psbt.encode(ver, &mut psbt_file)?;
+                pstt.encode(ver, &mut pstt_file)?;
                 if *print {
-                    psbt.version = ver;
-                    println!("{psbt}");
+                    pstt.version = ver;
+                    println!("{pstt}");
                 }
                 if *force {
                     let _ = fs::remove_file(consignment_path);
@@ -449,9 +454,9 @@ impl Args {
                 print,
                 script,
                 fee,
-                psbt2,
+                pstt2,
                 bundle: bundle_filename,
-                psbt: psbt_filename,
+                pstt: pstt_filename,
             } => {
                 let mut runtime = self.runtime(&WalletOpts::default_with_name(wallet));
                 let src = File::open(script).context("Unable to open script file")?;
@@ -459,41 +464,41 @@ impl Args {
 
                 let params = TxParams::with(*fee);
                 let mut payment = runtime.exec(script, params)?;
-                let psbt_filename = psbt_filename
+                let pstt_filename = pstt_filename
                     .as_ref()
                     .unwrap_or(bundle_filename)
-                    .with_extension("psbt");
-                let mut psbt_file =
-                    File::create_new(psbt_filename).context("Unable to create PSBT")?;
+                    .with_extension("pstt");
+                let mut pstt_file =
+                    File::create_new(pstt_filename).context("Unable to create PSTT")?;
 
                 payment
                     .bundle
                     .save(bundle_filename)
                     .context("Unable to write to the output file")?;
 
-                // This PSBT can be sent to other payjoin parties so they add their inputs and
+                // This PSTT can be sent to other payjoin parties so they add their inputs and
                 // outputs, or even re-order existing ones
-                let ver = if *psbt2 { PsbtVer::V2 } else { PsbtVer::V0 };
+                let ver = if *pstt2 { PsttVer::V2 } else { PsttVer::V0 };
                 payment
-                    .uncomit_psbt
-                    .encode(ver, &mut psbt_file)
-                    .context("Unable to write PSBT")?;
+                    .uncomit_pstt
+                    .encode(ver, &mut pstt_file)
+                    .context("Unable to write PSTT")?;
                 if *print {
-                    payment.uncomit_psbt.version = ver;
-                    println!("{}", payment.uncomit_psbt);
+                    payment.uncomit_pstt.version = ver;
+                    println!("{}", payment.uncomit_pstt);
                 }
             }
 
-            Cmd::Complete { wallet, bundle, psbt: psbt_filename } => {
+            Cmd::Complete { wallet, bundle, pstt: pstt_filename } => {
                 let mut runtime = self.runtime(&WalletOpts::default_with_name(wallet));
                 let bundle = PrefabBundle::load(bundle)?;
-                let mut psbt_file = File::open(psbt_filename).context("Unable to open PSBT")?;
-                let psbt = Psbt::decode(&mut psbt_file)?;
+                let mut pstt_file = File::open(pstt_filename).context("Unable to open PSTT")?;
+                let pstt = Pstt::decode(&mut pstt_file)?;
 
-                let psbt = runtime.complete(psbt, &bundle)?;
+                let pstt = runtime.complete(pstt, &bundle)?;
 
-                let mut psbt_file = File::create(psbt_filename).context("Unable to write PSBT")?;
-                psbt.encode(psbt.version, &mut psbt_file)?;
+                let mut pstt_file = File::create(pstt_filename).context("Unable to write PSTT")?;
+                pstt.encode(pstt.version, &mut pstt_file)?;
             }
 
             Cmd::Consign { contract, terminals, output: consignment_path } => {
@@ -506,27 +511,27 @@ impl Args {
                     .context("Unable to consign the contract")?;
             }
 
-            Cmd::Finalize { broadcast, wallet, psbt: psbt_filename, tx: tx_filename } => {
+            Cmd::Finalize { broadcast, wallet, pstt: pstt_filename, tx: tx_filename } => {
                 let runtime = self.runtime(wallet);
-                let mut psbt_file = File::open(psbt_filename).context("Unable to open PSBT")?;
-                let mut psbt = Psbt::decode(&mut psbt_file)?;
+                let mut pstt_file = File::open(pstt_filename).context("Unable to open PSTT")?;
+                let mut pstt = Pstt::decode(&mut pstt_file)?;
 
-                for input in psbt.inputs_mut() {
+                for input in pstt.inputs_mut() {
                     if input.final_script_sig.is_none() {
                         input.final_script_sig = Some(Default::default());
                     }
                 }
                 
-                let inputs = psbt.finalize(runtime.wallet.descriptor());
-                eprint!("{inputs} of {} inputs were finalized", psbt.inputs().count());
-                if psbt.is_finalized() {
+                let inputs = pstt.finalize(runtime.wallet.descriptor());
+                eprint!("{inputs} of {} inputs were finalized", pstt.inputs().count());
+                if pstt.is_finalized() {
                     eprintln!(", transaction is ready for the extraction");
                 } else {
                     eprintln!(" and some non-finalized inputs remain");
                 }
 
                 eprint!("Extracting signed transaction ... ");
-                let extracted = match psbt.extract() {
+                let extracted = match pstt.extract() {
                     Ok(extracted) => {
                         eprintln!("success");
                         if !*broadcast && tx_filename.is_none() {
@@ -542,7 +547,7 @@ impl Args {
                     }
                     Err(e) if *broadcast || tx_filename.is_some() => {
                         anyhow::bail!(
-                            "PSBT still contains {} non-finalized inputs, failing to extract \
+                            "PSTT still contains {} non-finalized inputs, failing to extract \
                              transaction",
                             e.0
                         );
@@ -554,7 +559,7 @@ impl Args {
 
                 if *broadcast {
                     // TODO: Implement new finalization workflow
-                    //runtime.finalize(psbt);
+                    //runtime.finalize(pstt);
                     self.resolver(&wallet.resolver).broadcast(&extracted)?;
                 }
             }

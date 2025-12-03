@@ -35,7 +35,7 @@ mod common;
 use std::fmt::Display;
 
 use amplify::{Bytes32, Wrapper};
-use commit_verify::{CommitEncode, CommitId, CommitmentId, Conceal, DigestExt, Sha256};
+use commit_verify::{CommitEncode, CommitId, CommitmentId, Conceal, DigestExt, TondiBlake3};
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
 const TEST_LIB: &str = "TestLib";
@@ -54,8 +54,8 @@ impl CommitmentId for DumbId {
     const TAG: &'static str = "";
 }
 
-impl From<Sha256> for DumbId {
-    fn from(value: Sha256) -> Self { value.finish().into() }
+impl From<TondiBlake3> for DumbId {
+    fn from(value: TondiBlake3) -> Self { value.finish().into() }
 }
 
 fn verify_commit<T: CommitId>(value: T, expect: &'static str)

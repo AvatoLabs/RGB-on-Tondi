@@ -29,7 +29,7 @@ use bc::{
     TapSighash, XOnlyPk,
 };
 use derive::{KeyOrigin, Sign, XkeyOrigin, Xpriv, XprivAccount};
-use psbt::{Psbt, Rejected, Signer};
+use pstt::{Pstt, Rejected, Signer};
 
 #[derive(Clone)]
 pub struct TestnetRefSigner<'a> {
@@ -85,7 +85,7 @@ impl Signer for TestnetRefSigner<'_> {
         = Self
     where Self: 's;
 
-    fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
+    fn approve(&self, _: &Pstt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
 
 impl TestnetRefSigner<'_> {
@@ -213,7 +213,7 @@ impl TestnetSigner {
 impl Signer for TestnetSigner {
     type Sign<'s> = TestnetRefSigner<'s>;
 
-    fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> {
+    fn approve(&self, _: &Pstt) -> Result<Self::Sign<'_>, Rejected> {
         Ok(TestnetRefSigner::with(self.key_path, self.script_path, &self.keys))
     }
 }

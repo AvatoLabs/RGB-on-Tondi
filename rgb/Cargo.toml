@@ -25,9 +25,9 @@ commit_verify = { workspace = true }
 strict_types = { workspace = true }
 bp-std = { workspace = true, features = ["client-side-validation"] }
 bp-electrum = { version = "0.12.0-rc.1", optional = true }
-bp-esplora = { workspace = true, default-features = false, optional = true }
+bp-tondi = { workspace = true, default-features = false, optional = true }
 rgb-std = { workspace = true, features = ["bitcoin"] }
-rgb-psbt = { workspace = true, features = ["bp"] }
+rgb-pstt = { workspace = true, features = ["bp"] }
 rgb-descriptors = { workspace = true }
 rgb-persist-fs = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
@@ -73,20 +73,20 @@ log = ["dep:log"]
 
 resolvers-all = [
     "resolver-electrum",
-    "resolver-esplora",
     #"resolver-bitcoinrpc"
 ]
 resolver-electrum = ["dep:bp-electrum"]
-resolver-esplora = ["bp-esplora/blocking-https"]
 #resolver-bitcoinrpc = [] # TODO
 
 resolvers-all-async = [
     #"resolver-electrum-async",
-    "resolver-esplora-async",
+    "resolver-tondi",
     #"resolver-bitcoinrpc-async"
 ]
 #resolver-electrum-async = ["async", "dep:bp-electrum"] # TODO: ["bp-electrum/async"]
-resolver-esplora-async = ["async", "bp-esplora/async", "bp-esplora/async-https", "bp-esplora/tokio"]
+# Tondi client is async-only
+resolver-tondi = ["async", "bp-tondi/async"]
+resolver-tondi-async = ["resolver-tondi"]
 #resolver-bitcoinrpc-async = ["async"] # TODO
 
 serde = [

@@ -27,15 +27,24 @@ use std::str::FromStr;
 use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
-use commit_verify::{Digest, Ripemd160};
+use commit_verify::{DigestExt, TondiBlake3};
 use hmac::{Hmac, Mac};
-use sha2::{Sha256, Sha512};
+use sha2::Sha512;
 
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
     Idx, IdxBase, IndexParseError, Keychain, NormalIndex, SegParseError, Terminal,
 };
 
+/// Tondi BIP-44 coin type (registered as 7890).
+/// Used in derivation paths: m/purpose'/7890'/account'/change/address_index
+pub const TONDI_COIN_TYPE: u32 = 7890;
+
+/// Tondi testnet coin type (same as mainnet for now, can be changed if needed).
+pub const TONDI_TESTNET_COIN_TYPE: u32 = 7890;
+
+// Extended key version magic bytes (keeping Bitcoin-compatible format for now)
+// TODO: Consider registering Tondi-specific xpub/xpriv version bytes
 pub const XPRIV_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xAD, 0xE4];
 pub const XPRIV_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x83, 0x94];
 
@@ -284,11 +293,14 @@ impl Xpub {
 
     pub fn parent_fp(&self) -> XpubFp { self.meta.parent_fp }
 
-    /// Returns the HASH160 of the chaincode
+    /// Returns the BLAKE3 hash (truncated to 20 bytes) of the public key (Tondi standard).
     pub fn identifier(&self) -> XpubId {
-        let hash1 = Sha256::digest(self.core.public_key.serialize());
-        let hash2 = Ripemd160::digest(hash1);
-        XpubId::from_slice_checked(hash2)
+        let mut hasher = TondiBlake3::from_tag("tondi.xpub.id");
+        hasher.input_raw(&self.core.public_key.serialize());
+        let hash = hasher.finish();
+        let mut id = [0u8; 20];
+        id.copy_from_slice(&hash[..20]);
+        XpubId::from_slice_checked(id)
     }
 
     pub fn fingerprint(&self) -> XpubFp {
@@ -404,8 +416,9 @@ pub struct Xpriv {
 impl Xpriv {
     // TODO #42: Use dedicated `Seed` type
     pub fn new_master(testnet: bool, seed: &[u8]) -> Xpriv {
+        // Tondi uses "Tondi seed" instead of "Bitcoin seed" for HMAC
         let mut hmac: Hmac<Sha512> =
-            Hmac::new_from_slice(b"Bitcoin seed").expect("HMAC can take key of any size");
+            Hmac::new_from_slice(b"Tondi seed").expect("HMAC can take key of any size");
         hmac.update(seed);
         let hmac_result = hmac.finalize().into_bytes();
 

@@ -59,19 +59,19 @@ fn main() {
         .append("tokenOwners", seal_change, svnum!(90_0000), None)
         .commit();
 
-    // PSBT constructor analyses both inputs and outputs of the operation, detecting and checking
+    // PSTT constructor analyses both inputs and outputs of the operation, detecting and checking
     // relevant seals (for instance, vout-based).
-    let psbt = alice.construct_psbt(op);
+    let pstt = alice.construct_pstt(op);
     //let alice_balances = stockpile.select_unspent(alice.utxos(), svnum!(10_0000));
 
-    for contract_id in alice.affected(psbt) {
+    for contract_id in alice.affected(pstt) {
         // TODO: We need to do blank transitions as well
     }
 
-    let anchor = psbt.extract_anchor(stockpile.contract_id());
+    let anchor = pstt.extract_anchor(stockpile.contract_id());
     // TODO: We need to extract an anchor per each contract
     // This adds information about UTXOs to the wallet
-    let tx = alice.finalize_psbt();
+    let tx = alice.finalize_pstt();
 
     // Ensuring Alice's contract is updated
     stockpile.append_witness(tx, anchor);

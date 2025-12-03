@@ -28,7 +28,7 @@ use core::fmt::Debug;
 use amplify::{ByteArray, Bytes, Bytes32};
 use bc::{Outpoint, Tx, Txid};
 use commit_verify::{
-    CommitId, ConvolveVerifyError, DigestExt, EmbedVerifyError, ReservedBytes, Sha256,
+    CommitId, ConvolveVerifyError, DigestExt, EmbedVerifyError, ReservedBytes, TondiBlake3,
 };
 use dbc::opret::{OpretError, OpretProof};
 use dbc::tapret::TapretProof;
@@ -47,9 +47,9 @@ use crate::WOutpoint;
 pub struct Noise(Bytes<40>);
 
 impl Noise {
-    /// Construct a new noise object using entropy from a pre-initialized SHA256 engine, some nonce
+    /// Construct a new noise object using entropy from a pre-initialized BLAKE3 engine, some nonce
     /// and main [`WTxoSeal`] definition outpoint.
-    pub fn with(outpoint: WOutpoint, mut noise_engine: Sha256, nonce: u64) -> Self {
+    pub fn with(outpoint: WOutpoint, mut noise_engine: TondiBlake3, nonce: u64) -> Self {
         noise_engine.input_raw(&nonce.to_be_bytes());
         match outpoint {
             WOutpoint::Wout(wout) => {
@@ -84,7 +84,7 @@ impl Noise {
 /// Multiprotocol commitments in [`commit_verify::mpc`]
 pub mod mmb {
     use amplify::confinement::SmallOrdMap;
-    use commit_verify::{CommitmentId, DigestExt, Sha256};
+    use commit_verify::{CommitmentId, DigestExt, TondiBlake3};
 
     use super::*;
 
@@ -116,10 +116,10 @@ pub mod mmb {
         Bytes32,
     );
     impl CommitmentId for Commitment {
-        const TAG: &'static str = "urn:lnp-bp:mmb:bundle#2024-11-18";
+        const TAG: &'static str = "urn:tondi:mmb:bundle#2025-01-01";
     }
-    impl From<Sha256> for Commitment {
-        fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+    impl From<TondiBlake3> for Commitment {
+        fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
     }
 
     impl From<Commitment> for mpc::Message {
@@ -241,7 +241,7 @@ pub mod mpc {
                 (*id, msg)
             });
             let source = commit_verify::mpc::MultiSource {
-                method: Method::Sha256t,
+                method: Method::Blake3t,
                 min_depth: self.min_depth,
                 messages: MediumOrdMap::from_iter_checked(messages),
                 static_entropy: Some(self.entropy),
@@ -483,7 +483,7 @@ mod test {
     use amplify::num::u5;
     use bc::secp256k1::{SecretKey, SECP256K1};
     use bc::{InternalPk, Sats, ScriptPubkey, SeqNo, TapLeafHash, TapScript, TxIn, TxOut, Vout};
-    use commit_verify::{CommitVerify, Digest};
+    use commit_verify::{CommitVerify, DigestExt};
     use dbc::tapret::{TapretCommitment, TapretPathProof};
     use single_use_seals::SealError;
 
@@ -520,7 +520,7 @@ mod test {
         bundle.map.insert(12, messages[11]).unwrap();
 
         // Construct seals
-        let noise_engine = Sha256::new_with_prefix("test");
+        let noise_engine = TondiBlake3::from_tag("test");
         let outpoints = messages
             .iter()
             .map(|msg| Outpoint::new(Txid::from_byte_array(msg.to_byte_array()), msg[0] as u32))

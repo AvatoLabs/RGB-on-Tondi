@@ -4,12 +4,14 @@
 //
 // Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
 // Copyright (C) 2024-2025 LNP/BP Laboratories,
 //                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
 // Copyright (C) 2025 RGB Consortium, Switzerland.
 // Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+// Copyright (C) 2025 AvatoLabs.
 // All rights under the above copyrights are reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -79,15 +81,15 @@ pub struct Args {
     )]
     pub data_dir: PathBuf,
 
-    /// Bitcoin network
-    #[arg(short, long, global = true, default_value = "testnet4", env = RGB_NETWORK_ENV)]
+    /// Tondi/Bitcoin network
+    #[arg(short, long, global = true, default_value = "testnet", env = RGB_NETWORK_ENV)]
     pub network: Network,
 
     /// Do not add network name as a prefix to the data directory
     #[arg(long, global = true, env = RGB_NO_NETWORK_PREFIX_ENV)]
     pub no_network_prefix: bool,
 
-    /// Minimal number of confirmations to consider an operation final
+    /// Minimal number of confirmations (DAA score depth for Tondi) to consider an operation final
     #[arg(long, global = true, default_value = "32")]
     pub min_confirmations: u32,
 
@@ -124,7 +126,7 @@ impl Args {
         if self.no_network_prefix {
             self.data_dir.clone()
         } else {
-            let mut dir = self.data_dir.join("bitcoin");
+            let mut dir = self.data_dir.join("tondi");
             if self.network.is_testnet() {
                 dir.set_extension("testnet");
             }
@@ -136,7 +138,7 @@ impl Args {
         if !self.network.is_testnet() {
             panic!("Non-testnet networks are not yet supported");
         }
-        let stockpile = StockpileDir::load(self.data_dir(), Consensus::Bitcoin, true)
+        let stockpile = StockpileDir::load(self.data_dir(), Consensus::Tondi, true)
             .expect("Invalid contracts directory");
         Contracts::load(stockpile)
     }
@@ -170,10 +172,14 @@ impl Args {
     }
 
     pub fn resolver(&self, resolver: &ResolverOpt) -> MultiResolver {
-        let network = self.network.to_string();
-        match (&resolver.esplora, &resolver.electrum) {
+        match (&resolver.tondi, &resolver.electrum) {
             (None, Some(url)) => MultiResolver::new_electrum(url),
-            (Some(url), None) => MultiResolver::new_esplora(&url.replace("{network}", &network)),
+            (Some(_endpoint), None) => {
+                // TODO: Tondi resolver requires async runtime
+                // For now, fallback to absent resolver
+                eprintln!("Warning: Tondi resolver not yet supported in sync mode, use --electrum instead");
+                MultiResolver::new_absent()
+            }
             _ => MultiResolver::new_absent(),
         }
         .expect("Unable to connect to the indexing server")

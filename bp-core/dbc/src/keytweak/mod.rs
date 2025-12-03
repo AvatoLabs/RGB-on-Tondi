@@ -25,8 +25,8 @@
 //! a) `PublicKey, Msg -> PublicKey', PublicKey`;
 //! b) `Set<PublicKey>, Msg -> Set<PublicKey>', PublicKey`;
 //! c) `LockScript, Msg -> LockScript', (LockScript, PublicKey)`;
-//! d) `(psbt::Output, TxOut), Msg -> (psbt::Output, TxOut)', KeytweakProof`;
-//! e) `PSBT, Msg -> PSBT', KeytweakProof`;
+//! d) `(pstt::Output, TxOut), Msg -> (pstt::Output, TxOut)', KeytweakProof`;
+//! e) `PSTT, Msg -> PSTT', KeytweakProof`;
 //! **Convolve-commit:**
 //! d) `PubkeyScript, SpkDescriptor, Msg -> PubkeyScript'`;
 //! e) `TxOut, SpkDescriptor, Msg -> TxOut'`;

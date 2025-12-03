@@ -1,11 +1,12 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2025 AvatoLabs. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +26,7 @@ use std::str::FromStr;
 
 use amplify::hex::{FromHex, ToHex};
 use amplify::{ByteArray, Bytes32StrRev, Wrapper};
-use commit_verify::{DigestExt, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
     BlockDataParseError, ConsensusDecode, ConsensusEncode, Tx, VarIntArray, LIB_NAME_BITCOIN,
@@ -43,30 +44,72 @@ pub struct BlockHash(
 );
 
 impl BlockHash {
+    /// Tondi mainnet genesis block hash
+    /// Hash: 7ba62b07f55160ff0e737ada5b009bce95b4f173205078e283c029b5c0a3ed23
+    pub const GENESIS_TONDI_MAINNET: BlockHash = BlockHash::from_u64_be_array([
+        0x7ba62b07_f55160ff,
+        0x0e737ada_5b009bce,
+        0x95b4f173_205078e2,
+        0x83c029b5_c0a3ed23,
+    ]);
+    
+    /// Tondi testnet (Frontier) genesis block hash
+    /// Hash: 76080d71779c5da22d2127843c7d656ec00fb0d12b4d2a79cd2ff75665bf7d67
+    pub const GENESIS_TONDI_TESTNET: BlockHash = BlockHash::from_u64_be_array([
+        0x76080d71_779c5da2,
+        0x2d212784_3c7d656e,
+        0xc00fb0d1_2b4d2a79,
+        0xcd2ff756_65bf7d67,
+    ]);
+    
+    /// Tondi simnet genesis block hash
+    /// Hash: 507e187e838115cada6f2c6d59145b85659a8fc700b1b375768cf569a1525d12
+    pub const GENESIS_TONDI_SIMNET: BlockHash = BlockHash::from_u64_be_array([
+        0x507e187e_838115ca,
+        0xda6f2c6d_59145b85,
+        0x659a8fc7_00b1b375,
+        0x768cf569_a1525d12,
+    ]);
+    
+    /// Tondi devnet genesis block hash
+    /// Hash: 53218a310490f0f36670baab6ef9b92571968798959b54639521cf2ca3bbd481
+    pub const GENESIS_TONDI_DEVNET: BlockHash = BlockHash::from_u64_be_array([
+        0x53218a31_0490f0f3,
+        0x6670baab_6ef9b925,
+        0x71968798_959b5463,
+        0x9521cf2c_a3bbd481,
+    ]);
+    
+    // Bitcoin genesis block hashes (deprecated, kept for backward compatibility)
+    #[deprecated(note = "Use GENESIS_TONDI_MAINNET for Tondi")]
     pub const GENESIS_MAINNET: BlockHash = BlockHash::from_u64_be_array([
         0x00000000_0019d668,
         0x9c085ae1_65831e93,
         0x4ff763ae_46a2a6c1,
         0x72b3f1b6_0a8ce26f,
     ]);
+    #[deprecated(note = "Use GENESIS_TONDI_TESTNET for Tondi")]
     pub const GENESIS_TESTNET3: BlockHash = BlockHash::from_u64_be_array([
         0x00000000_0933ea01,
         0xad0ee984_209779ba,
         0xaec3ced9_0fa3f408,
         0x719526f8_d77f4943,
     ]);
+    #[deprecated(note = "Use GENESIS_TONDI_TESTNET for Tondi")]
     pub const GENESIS_TESTNET4: BlockHash = BlockHash::from_u64_be_array([
         0x00000000_da84f2ba,
         0xfbbc53de_e25a72ae,
         0x507ff491_4b867c56,
         0x5be350b0_da8bf043,
     ]);
+    #[deprecated(note = "Use GENESIS_TONDI_SIMNET for Tondi")]
     pub const GENESIS_SIGNET: BlockHash = BlockHash::from_u64_be_array([
         0x00000008_819873e9,
         0x25422c1f_f0f99f7c,
         0xc9bbb232_af63a077,
         0xa480a363_3bee1ef6,
     ]);
+    #[deprecated(note = "Use GENESIS_TONDI_DEVNET for Tondi")]
     pub const GENESIS_REGTEST: BlockHash = BlockHash::from_u64_be_array([
         0x0f9188f1_3cb7b2c7,
         0x1f2a335e_3a4fc328,
@@ -163,13 +206,16 @@ impl FromStr for BlockHeader {
 }
 
 impl BlockHeader {
+    /// Computes the block hash using BLAKE3 for Tondi L1.
+    ///
+    /// For Tondi L1: Uses BLAKE3 with "tondi.block.hash" domain separation.
     pub fn block_hash(&self) -> BlockHash {
-        let mut enc = Sha256::default();
-        self.consensus_encode(&mut enc).expect("engines don't error");
-        let mut double = Sha256::default();
-        double.input_raw(&enc.finish());
-        BlockHash::from_byte_array(double.finish())
+        // Tondi L1: Use BLAKE3 with domain separation
+        let mut hasher = TondiBlake3::for_block();
+        self.consensus_encode(&mut hasher).expect("engines don't error");
+        BlockHash::from_byte_array(hasher.finish())
     }
+
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Display)]

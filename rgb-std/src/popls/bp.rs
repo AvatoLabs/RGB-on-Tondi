@@ -40,7 +40,7 @@ pub use bp::seals;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Txid, Vout};
 use commit_verify::mpc::ProtocolId;
-use commit_verify::{mpc, Digest, DigestExt, Sha256, StrictHash};
+use commit_verify::{mpc, DigestExt, StrictHash, TondiBlake3};
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
     NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError, StateName,
@@ -159,7 +159,7 @@ impl<T> EitherSeal<T> {
 }
 
 impl EitherSeal<Outpoint> {
-    pub fn transform(self, noise_engine: Sha256, nonce: u64) -> EitherSeal<WTxoSeal> {
+    pub fn transform(self, noise_engine: TondiBlake3, nonce: u64) -> EitherSeal<WTxoSeal> {
         match self {
             EitherSeal::Alt(seal) => {
                 EitherSeal::Alt(WTxoSeal::no_fallback(seal, noise_engine, nonce))
@@ -170,7 +170,7 @@ impl EitherSeal<Outpoint> {
 }
 
 impl CreateParams<Outpoint> {
-    pub fn transform(self, mut noise_engine: Sha256) -> CreateParams<WTxoSeal> {
+    pub fn transform(self, mut noise_engine: TondiBlake3) -> CreateParams<WTxoSeal> {
         noise_engine.input_raw(self.issuer.codex_id().as_slice());
         noise_engine.input_raw(&[self.consensus as u8]);
         noise_engine.input_raw(self.method.as_bytes());
@@ -368,7 +368,7 @@ pub struct Prefab {
 /// A bundle of prefabricated operations related to the same witness transaction.
 ///
 /// The pack should cover all contracts assigning state to the witness transaction previous outputs.
-/// It is used to add seal closing commitment to the witness transaction PSBT.
+/// It is used to add seal closing commitment to the witness transaction PSTT.
 #[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, Default, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -497,9 +497,9 @@ where
         self.contracts.contract_state(contract_id)
     }
 
-    fn noise_engine(&self) -> Sha256 {
+    fn noise_engine(&self) -> TondiBlake3 {
         let noise_seed = self.wallet.noise_seed();
-        let mut noise_engine = Sha256::new();
+        let mut noise_engine = TondiBlake3::new();
         noise_engine.input_raw(noise_seed.as_ref());
         noise_engine
     }
@@ -947,6 +947,19 @@ where
 }
 
 impl CreateParams<Outpoint> {
+    /// Creates new contract creation parameters for Tondi mainnet.
+    pub fn new_tondi_mainnet(codex_id: CodexId, name: impl Into<TypeName>) -> Self {
+        Self::new_mainnet(codex_id, Consensus::Tondi, name)
+    }
+
+    /// Creates new contract creation parameters for Tondi testnet.
+    pub fn new_tondi_testnet(codex_id: CodexId, name: impl Into<TypeName>) -> Self {
+        Self::new_testnet(codex_id, Consensus::TondiTestnet, name)
+    }
+
+    /// Deprecated: Use `new_tondi_testnet` instead.
+    #[deprecated(note = "Use new_tondi_testnet instead")]
+    #[allow(deprecated)]
     pub fn new_bitcoin_testnet(codex_id: CodexId, name: impl Into<TypeName>) -> Self {
         Self::new_testnet(codex_id, Consensus::Bitcoin, name)
     }

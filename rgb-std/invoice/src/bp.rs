@@ -33,7 +33,7 @@ use baid64::base64::{DecodeError, Engine};
 use baid64::BAID64_ALPHABET;
 use bp::seals::Noise;
 use bp::ScriptPubkey;
-use commit_verify::{Digest, DigestExt, ReservedBytes, Sha256};
+use commit_verify::{DigestExt, ReservedBytes, TondiBlake3};
 pub use invoice::*;
 use strict_encoding::{DeserializeError, StrictDeserialize, StrictSerialize};
 
@@ -65,7 +65,7 @@ impl WitnessOut {
     }
 
     pub fn noise(&self) -> Noise {
-        let mut noise_engine = Sha256::new();
+        let mut noise_engine = TondiBlake3::new();
         noise_engine.input_raw(&self.salt.to_le_bytes());
         noise_engine.input_raw(self.script_pubkey().as_ref());
         let mut noise = [0xFFu8; 40];
@@ -76,13 +76,13 @@ impl WitnessOut {
     pub fn script_pubkey(&self) -> ScriptPubkey { self.address.script_pubkey() }
 
     pub fn checksum(&self) -> [u8; 4] {
-        let key = Sha256::digest(WITNESS_OUT_HRI.as_bytes());
-        let mut sha = Sha256::new_with_prefix(key);
-        sha.update([0]);
-        sha.update(self.salt.to_le_bytes());
-        sha.update(self.script_pubkey().as_slice());
-        let sha = sha.finalize();
-        [sha[0], sha[1], sha[1], sha[2]]
+        // Use TondiBlake3 with domain separation for checksum
+        let mut hasher = TondiBlake3::from_tag(WITNESS_OUT_HRI.as_bytes());
+        hasher.input_raw(&[0]);
+        hasher.input_raw(&self.salt.to_le_bytes());
+        hasher.input_raw(self.script_pubkey().as_slice());
+        let hash = hasher.finish();
+        [hash[0], hash[1], hash[1], hash[2]]
     }
 }
 

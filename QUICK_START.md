@@ -197,18 +197,18 @@ pub fn pay_invoice(
     invoice_str: &str,
     fee_rate: u32,
     bitcoin_sats: u64,
-) -> Result<Psbt> {
+) -> Result<Pstt> {
     let invoice = RgbInvoice::from_str(invoice_str)?;
     let tx_params = TxParams::with(fee_rate);
     
-    let (psbt, _) = runtime.pay_invoice(
+    let (pstt, _) = runtime.pay_invoice(
         &invoice,
         CoinselectStrategy::Aggregate,
         tx_params,
         bitcoin_sats,
     )?;
     
-    Ok(psbt)
+    Ok(pstt)
 }
 ```
 

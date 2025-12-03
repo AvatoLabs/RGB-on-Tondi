@@ -31,7 +31,7 @@ use amplify::confinement::SmallVec;
 use amplify::{ByteArray, Bytes32};
 use commit_verify::{
     CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, MerkleHash, ReservedBytes,
-    Sha256,
+    TondiBlake3,
 };
 
 use crate::{CallId, CodexId, ContractId, StateCell, StateData, StateValue, LIB_NAME_ULTRASONIC};
@@ -60,12 +60,12 @@ impl From<Opid> for [u8; 32] {
     fn from(opid: Opid) -> Self { opid.to_byte_array() }
 }
 
-impl From<Sha256> for Opid {
-    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+impl From<TondiBlake3> for Opid {
+    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
 }
 
 impl CommitmentId for Opid {
-    const TAG: &'static str = "urn:ubideco:ultrasonic:operation#2024-11-14";
+    const TAG: &'static str = "urn:tondi:ultrasonic:operation#2025-01-01";
 }
 
 /// Address of the memory cell.
@@ -473,14 +473,19 @@ mod test {
     use core::str::FromStr;
 
     use amplify::ByteArray;
-    use commit_verify::Digest;
     use strict_encoding::StrictDumb;
 
     use super::*;
 
+    fn blake3_hash(data: &[u8]) -> [u8; 32] {
+        let mut hasher = TondiBlake3::from_tag("test");
+        hasher.input_raw(data);
+        hasher.finish()
+    }
+
     #[test]
     fn opid_display() {
-        let id = Opid::from_byte_array(Sha256::digest(b"test"));
+        let id = Opid::from_byte_array(blake3_hash(b"test"));
         assert_eq!(format!("{id}"), "n4bQgYhMfWWaL_qgxVrQFaO~TxsrC4Is0V1sFbDwCgg");
         assert_eq!(format!("{id:-}"), "usop:n4bQgYhMfWWaL_qgxVrQFaO~TxsrC4Is0V1sFbDwCgg");
         assert_eq!(
@@ -491,7 +496,7 @@ mod test {
 
     #[test]
     fn opid_from_str() {
-        let id = Opid::from_byte_array(Sha256::digest(b"test"));
+        let id = Opid::from_byte_array(blake3_hash(b"test"));
         assert_eq!(Opid::from_str("n4bQgYhMfWWaL_qgxVrQFaO~TxsrC4Is0V1sFbDwCgg").unwrap(), id);
         assert_eq!(Opid::from_str("usop:n4bQgYhMfWWaL_qgxVrQFaO~TxsrC4Is0V1sFbDwCgg").unwrap(), id);
         assert_eq!(
@@ -539,7 +544,7 @@ mod test {
         let contract_id = ContractId::strict_dumb();
         let genesis = Genesis::strict_dumb();
         assert_eq!(genesis.opid(contract_id), genesis.to_operation(contract_id).opid());
-        let other_contract_id = ContractId::from_byte_array(Sha256::digest(b"test"));
+        let other_contract_id = ContractId::from_byte_array(blake3_hash(b"test"));
         assert_ne!(genesis.opid(contract_id), genesis.to_operation(other_contract_id).opid())
     }
 }

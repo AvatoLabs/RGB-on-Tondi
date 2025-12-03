@@ -31,10 +31,8 @@ use std::ops::SubAssign;
 use amplify::confinement::Confined;
 use amplify::num::{u256, u5};
 use amplify::{Bytes32, Wrapper};
-use sha2::Sha256;
 use strict_encoding::StrictEncode;
 
-use crate::digest::DigestExt;
 use crate::{CommitId, CommitmentId, LIB_NAME_COMMIT_VERIFY};
 
 /// Type of merkle node branching.
@@ -133,11 +131,8 @@ pub struct MerkleHash(
 );
 
 impl CommitmentId for MerkleHash {
-    const TAG: &'static str = "urn:ubideco:merkle:node#2024-01-31";
-}
-
-impl From<Sha256> for MerkleHash {
-    fn from(hash: Sha256) -> Self { hash.finish().into() }
+    /// Tondi-specific merkle node commitment tag.
+    const TAG: &'static str = "urn:tondi:merkle:node#2025-01-01";
 }
 
 const VIRTUAL_LEAF: MerkleHash = MerkleHash(Bytes32::from_array([0xFF; 32]));

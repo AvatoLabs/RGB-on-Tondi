@@ -29,13 +29,13 @@ use core::str::FromStr;
 use amplify::confinement::{SmallBlob, TinyOrdSet};
 use amplify::Bytes32;
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
-use commit_verify::{CommitId, CommitmentId, Digest, Sha256};
+use commit_verify::{CommitId, CommitmentId, DigestExt, TondiBlake3};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::core::SiteId;
 use crate::{IsaId, Site, LIB_NAME_ALUVM};
 
-pub const LIB_ID_TAG: &str = "urn:ubideco:aluvm:lib:v01#241020";
+pub const LIB_ID_TAG: &str = "urn:tondi:aluvm:lib:v01#250101";
 
 /// Unique identifier for an AluVM library.
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
@@ -72,8 +72,8 @@ impl Display for LibId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-impl From<Sha256> for LibId {
-    fn from(hash: Sha256) -> Self { Self(Bytes32::from_byte_array(hash.finalize())) }
+impl From<TondiBlake3> for LibId {
+    fn from(hash: TondiBlake3) -> Self { Self(Bytes32::from_byte_array(hash.finish())) }
 }
 
 /// Location inside the instruction sequence which can be executed by the core.

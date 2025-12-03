@@ -27,7 +27,7 @@ use std::{fmt, iter};
 
 use amplify::hex;
 use amplify::hex::{FromHex, ToHex};
-use commit_verify::{Digest, DigestExt, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 use derive::{
     Bip340Sig, ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet,
     DeriveXOnly, DerivedScript, Idx, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex,
@@ -183,7 +183,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
             .next()
             .expect("at least one derivation must be available")
             .to_script_pubkey();
-        let mut engine = Sha256::new_with_prefix(*b"wallet-descriptor");
+        let mut engine = TondiBlake3::from_tag("tondi.wallet.descriptor");
         engine.input_with_len::<{ u64::MAX as usize }>(spk.as_slice());
         let digest = engine.finish();
         let mut id = [0u8; 8];

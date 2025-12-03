@@ -210,7 +210,7 @@ pub struct MerkleBlock {
 impl StrictDumb for MerkleBlock {
     fn strict_dumb() -> Self {
         MerkleBlock {
-            method: Method::Sha256t,
+            method: Method::Blake3t,
             depth: u5::ONE,
             cofactor: 0,
             cross_section: NonEmptyVec::with(TreeNode::strict_dumb()),

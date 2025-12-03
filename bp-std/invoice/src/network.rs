@@ -26,7 +26,7 @@ use bc::BlockHash;
 
 use crate::AddressNetwork;
 
-/// Bitcoin network used by the address
+/// Tondi network used by the address
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
     feature = "serde",
@@ -35,35 +35,35 @@ use crate::AddressNetwork;
 )]
 #[display(lowercase)]
 pub enum Network {
-    /// Bitcoin mainnet
-    #[display("bitcoin")]
+    /// Tondi mainnet
+    #[display("tondi")]
     Mainnet,
 
-    /// Bitcoin testnet3
-    Testnet3,
+    /// Tondi testnet (Frontier)
+    #[display("tondi-testnet")]
+    Testnet,
 
-    /// Bitcoin testnet4
-    Testnet4,
+    /// Tondi simnet (for simulation)
+    #[display("tondi-simnet")]
+    Simnet,
 
-    /// Bitcoin signet
-    Signet,
-
-    /// Bitcoin regtest networks
-    Regtest,
+    /// Tondi devnet (for development)
+    #[display("tondi-devnet")]
+    Devnet,
 }
 
 impl Network {
-    /// Detects whether the network is a kind of test network (testnet, signet,
-    /// regtest).
+    /// Detects whether the network is a kind of test network (testnet, simnet,
+    /// devnet).
     pub fn is_testnet(self) -> bool { self != Self::Mainnet }
 
+    /// Returns the genesis block hash for the network.
     pub const fn genesis_hash(self) -> BlockHash {
         match self {
-            Network::Mainnet => BlockHash::GENESIS_MAINNET,
-            Network::Testnet3 => BlockHash::GENESIS_TESTNET3,
-            Network::Testnet4 => BlockHash::GENESIS_TESTNET4,
-            Network::Signet => BlockHash::GENESIS_SIGNET,
-            Network::Regtest => BlockHash::GENESIS_REGTEST,
+            Network::Mainnet => BlockHash::GENESIS_TONDI_MAINNET,
+            Network::Testnet => BlockHash::GENESIS_TONDI_TESTNET,
+            Network::Simnet => BlockHash::GENESIS_TONDI_SIMNET,
+            Network::Devnet => BlockHash::GENESIS_TONDI_DEVNET,
         }
     }
 }
@@ -71,9 +71,10 @@ impl Network {
 impl From<Network> for AddressNetwork {
     fn from(network: Network) -> Self {
         match network {
-            Network::Mainnet => AddressNetwork::Mainnet,
-            Network::Testnet3 | Network::Testnet4 | Network::Signet => AddressNetwork::Testnet,
-            Network::Regtest => AddressNetwork::Regtest,
+            Network::Mainnet => AddressNetwork::TondiMainnet,
+            Network::Testnet => AddressNetwork::TondiTestnet,
+            Network::Simnet => AddressNetwork::TondiSimnet,
+            Network::Devnet => AddressNetwork::TondiDevnet,
         }
     }
 }
@@ -87,18 +88,17 @@ impl TryFrom<BlockHash> for Network {
 
     fn try_from(hash: BlockHash) -> Result<Self, Self::Error> {
         match hash {
-            BlockHash::GENESIS_MAINNET => Ok(Network::Mainnet),
-            BlockHash::GENESIS_TESTNET3 => Ok(Network::Testnet3),
-            BlockHash::GENESIS_TESTNET4 => Ok(Network::Testnet4),
-            BlockHash::GENESIS_SIGNET => Ok(Network::Signet),
-            BlockHash::GENESIS_REGTEST => Ok(Network::Regtest),
+            BlockHash::GENESIS_TONDI_MAINNET => Ok(Network::Mainnet),
+            BlockHash::GENESIS_TONDI_TESTNET => Ok(Network::Testnet),
+            BlockHash::GENESIS_TONDI_SIMNET => Ok(Network::Simnet),
+            BlockHash::GENESIS_TONDI_DEVNET => Ok(Network::Devnet),
             _ => Err(UnknownGenesisBlock(hash)),
         }
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
-#[display("unknown bitcoin network '{0}'")]
+#[display("unknown Tondi network '{0}'")]
 pub struct UnknownNetwork(pub String);
 
 impl FromStr for Network {
@@ -106,11 +106,10 @@ impl FromStr for Network {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "bitcoin" | "mainnet" => Network::Mainnet,
-            "testnet" | "testnet3" => Network::Testnet3,
-            "testnet4" => Network::Testnet4,
-            "signet" => Network::Signet,
-            "regtest" => Network::Regtest,
+            "tondi" | "mainnet" => Network::Mainnet,
+            "tondi-testnet" | "testnet" => Network::Testnet,
+            "tondi-simnet" | "simnet" => Network::Simnet,
+            "tondi-devnet" | "devnet" => Network::Devnet,
             other => return Err(UnknownNetwork(other.to_owned())),
         })
     }

@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -83,7 +83,7 @@ pub use tapcode::TapCode;
 pub use taproot::{
     Annex, AnnexError, ControlBlock, FutureLeafVer, InternalKeypair, InternalPk, IntoTapHash,
     InvalidLeafVer, InvalidParityValue, LeafScript, LeafVer, OutputPk, Parity, TapBranchHash,
-    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, MIDSTATE_TAPSIGHASH,
+    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, COPPEROOT_SIGHASH_TAG,
     TAPROOT_ANNEX_PREFIX, TAPROOT_LEAF_MASK, TAPROOT_LEAF_TAPSCRIPT,
 };
 pub use timelocks::{
@@ -96,4 +96,9 @@ pub use tx::{
 pub use util::NonStandardValue;
 pub use weights::{VBytes, Weight, WeightUnits};
 
-pub const LIB_NAME_BITCOIN: &str = "Bitcoin";
+/// Tondi consensus library name for strict encoding.
+pub const LIB_NAME_TONDI: &str = "Tondi";
+
+/// Bitcoin library name (deprecated, kept for backward compatibility).
+#[deprecated(note = "Use LIB_NAME_TONDI instead")]
+pub const LIB_NAME_BITCOIN: &str = LIB_NAME_TONDI;

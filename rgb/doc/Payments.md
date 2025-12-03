@@ -8,24 +8,24 @@ second approach allows arbitrary payment customization and is suited for advance
 The user of both payment workflows will work with the following entities:
 
 - **RGB invoice**: a simple payment specification structured as a URI, using `contract:` scheme;
-- **PSBT**: partially-signed bitcoin transaction file;
+- **PSTT**: partially-signed bitcoin transaction file;
 - **RGB consignment**: a stream (which can be serialized to a file) transferring all client-side
   information required for the payment between peers.
 
 Invoice is created by the beneficiery of the payment; which in return receives a consignment from
-the payer. PSBT file is used by the payer internally, which must sign it and publish upon receiving
-confirmation from the beneficiary. PSBT file can be transferred between parties on the side of the
+the payer. PSTT file is used by the payer internally, which must sign it and publish upon receiving
+confirmation from the beneficiary. PSTT file can be transferred between parties on the side of the
 payer, for instance different signers in multisig wallet, or payjoin peers.
 
 ## Paying an invoice
 
 Paying invoice takes just one command-line call - `rgb pay` - which takes an invoice and produces
-both ready-to-be-signed PSBT and a consignment file, which should be sent to the beneficiary before
-publishing signed PSBT.
+both ready-to-be-signed PSTT and a consignment file, which should be sent to the beneficiary before
+publishing signed PSTT.
 
 With RGB runtime API, you will have to call two methods in a sequence:
 
-1. `Runtime::pay_invoice`, which will return a redy-to-sing PSBT and a **terminal**, containing
+1. `Runtime::pay_invoice`, which will return a redy-to-sing PSTT and a **terminal**, containing
    information about the final state which should be exported on the second step to the consignment;
 2. `Runtime::consign` (or `Runtime::consign_to_file`), which takes the terminal received on the
    step 1 and produces the consignment for the beneficiary.
@@ -46,27 +46,27 @@ required in some scenarios:
 
 1. Converting invoice to a payment script (optional): `rgb script` command and `Runtime::script`
    API.
-2. Execute a payment script, creating PSBT and prefabricated bundle: `rgb exec` command and
-   `Runtime::exec` API. The PSBT file, returned by this operation, is not ready to be signed! It
+2. Execute a payment script, creating PSTT and prefabricated bundle: `rgb exec` command and
+   `Runtime::exec` API. The PSTT file, returned by this operation, is not ready to be signed! It
    has to be _completed_ first, as described in step 4 below.
-3. Customize PSBT (optional): a PSBT file from the previous step may be further modified in multiple
-   ways, like re-ordering inputs or outputs; adding more inputs; merging with other PSBT files
+3. Customize PSTT (optional): a PSTT file from the previous step may be further modified in multiple
+   ways, like re-ordering inputs or outputs; adding more inputs; merging with other PSTT files
    (which may also contain other RGB payments from other peers). All of these operations may happen
    as a part of independent workflows for transaction aggregation, payjoin or coinjoin, etc.
-4. Complete PSBT, using `rgb complete` command or `Runtime::complete` API. This creates all
+4. Complete PSTT, using `rgb complete` command or `Runtime::complete` API. This creates all
    necessary deterministic bitcoin commitments, after which the transaction can't be anymore
    modified and becomes ready to be signed.
-5. Share PSBT and prefabricated bundle with other signers (optional). It is important to share both
+5. Share PSTT and prefabricated bundle with other signers (optional). It is important to share both
    of the files, since without a prefabricated bundle, other signers will have no idea which RGB
    operations the transaction commits to, and won't be able to properly sign it.
 6. Produce and send consignment to the beneficiary using `rgb consign` and `Runtime::consign` (or
    `Runtime::consign_to_file`) APIs. The consignment creation will require providing a
    **terminal** (or multiple terminals, if required), which are **authentication tokens** present
    in the payment script in outputs sent to the beneficiary.
-7. Sign PSBT; finalize and extract transaction. It is important to note that unlike in non-RGB PSBT
-   workflows, a partially signed PSBT transaction can't be modified, merged etc., since this may
+7. Sign PSTT; finalize and extract transaction. It is important to note that unlike in non-RGB PSTT
+   workflows, a partially signed PSTT transaction can't be modified, merged etc., since this may
    invalidate deterministic bitcoin commitments. If necessary, such operations must be performed on
-   step 3. PSBT signing is not managed by RGB runtime API or command-line tool and can be
+   step 3. PSTT signing is not managed by RGB runtime API or command-line tool and can be
    performed using existing bitcoin wallets and hardware signers.
 8. Receive confirmation from the beneficiary that he is fine with the consignment. Finalize and
    broadcast the signed transaction to the network, using `Runtime::finalize` (this will also update
@@ -92,22 +92,22 @@ flowchart TD
     (combines multiple operation requests)`"/]
     payment[/Payment spec/]
     prefab[/Prefab bundle/]
-    psbt0[/Initial PSBT/]
-    psbt1[/Pre-commit PSBT/]
-    psbt2[/Comitted PSBT/]
+    pstt0[/Initial PSTT/]
+    pstt1[/Pre-commit PSTT/]
+    pstt2[/Comitted PSTT/]
     tx[/Signed transaction/]
     consignment[/Consignment/]
     fulfill[RgbWallet::fulfill]
-    compose[RgbRuntime::compose_psbt]
-    construct[[PsbtConstructor::construct]]
+    compose[RgbRuntime::compose_pstt]
+    construct[[PsttConstructor::construct]]
     bundle[RgbWallet::bundle]
     include[RgbWallet::include]
     consign[Contract::consign]
-    resolve[Psbt::rgb_resolve]
-    fill[Psbt::rgb_fill_csv]
-    commit[Psbt::dbc_commit]
-    finalize[Psbt::finalize]
-    extract[Psbt::extract]
+    resolve[Pstt::rgb_resolve]
+    fill[Pstt::rgb_fill_csv]
+    commit[Pstt::dbc_commit]
+    finalize[Pstt::finalize]
+    extract[Pstt::extract]
     update[Update UTXO set]
     broadcast[Broadcast Tx]
     lightning(((Lightning node)))
@@ -119,7 +119,7 @@ flowchart TD
     wallet(((Wallet UI)))
     rbf((("Replace-<br>by-fee")))
     lightning --> script
-    lightning --> psbt0
+    lightning --> pstt0
     coinselect --> fulfill
     invoice --> fulfill
     payment --> rbf --> payment
@@ -134,14 +134,14 @@ flowchart TD
         subgraph "RgbRuntime::transfer"
             subgraph "RgbRuntime::exec"
                 compose --> construct --> compose
-                compose --> psbt0 --> resolve
-                psbt0 --> fill
-                subgraph "RgbRuntime::color_psbt"
+                compose --> pstt0 --> resolve
+                pstt0 --> fill
+                subgraph "RgbRuntime::color_pstt"
                     resolve --> bundle --> fill
-                    fill --> psbt1
+                    fill --> pstt1
                 end
             end
-            psbt1 --> payment
+            pstt1 --> payment
             subgraph "RgbRuntime::complete"
                 commit --> include
             end
@@ -152,13 +152,13 @@ flowchart TD
     compose --> payjoin --> compose
     include -.-> consign
     payment --> consign --> consignment
-    commit --> psbt2
+    commit --> pstt2
     prefab --> sign
     prefab --> lnsign
     prefab --> multisig
-    psbt2 --> sign
-    psbt2 --> lnsign
-    psbt2 --> multisig
+    pstt2 --> sign
+    pstt2 --> lnsign
+    pstt2 --> multisig
     sign --> tx
     lnsign --> tx
     multisig --> tx
@@ -176,9 +176,9 @@ flowchart TD
 
 ## Changes from v0.11
 
-### RGB data not kept in PSBT
+### RGB data not kept in PSTT
 
-Previously, information about RGB operations were directly included into PSBT (in form of
+Previously, information about RGB operations were directly included into PSTT (in form of
 proprietary RGB key types in global map). In v0.12 these data are separated into an independent
 binary file (called _prefabricated operation bundle_). This have the main reason of enhanced privacy
 for payjoin and coinjoin protocols.
@@ -186,10 +186,10 @@ for payjoin and coinjoin protocols.
 ### Payment scripts
 
 Previously, creating custom payments required manual construction of all operations, which can be
-done only when a PSBT was created; significantly complicating custom coin selection algorithm.
+done only when a PSTT was created; significantly complicating custom coin selection algorithm.
 
 Payment scripts, introduced in v0.12, simplify this, since they can reference witness-output based
-seals before a PSBT is actually created. This also allows creating a multi-step payments with
+seals before a PSTT is actually created. This also allows creating a multi-step payments with
 scripts, and then operating on multiple transactions in the same time, which is useful in case of
 off-chain transaction graph protocols like Lightning network. Finally, payment scripts allow simpler
 editing and visualisation of the payment thanks for used YAML format.

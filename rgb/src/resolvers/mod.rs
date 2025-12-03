@@ -4,12 +4,14 @@
 //
 // Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
 // Copyright (C) 2024-2025 LNP/BP Laboratories,
 //                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
 // Copyright (C) 2025 RGB Consortium, Switzerland.
 // Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+// Copyright (C) 2025 AvatoLabs.
 // All rights under the above copyrights are reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -24,8 +26,8 @@
 
 #[cfg(feature = "resolver-electrum")]
 mod electrum;
-#[cfg(any(feature = "resolver-esplora", feature = "resolver-esplora-async",))]
-mod esplora;
+#[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async",))]
+mod tondi;
 // #[cfg(any(feature = "resolver-bitcoinrpc", feature = "resolver-bitcoinrpc-async"))]
 // mod bitcoinrpc;
 
@@ -34,7 +36,7 @@ use core::iter;
 use std::process::exit;
 
 use amplify::IoError;
-use bpstd::psbt::Utxo;
+use bpstd::pstt::Utxo;
 use bpstd::{ScriptPubkey, Terminal, Tx, Txid, UnsignedTx};
 use rgb::WitnessStatus;
 
@@ -42,10 +44,8 @@ use rgb::WitnessStatus;
 //pub use self::electrum::ElectrumAsyncResolver;
 #[cfg(feature = "resolver-electrum")]
 pub use self::electrum::ElectrumResolver;
-#[cfg(feature = "resolver-esplora-async")]
-pub use self::esplora::EsploraAsyncResolver;
-#[cfg(feature = "resolver-esplora")]
-pub use self::esplora::EsploraResolver;
+#[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+pub use self::tondi::TondiResolver;
 
 #[cfg(not(feature = "async"))]
 pub trait Resolver {
@@ -81,17 +81,12 @@ pub trait Resolver {
 pub struct MultiResolver {
     #[cfg(feature = "resolver-electrum")]
     electrum: Option<ElectrumResolver>,
-    #[cfg(feature = "resolver-esplora")]
-    esplora: Option<EsploraResolver>,
+    
+    // Tondi resolver (async-only for DAG-based blockchain)
+    #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+    tondi: Option<TondiResolver>,
     // TODO: Implement Bitcoin RPC resolver
     // #[cfg(feature = "resolver-bitcoinrpc")]
-    // bitcoinrpc: Option<NoResolver>,
-
-    //#[cfg(feature = "resolver-electrum-async")]
-    //electrum: Option<ElectrumAsyncResolver>,
-    #[cfg(feature = "resolver-esplora-async")]
-    esplora: Option<EsploraAsyncResolver>,
-    // #[cfg(feature = "resolver-bitcoinrpc-async")]
     // bitcoinrpc: Option<NoResolver>,
 }
 
@@ -103,7 +98,7 @@ impl NoResolver {
         #[cfg(feature = "std")]
         {
             eprintln!(
-                "Error: no blockchain indexer specified; use either --esplora or --electrum \
+                "Error: no blockchain indexer specified; use either --tondi or --electrum \
                  argument"
             );
             exit(1);
@@ -157,15 +152,16 @@ impl MultiResolver {
     pub fn new_electrum(url: &str) -> Result<Self, ResolverError> {
         Ok(Self { electrum: Some(ElectrumResolver::new(url)?), ..default!() })
     }
-    #[cfg(feature = "resolver-esplora")]
-    pub fn new_esplora(url: &str) -> Result<Self, ResolverError> {
-        Ok(Self { esplora: Some(EsploraResolver::new(url)?), ..default!() })
+
+    /// Create a new Tondi resolver (async)
+    #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+    pub async fn new_tondi(endpoint: &str) -> Result<Self, ResolverError> {
+        Ok(Self { 
+            tondi: Some(TondiResolver::new(endpoint).await?), 
+            ..default!() 
+        })
     }
-    #[allow(clippy::needless_update)]
-    #[cfg(feature = "resolver-esplora-async")]
-    pub fn new_esplora(url: &str) -> Result<Self, ResolverError> {
-        Ok(Self { esplora: Some(EsploraAsyncResolver::new(url)?), ..default!() })
-    }
+
     // #[cfg(feature = "resolver-bitcoinrpc")]
     // pub fn new_bitcoinrpc(_url: &str) -> Result<Self, ResolverError> { todo!() }
     pub fn new_absent() -> Result<Self, ResolverError> { Ok(Self::default()) }
@@ -174,10 +170,6 @@ impl MultiResolver {
 #[cfg(not(feature = "async"))]
 impl Resolver for MultiResolver {
     fn resolve_tx(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
-        #[cfg(feature = "resolver-esplora")]
-        if let Some(resolver) = &self.esplora {
-            return resolver.resolve_tx(txid);
-        }
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_tx(txid);
@@ -190,10 +182,6 @@ impl Resolver for MultiResolver {
     }
 
     fn resolve_tx_status(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
-        #[cfg(feature = "resolver-esplora")]
-        if let Some(resolver) = &self.esplora {
-            return resolver.resolve_tx_status(txid);
-        }
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_tx_status(txid);
@@ -210,10 +198,6 @@ impl Resolver for MultiResolver {
         &self,
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
-        #[cfg(feature = "resolver-esplora")]
-        if let Some(resolver) = &self.esplora {
-            return resolver.resolve_utxos(iter).collect::<Vec<_>>().into_iter();
-        }
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_utxos(iter).collect::<Vec<_>>().into_iter();
@@ -227,10 +211,6 @@ impl Resolver for MultiResolver {
     }
 
     fn last_block_height(&self) -> Result<u64, ResolverError> {
-        #[cfg(feature = "resolver-esplora")]
-        if let Some(resolver) = &self.esplora {
-            return resolver.last_block_height();
-        }
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.last_block_height();
@@ -243,10 +223,6 @@ impl Resolver for MultiResolver {
     }
 
     fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError> {
-        #[cfg(feature = "resolver-esplora")]
-        if let Some(resolver) = &self.esplora {
-            return resolver.broadcast(tx);
-        }
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.broadcast(tx);
@@ -262,8 +238,8 @@ impl Resolver for MultiResolver {
 #[cfg(feature = "async")]
 impl Resolver for MultiResolver {
     async fn resolve_tx_async(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
-        #[cfg(feature = "resolver-esplora-async")]
-        if let Some(resolver) = &self.esplora {
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
             return resolver.resolve_tx_async(txid).await;
         }
         // #[cfg(feature = "resolver-electrum-async")]
@@ -278,8 +254,8 @@ impl Resolver for MultiResolver {
     }
 
     async fn resolve_tx_status_async(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
-        #[cfg(feature = "resolver-esplora-async")]
-        if let Some(resolver) = &self.esplora {
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
             return resolver.resolve_tx_status_async(txid).await;
         }
         // #[cfg(feature = "resolver-electrum-async")]
@@ -298,8 +274,8 @@ impl Resolver for MultiResolver {
         &self,
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
-        #[cfg(feature = "resolver-esplora-async")]
-        if let Some(resolver) = &self.esplora {
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
             return resolver
                 .resolve_utxos_async(iter)
                 .await
@@ -327,8 +303,8 @@ impl Resolver for MultiResolver {
     }
 
     async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
-        #[cfg(feature = "resolver-esplora-async")]
-        if let Some(resolver) = &self.esplora {
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
             return resolver.last_block_height_async().await;
         }
         // #[cfg(feature = "resolver-electrum-async")]
@@ -343,8 +319,8 @@ impl Resolver for MultiResolver {
     }
 
     async fn broadcast_async(&self, tx: &Tx) -> Result<(), ResolverError> {
-        #[cfg(feature = "resolver-esplora-async")]
-        if let Some(resolver) = &self.esplora {
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
             return resolver.broadcast_async(tx).await;
         }
         // #[cfg(feature = "resolver-electrum-async")]

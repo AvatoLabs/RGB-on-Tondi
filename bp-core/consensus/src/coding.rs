@@ -186,7 +186,7 @@ pub enum ConsensusDataError {
     /// elements.
     LongTapMerklePath,
 
-    /// Merkle path in the `PSBT_IN_TAP_TREE` is not encoded correctly.
+    /// Merkle path in the `PSTT_IN_TAP_TREE` is not encoded correctly.
     InvalidTapMerklePath,
 
     #[from]

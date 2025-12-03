@@ -311,11 +311,10 @@ mod test {
     use core::fmt::Debug;
 
     use amplify::confinement::{SmallBlob, SmallVec, U32};
-    use sha2::Sha256;
 
     use super::test_helpers::*;
     use super::*;
-    use crate::digest::DigestExt;
+    use crate::digest::{DigestExt, TondiBlake3};
     use crate::test_helpers::gen_messages;
     use crate::{ConvolveCommit, ConvolveCommitProof};
 
@@ -365,7 +364,7 @@ mod test {
             supplement: &[u8; 32],
             msg: &T,
         ) -> Result<(Self::Commitment, [u8; 32]), Self::CommitError> {
-            let mut engine = Sha256::default();
+            let mut engine = TondiBlake3::default();
             engine.input_raw(supplement);
             engine.input_with_len::<U32>(msg.as_ref());
             Ok((engine.finish(), *supplement))

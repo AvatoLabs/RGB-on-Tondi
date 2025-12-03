@@ -27,7 +27,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use amplify::Bytes32;
-use bpstd::psbt::{PsbtConstructor, Utxo};
+use bpstd::pstt::{PsttConstructor, Utxo};
 use bpstd::seals::WTxoSeal;
 use bpstd::{
     Address, Derive, DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly, DescrId, Idx, Keychain,
@@ -436,7 +436,7 @@ where
     }
 }
 
-impl<R, O, K, U> PsbtConstructor for Owner<R, O, K, U>
+impl<R, O, K, U> PsttConstructor for Owner<R, O, K, U>
 where
     K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
     O: OwnerProvider<Key = K, UtxoSet = U>,

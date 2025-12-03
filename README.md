@@ -31,7 +31,7 @@ This is a unified Cargo workspace containing all components of RGB-X and its rel
   - `invoice` - 比特币地址和发票
   - `derive` - 地址和发票派生
   - `descriptors` - 比特币描述符库
-  - `psbt` - 现代的 PSBT 库
+  - `pstt` - 现代的 PSTT 库
 
 - **bp-esplora-client** - 比特币 Esplora API 客户端库
 
@@ -44,7 +44,7 @@ This is a unified Cargo workspace containing all components of RGB-X and its rel
   - `persistence/fs` - RGB 智能合约的文件系统持久化
 
 - **rgb** - RGB 智能合约钱包运行时
-  - `psbt` - RGB 协议的部分签名交易支持
+  - `pstt` - RGB 协议的部分签名交易支持
   - `descriptors` - RGB 协议的比特币钱包描述符
   - `cli` - RGB 智能合约命令行钱包
 

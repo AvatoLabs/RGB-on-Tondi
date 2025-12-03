@@ -30,7 +30,7 @@ use aluvm::{fe256, GfaConfig, RegE};
 use amplify::confinement::{SmallVec, TinyOrdMap, TinyString};
 use amplify::num::u256;
 use amplify::Bytes32;
-use commit_verify::{CommitId, CommitmentId, DigestExt, ReservedBytes, Sha256};
+use commit_verify::{CommitId, CommitmentId, DigestExt, ReservedBytes, TondiBlake3};
 
 use crate::{
     CellAddr, ContractId, Identity, Instr, Operation, StateCell, StateValue, VerifiedOperation,
@@ -365,12 +365,12 @@ pub struct CodexId(
 #[cfg(all(feature = "serde", feature = "baid64"))]
 impl_serde_str_bin_wrapper!(CodexId, Bytes32);
 
-impl From<Sha256> for CodexId {
-    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+impl From<TondiBlake3> for CodexId {
+    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
 }
 
 impl CommitmentId for CodexId {
-    const TAG: &'static str = "urn:ubideco:sonic:codex#2025-05-15";
+    const TAG: &'static str = "urn:tondi:sonic:codex#2025-01-01";
 }
 
 #[cfg(feature = "baid64")]
@@ -410,15 +410,20 @@ mod test {
     use aluvm::alu::aluasm;
     use aluvm::{zk_aluasm, FIELD_ORDER_SECP};
     use amplify::ByteArray;
-    use commit_verify::Digest;
     use strict_encoding::StrictDumb;
 
     use super::*;
     use crate::{uasm, AuthToken, CellLock, Input};
 
+    fn blake3_hash(data: &[u8]) -> [u8; 32] {
+        let mut hasher = TondiBlake3::from_tag("test");
+        hasher.input_raw(data);
+        hasher.finish()
+    }
+
     #[test]
     fn codex_id_display() {
-        let id = CodexId::from_byte_array(Sha256::digest(b"test"));
+        let id = CodexId::from_byte_array(blake3_hash(b"test"));
         assert_eq!(
             format!("{id}"),
             "n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg#berlin-river-delta"
@@ -432,7 +437,7 @@ mod test {
 
     #[test]
     fn codex_id_from_str() {
-        let id = CodexId::from_byte_array(Sha256::digest(b"test"));
+        let id = CodexId::from_byte_array(blake3_hash(b"test"));
         assert_eq!(
             CodexId::from_str(
                 "n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg#berlin-river-delta"
@@ -556,7 +561,7 @@ mod test {
         codex.input_config = CoreConfig { halt: true, complexity_lim: Some(10_000_000) };
         codex.verifiers = tiny_bmap! { 0 => LibSite::new(lib_id, 0) };
 
-        let contract_id = ContractId::from_byte_array(Sha256::digest(b"test"));
+        let contract_id = ContractId::from_byte_array(blake3_hash(b"test"));
         let mut operation = Operation::strict_dumb();
         operation.contract_id = contract_id;
         operation.call_id = 0;
@@ -578,7 +583,7 @@ mod test {
     )]
     fn verify_contract_id() {
         test_stand(|_codex, operation, _memory| {
-            operation.contract_id = ContractId::from_byte_array(Sha256::digest(b"wrong"));
+            operation.contract_id = ContractId::from_byte_array(blake3_hash(b"wrong"));
         });
     }
 

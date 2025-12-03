@@ -70,7 +70,7 @@ impl Display for SemId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-pub const SEM_ID_TAG: [u8; 32] = *b"urn:ubideco:strict-types:typ:v01";
+pub const SEM_ID_TAG: [u8; 32] = *b"urn:tondi:strict-types:typ:v0001";
 
 impl SemId {
     pub fn unit() -> Self { SemId::default() }

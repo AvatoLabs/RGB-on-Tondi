@@ -1,0 +1,42 @@
+[package]
+name = "bp-tondi"
+version = "0.1.0"
+edition = "2021"
+authors = ["AvatoLabs"]
+license = "MIT"
+description = "Tondi RPC client library for RGB/BP integration"
+keywords = ["tondi", "rgb", "kaspa", "taproot", "blake3"]
+readme = "README.md"
+rust-version = "1.82.0"
+
+[lib]
+name = "tondi"
+path = "src/lib.rs"
+
+[dependencies]
+amplify = { workspace = true, features = ["serde"] }
+bp-core = { workspace = true, features = ["serde"] }
+bp-invoice = { workspace = true }
+commit_verify = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+hex = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["time", "rt-multi-thread"], optional = true }
+async-trait = { workspace = true, optional = true }
+
+# For gRPC client (optional)
+tonic = { version = "0.12", optional = true }
+
+# For wRPC client (WebSocket)
+workflow-rpc = { version = "0.18", optional = true }
+
+[features]
+default = ["async"]
+async = ["dep:async-trait", "dep:tokio"]
+grpc = ["dep:tonic"]
+wrpc = ["dep:workflow-rpc"]
+

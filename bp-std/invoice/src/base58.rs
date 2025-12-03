@@ -8,7 +8,7 @@
 
 use core::{fmt, iter, slice, str};
 
-use commit_verify::{Digest, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 
 static BASE58_CHARS: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -64,6 +64,7 @@ pub fn decode(data: &str) -> Result<Vec<u8>, Error> {
 }
 
 /// Decodes a base58check-encoded string into a byte vector verifying the checksum.
+/// Tondi uses BLAKE3 for checksum (first 4 bytes of BLAKE3 hash).
 pub fn decode_check(data: &str) -> Result<Vec<u8>, Error> {
     let mut ret: Vec<u8> = decode(data)?;
     if ret.len() < 4 {
@@ -71,8 +72,10 @@ pub fn decode_check(data: &str) -> Result<Vec<u8>, Error> {
     }
     let check_start = ret.len() - 4;
 
-    let hash_check = Sha256::digest(&ret[..check_start]);
-    let hash_check = Sha256::digest(hash_check)[..4].try_into().expect("4 byte slice");
+    // Tondi: Use BLAKE3 instead of double SHA256
+    let mut hasher = TondiBlake3::default();
+    hasher.input_raw(&ret[..check_start]);
+    let hash_check: [u8; 4] = hasher.finish()[..4].try_into().expect("4 byte slice");
     let data_check = ret[check_start..].try_into().expect("4 byte slice");
 
     let expected = u32::from_le_bytes(hash_check);
@@ -91,19 +94,21 @@ pub fn encode(data: &[u8]) -> String { encode_iter(data.iter().cloned()) }
 
 /// Encodes `data` as a base58 string including the checksum.
 ///
-/// The checksum is the first four bytes of the sha256d of the data, concatenated onto the end.
+/// Tondi: The checksum is the first four bytes of the BLAKE3 hash of the data.
 pub fn encode_check(data: &[u8]) -> String {
-    let checksum = Sha256::digest(data);
-    let checksum = Sha256::digest(checksum);
+    let mut hasher = TondiBlake3::default();
+    hasher.input_raw(data);
+    let checksum = hasher.finish();
     encode_iter(data.iter().cloned().chain(checksum[0..4].iter().cloned()))
 }
 
 /// Encodes a slice as base58, including the checksum, into a formatter.
 ///
-/// The checksum is the first four bytes of the sha256d of the data, concatenated onto the end.
+/// Tondi: The checksum is the first four bytes of the BLAKE3 hash of the data.
 pub fn encode_check_to_fmt(fmt: &mut fmt::Formatter, data: &[u8]) -> fmt::Result {
-    let checksum = Sha256::digest(data);
-    let checksum = Sha256::digest(checksum);
+    let mut hasher = TondiBlake3::default();
+    hasher.input_raw(data);
+    let checksum = hasher.finish();
     let iter = data.iter().cloned().chain(checksum[0..4].iter().cloned());
     format_iter(fmt, iter)
 }

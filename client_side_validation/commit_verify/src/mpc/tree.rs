@@ -264,7 +264,7 @@ pub(crate) mod test_helpers {
 
     pub fn make_random_tree(msgs: &BTreeMap<ProtocolId, Message>) -> MerkleTree {
         let src = MultiSource {
-            method: Method::Sha256t,
+            method: Method::Blake3t,
             min_depth: u5::ZERO,
             messages: Confined::try_from_iter(msgs.iter().map(|(a, b)| (*a, *b))).unwrap(),
             static_entropy: None,

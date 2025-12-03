@@ -72,7 +72,11 @@ pub mod vesper;
 pub use commit::{CommitVerify, TryCommitVerify, VerifyError};
 pub use conceal::Conceal;
 pub use convolve::{ConvolveCommit, ConvolveCommitProof, ConvolveVerifyError};
-pub use digest::{Digest, DigestExt, Ripemd160, Sha256};
+pub use digest::{DefaultHasher, Digest, DigestExt, TondiBlake3, TondiBlake3_20};
+// Re-export sha2 types for backward compatibility with external crates (e.g., sonic-api)
+// These will be deprecated once all dependent crates are updated to use TondiBlake3.
+pub use sha2::{Sha256, Sha512};
+pub use ripemd::Ripemd160;
 pub use embed::{EmbedCommitProof, EmbedCommitVerify, EmbedVerifyError, VerifyEq};
 pub use id::{
     CommitColType, CommitEncode, CommitEngine, CommitId, CommitLayout, CommitStep, CommitmentId,

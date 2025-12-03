@@ -49,8 +49,12 @@ pub const SCRIPT_ADDRESS_PREFIX_TEST: u8 = 196; // 0xc4
 pub enum AddressError {
     /// scriptPubkey contains invalid BIP340 output pubkey.
     InvalidTaprootKey,
+    /// scriptPubkey contains invalid Copperoot output pubkey.
+    InvalidCopperootKey,
     /// scriptPubkey can't be represented with any known address standard.
     UnsupportedScriptPubkey,
+    /// CopperootVerkle (P2CRV) is not yet supported on mainnet.
+    CopperootVerkleNotSupported,
 }
 
 /// Errors parsing address strings.
@@ -156,6 +160,18 @@ impl Display for Address {
                 bech32::Variant::Bech32m,
                 Box::new(pk.to_byte_array()) as Box<dyn AsRef<[u8]>>,
             ),
+            // Tondi CopperootMerkle (v2)
+            AddressPayload::Cr(pk) => (
+                WitnessVer::V2,
+                bech32::Variant::Bech32m,
+                Box::new(pk.to_byte_array()) as Box<dyn AsRef<[u8]>>,
+            ),
+            // Tondi CopperootVerkle (v3) - reserved
+            AddressPayload::Crv(pk) => (
+                WitnessVer::V3,
+                bech32::Variant::Bech32m,
+                Box::new(pk.to_byte_array()) as Box<dyn AsRef<[u8]>>,
+            ),
         };
 
         struct UpperWriter<W: fmt::Write>(W);
@@ -223,12 +239,11 @@ impl FromStr for Address {
                             payload: Vec<bech32::u5>,
                             variant: bech32::Variant|
          -> Result<Self, Self::Err> {
-            let network = match hri.as_str() {
-                "bc" | "BC" => AddressNetwork::Mainnet,
-                "tb" | "TB" => AddressNetwork::Testnet,
-                "bcrt" | "BCRT" => AddressNetwork::Regtest,
-                _ => return parse_base58(),
-            };
+            // Parse network from HRP (supports both Bitcoin and Tondi)
+            let hri_lower = hri.to_lowercase();
+            let network = AddressNetwork::from_bech32_hrp(&hri_lower)
+                .ok_or_else(|| AddressParseError::UnrecognizableFormat(s.to_owned()))?;
+            
             let (v, p5) = payload.split_at(1);
             let wv = v[0].to_u8();
             let version = WitnessVer::from_version_no(wv).map_err(|err| {
@@ -236,36 +251,59 @@ impl FromStr for Address {
                 AddressParseError::InvalidWitnessVersion(wv)
             })?;
             let program: Vec<u8> = bech32::FromBase32::from_base32(p5)?;
-            let payload = match (version, variant) {
-                (WitnessVer::V0, bech32::Variant::Bech32) if program.len() == 20 => {
+            
+            let payload = match (version, variant, network.is_tondi()) {
+                // Bitcoin: SegWit v0 - P2WPKH
+                (WitnessVer::V0, bech32::Variant::Bech32, false) if program.len() == 20 => {
                     let mut hash = [0u8; 20];
                     hash.copy_from_slice(&program);
                     AddressPayload::Wpkh(hash.into())
                 }
-                (WitnessVer::V0, bech32::Variant::Bech32) if program.len() == 32 => {
+                // Bitcoin: SegWit v0 - P2WSH
+                (WitnessVer::V0, bech32::Variant::Bech32, false) if program.len() == 32 => {
                     let mut hash = [0u8; 32];
                     hash.copy_from_slice(&program);
                     AddressPayload::Wsh(hash.into())
                 }
-                (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
+                // Bitcoin: SegWit v1 - P2TR (Taproot)
+                (WitnessVer::V1, bech32::Variant::Bech32m, false) if program.len() == 32 => {
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&program);
                     let pk = OutputPk::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
+                // Tondi: v1 - P2TR (Taproot with BLAKE3)
+                (WitnessVer::V1, bech32::Variant::Bech32m, true) if program.len() == 32 => {
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(&program);
+                    let pk = OutputPk::from_byte_array(key)?;
+                    AddressPayload::Tr(pk)
+                }
+                // Tondi: v2 - P2CR (CopperootMerkle)
+                (WitnessVer::V2, bech32::Variant::Bech32m, true) if program.len() == 32 => {
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(&program);
+                    let pk = OutputPk::from_byte_array(key)?;
+                    AddressPayload::Cr(pk)
+                }
+                // Tondi: v3 - P2CRV (CopperootVerkle) - currently disabled
+                (WitnessVer::V3, bech32::Variant::Bech32m, true) if program.len() == 32 => {
+                    // CopperootVerkle is reserved but not yet supported
+                    return Err(AddressParseError::FutureWitnessVersion(WitnessVer::V3));
+                }
 
-                (WitnessVer::V1, bech32::Variant::Bech32m) => {
+                (WitnessVer::V1, bech32::Variant::Bech32m, _) => {
                     return Err(AddressParseError::FutureTaprootVersion(
                         program.len(),
                         s.to_owned(),
                     ));
                 }
 
-                (WitnessVer::V0 | WitnessVer::V1, wrong) => {
+                (WitnessVer::V0 | WitnessVer::V1, wrong, _) => {
                     return Err(AddressParseError::InvalidBech32Variant(wrong));
                 }
 
-                (future, _) => return Err(AddressParseError::FutureWitnessVersion(future)),
+                (future, _, _) => return Err(AddressParseError::FutureWitnessVersion(future)),
             };
             Ok(Address::new(payload, network))
         };
@@ -309,10 +347,20 @@ pub enum AddressPayload {
     #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x11))]
     Wsh(WScriptHash),
 
-    /// P2TR payload.
+    /// P2TR payload (Bitcoin Taproot / Tondi Taproot with BLAKE3).
     #[from]
     #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x20))]
     Tr(OutputPk),
+
+    /// P2CR payload (Tondi CopperootMerkle - witness v2).
+    /// Uses BLAKE3 for all hash operations.
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x21))]
+    Cr(OutputPk),
+
+    /// P2CRV payload (Tondi CopperootVerkle - witness v3).
+    /// Reserved for future use, not yet supported on mainnet.
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x22))]
+    Crv(OutputPk),
 }
 
 impl AddressPayload {
@@ -362,6 +410,9 @@ impl AddressPayload {
             AddressPayload::Wpkh(hash) => ScriptPubkey::p2wpkh(hash),
             AddressPayload::Wsh(hash) => ScriptPubkey::p2wsh(hash),
             AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key),
+            // Copperoot uses same script structure as Taproot
+            AddressPayload::Cr(output_key) => ScriptPubkey::p2tr_tweaked(output_key),
+            AddressPayload::Crv(output_key) => ScriptPubkey::p2tr_tweaked(output_key),
         }
     }
 
@@ -373,6 +424,8 @@ impl AddressPayload {
             AddressPayload::Wpkh(_) => AddressType::P2wpkh,
             AddressPayload::Wsh(_) => AddressType::P2wsh,
             AddressPayload::Tr(_) => AddressType::P2tr,
+            AddressPayload::Cr(_) => AddressType::P2cr,
+            AddressPayload::Crv(_) => AddressType::P2crv,
         }
     }
 }
@@ -400,9 +453,19 @@ pub enum AddressType {
     #[display("P2WSH")]
     P2wsh,
 
-    /// Pay-to-taproot
+    /// Pay-to-taproot (Bitcoin v1 / Tondi v1)
     #[display("P2TR")]
     P2tr,
+
+    /// Pay-to-Copperoot-Merkle (Tondi v2 - CopperootMerkle)
+    /// Uses BLAKE3 for signature hash computation
+    #[display("P2CR")]
+    P2cr,
+
+    /// Pay-to-Copperoot-Verkle (Tondi v3 - CopperootVerkle)
+    /// Reserved for future use, not yet supported on mainnet
+    #[display("P2CRV")]
+    P2crv,
 }
 
 impl AddressType {
@@ -410,11 +473,29 @@ impl AddressType {
     /// Returns `None` for pre-SegWit address formats.
     pub fn witness_version(self) -> Option<WitnessVer> {
         match self {
-            AddressType::P2pkh => None,
-            AddressType::P2sh => None,
+            AddressType::P2pkh | AddressType::P2sh => None,
             AddressType::P2wpkh | AddressType::P2wsh => Some(WitnessVer::V0),
             AddressType::P2tr => Some(WitnessVer::V1),
+            AddressType::P2cr => Some(WitnessVer::V2),
+            AddressType::P2crv => Some(WitnessVer::V3),
         }
+    }
+
+    /// Returns whether this is a Tondi-specific address type.
+    pub fn is_tondi(self) -> bool {
+        matches!(self, AddressType::P2cr | AddressType::P2crv)
+    }
+
+    /// Returns whether this is a Bitcoin address type.
+    pub fn is_bitcoin(self) -> bool {
+        matches!(
+            self,
+            AddressType::P2pkh
+                | AddressType::P2sh
+                | AddressType::P2wpkh
+                | AddressType::P2wsh
+                | AddressType::P2tr
+        )
     }
 }
 
@@ -429,12 +510,14 @@ impl FromStr for AddressType {
             "P2WPKH" => AddressType::P2wpkh,
             "P2WSH" => AddressType::P2wsh,
             "P2TR" => AddressType::P2tr,
+            "P2CR" => AddressType::P2cr,
+            "P2CRV" => AddressType::P2crv,
             _ => return Err(AddressParseError::UnrecognizedAddressType),
         })
     }
 }
 
-/// Bitcoin network used by the address
+/// Bitcoin/Tondi network used by the address
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum AddressNetwork {
     /// Bitcoin mainnet
@@ -445,18 +528,68 @@ pub enum AddressNetwork {
 
     /// Bitcoin regtest networks
     Regtest,
+
+    /// Tondi mainnet
+    TondiMainnet,
+
+    /// Tondi testnet (Frontier)
+    TondiTestnet,
+
+    /// Tondi simnet
+    TondiSimnet,
+
+    /// Tondi devnet
+    TondiDevnet,
 }
 
 impl AddressNetwork {
     /// Detects whether the network is a kind of test network (testnet, signet,
-    /// regtest).
-    pub fn is_testnet(self) -> bool { self != Self::Mainnet }
+    /// regtest, or Tondi test networks).
+    pub fn is_testnet(self) -> bool {
+        !matches!(self, Self::Mainnet | Self::TondiMainnet)
+    }
 
+    /// Detects whether this is a Tondi network.
+    pub fn is_tondi(self) -> bool {
+        matches!(
+            self,
+            Self::TondiMainnet | Self::TondiTestnet | Self::TondiSimnet | Self::TondiDevnet
+        )
+    }
+
+    /// Detects whether this is a Bitcoin network.
+    pub fn is_bitcoin(self) -> bool {
+        matches!(self, Self::Mainnet | Self::Testnet | Self::Regtest)
+    }
+
+    /// Returns the bech32/bech32m human-readable part for this network.
     pub fn bech32_hrp(self) -> &'static str {
         match self {
+            // Bitcoin networks
             AddressNetwork::Mainnet => "bc",
             AddressNetwork::Testnet => "tb",
             AddressNetwork::Regtest => "bcrt",
+            // Tondi networks (TSP-0001)
+            AddressNetwork::TondiMainnet => "tondi",
+            AddressNetwork::TondiTestnet => "tondi0",
+            AddressNetwork::TondiSimnet => "tondisim",
+            AddressNetwork::TondiDevnet => "tondidev",
+        }
+    }
+
+    /// Parse network from bech32 HRP string.
+    pub fn from_bech32_hrp(hrp: &str) -> Option<Self> {
+        match hrp {
+            // Bitcoin networks
+            "bc" => Some(Self::Mainnet),
+            "tb" => Some(Self::Testnet),
+            "bcrt" => Some(Self::Regtest),
+            // Tondi networks
+            "tondi" => Some(Self::TondiMainnet),
+            "tondi0" | "tonditest" => Some(Self::TondiTestnet),
+            "tondisim" => Some(Self::TondiSimnet),
+            "tondidev" => Some(Self::TondiDevnet),
+            _ => None,
         }
     }
 }

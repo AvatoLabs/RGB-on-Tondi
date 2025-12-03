@@ -1,9 +1,10 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
+// Originally written in 2019-2024 by
 //     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi in 2025
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
 //
@@ -30,7 +31,7 @@ use std::{cmp, io, slice, vec};
 use amplify::confinement::Confined;
 use amplify::hex::FromHex;
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
-use commit_verify::{DigestExt, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 use secp256k1::{Keypair, PublicKey, Scalar, XOnlyPublicKey};
 use strict_encoding::{
     DecodeError, ReadTuple, StrictDecode, StrictEncode, StrictProduct, StrictTuple, StrictType,
@@ -43,21 +44,17 @@ use crate::{
     TapCode, VarInt, VarIntBytes, WitnessVer, LIB_NAME_BITCOIN,
 };
 
-/// The SHA-256 midstate value for the TapLeaf hash.
-const MIDSTATE_TAPLEAF: [u8; 7] = *b"TapLeaf";
-// 9ce0e4e67c116c3938b3caf2c30f5089d3f3936c47636e607db33eeaddc6f0c9
+/// Tondi Copperoot domain tag for leaf hash (BLAKE3 derive_key context).
+const COPPEROOT_LEAF_TAG: &str = "tondi.copperoot.leaf";
 
-/// The SHA-256 midstate value for the TapBranch hash.
-const MIDSTATE_TAPBRANCH: [u8; 9] = *b"TapBranch";
-// 23a865a9b8a40da7977c1e04c49e246fb5be13769d24c9b7b583b5d4a8d226d2
+/// Tondi Copperoot domain tag for branch hash (BLAKE3 derive_key context).
+const COPPEROOT_BRANCH_TAG: &str = "tondi.copperoot.branch";
 
-/// The SHA-256 midstate value for the TapTweak hash.
-const MIDSTATE_TAPTWEAK: [u8; 8] = *b"TapTweak";
-// d129a2f3701c655d6583b6c3b941972795f4e23294fd54f4a2ae8d8547ca590b
+/// Tondi Copperoot domain tag for tweak hash (BLAKE3 derive_key context).
+const COPPEROOT_TWEAK_TAG: &str = "tondi.copperoot.tweak";
 
-/// The SHA-256 midstate value for the TapSig hash.
-pub const MIDSTATE_TAPSIGHASH: [u8; 10] = *b"TapSighash";
-// f504a425d7f8783b1363868ae3e556586eee945dbc7888dd02a6e2c31873fe9f
+/// Tondi Copperoot domain tag for sighash (BLAKE3 derive_key context).
+pub const COPPEROOT_SIGHASH_TAG: &str = "tondi.copperoot.sighash";
 
 impl<const LEN: usize> From<InvalidPubkey<LEN>> for DecodeError {
     fn from(e: InvalidPubkey<LEN>) -> Self {
@@ -142,7 +139,7 @@ pub struct InternalKeypair(#[from] Keypair);
 impl InternalKeypair {
     pub fn to_output_keypair(&self, merkle_root: Option<TapNodeHash>) -> (Keypair, Parity) {
         let internal_pk = self.0.x_only_public_key().0;
-        let mut engine = Sha256::from_tag(MIDSTATE_TAPTWEAK);
+        let mut engine = TondiBlake3::from_tag(COPPEROOT_TWEAK_TAG);
         // always hash the key
         engine.input_raw(&internal_pk.serialize());
         if let Some(merkle_root) = merkle_root {
@@ -197,7 +194,7 @@ impl InternalPk {
     pub fn to_xonly_pk(&self) -> XOnlyPk { self.0 }
 
     pub fn to_output_pk(&self, merkle_root: Option<TapNodeHash>) -> (OutputPk, Parity) {
-        let mut engine = Sha256::from_tag(MIDSTATE_TAPTWEAK);
+        let mut engine = TondiBlake3::from_tag(COPPEROOT_TWEAK_TAG);
         // always hash the key
         engine.input_raw(&self.0.serialize());
         if let Some(merkle_root) = merkle_root {
@@ -286,9 +283,9 @@ impl From<TapSighash> for secp256k1::Message {
 }
 
 impl TapSighash {
-    pub fn engine() -> Sha256 { Sha256::from_tag(MIDSTATE_TAPSIGHASH) }
+    pub fn engine() -> TondiBlake3 { TondiBlake3::from_tag(COPPEROOT_SIGHASH_TAG) }
 
-    pub fn from_engine(engine: Sha256) -> Self { Self(engine.finish().into()) }
+    pub fn from_engine(engine: TondiBlake3) -> Self { Self(engine.finish().into()) }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -312,7 +309,7 @@ impl TapLeafHash {
     }
 
     fn with_raw_script(version: LeafVer, script: &ScriptBytes) -> Self {
-        let mut engine = Sha256::from_tag(MIDSTATE_TAPLEAF);
+        let mut engine = TondiBlake3::from_tag(COPPEROOT_LEAF_TAG);
         engine.input_raw(&[version.to_consensus_u8()]);
         script.len_var_int().consensus_encode(&mut engine).ok();
         engine.input_raw(script.as_slice());
@@ -337,7 +334,7 @@ pub struct TapBranchHash(
 
 impl TapBranchHash {
     pub fn with_nodes(node1: TapNodeHash, node2: TapNodeHash) -> Self {
-        let mut engine = Sha256::from_tag(MIDSTATE_TAPBRANCH);
+        let mut engine = TondiBlake3::from_tag(COPPEROOT_BRANCH_TAG);
         engine.input_raw(cmp::min(&node1, &node2).borrow());
         engine.input_raw(cmp::max(&node1, &node2).borrow());
         Self(engine.finish().into())

@@ -35,7 +35,7 @@ use crate::opts::{ResolverOpt, WalletOpts};
 
 pub const RGB_COINSELECT_STRATEGY_ENV: &str = "RGB_COINSELECT_STRATEGY";
 pub const RGB_WALLET_ENV: &str = "RGB_WALLET";
-pub const RGB_PSBT_VER: &str = "RGB_PSBT_VER2";
+pub const RGB_PSTT_VER: &str = "RGB_PSTT_VER2";
 
 #[derive(PartialEq, Eq, Parser)]
 pub enum Cmd {
@@ -230,7 +230,7 @@ pub enum Cmd {
         value: Option<u64>,
     },
 
-    /// Pay an invoice, creating ready-to-be signed PSBT and a consignment
+    /// Pay an invoice, creating ready-to-be signed PSTT and a consignment
     #[clap(alias = "p")]
     Pay {
         #[clap(flatten)]
@@ -244,19 +244,19 @@ pub enum Cmd {
         #[clap(long)]
         sats: Option<Sats>,
 
-        /// Fees for PSBT
+        /// Fees for PSTT
         #[clap(long, default_value = "1000")]
         fee: Sats,
 
-        /// Use PSBT version 2
-        #[clap(short = '2', long, env = "RGB_PSBT_VER2")]
-        psbt2: bool,
+        /// Use PSTT version 2
+        #[clap(short = '2', long, env = "RGB_PSTT_VER2")]
+        pstt2: bool,
 
-        /// Print PSBT to STDOUT
+        /// Print PSTT to STDOUT
         #[clap(short, long)]
         print: bool,
 
-        /// Force re-rewrite of PSBT or a consignment if any of the files already exist
+        /// Force re-rewrite of PSTT or a consignment if any of the files already exist
         #[clap(short, long)]
         force: bool,
 
@@ -267,12 +267,12 @@ pub enum Cmd {
         #[clap(value_hint = ValueHint::FilePath)]
         consignment: PathBuf,
 
-        /// File to save the produced PSBT
+        /// File to save the produced PSTT
         ///
-        /// If not provided, uses the same path and filename as for the consignment, adding *.psbt
+        /// If not provided, uses the same path and filename as for the consignment, adding *.pstt
         /// extension.
         #[clap(value_hint = ValueHint::FilePath)]
-        psbt: Option<PathBuf>,
+        pstt: Option<PathBuf>,
     },
 
     /// Create a payment script out from invoice
@@ -296,7 +296,7 @@ pub enum Cmd {
         output: PathBuf,
     },
 
-    /// Execute a script, producing a prefabricated operation bundle and PSBT
+    /// Execute a script, producing a prefabricated operation bundle and PSTT
     #[clap(alias = "x")]
     Exec {
         /// Wallet to use
@@ -311,36 +311,36 @@ pub enum Cmd {
         #[clap(value_hint = ValueHint::FilePath)]
         bundle: PathBuf,
 
-        /// Fees for PSBT
+        /// Fees for PSTT
         fee: Sats,
 
-        /// Use PSBT version 2
-        #[clap(short = '2', long, global = true, env = "RGB_PSBT_VER2")]
-        psbt2: bool,
+        /// Use PSTT version 2
+        #[clap(short = '2', long, global = true, env = "RGB_PSTT_VER2")]
+        pstt2: bool,
 
-        /// Print PSBT to STDOUT
+        /// Print PSTT to STDOUT
         #[clap(short, long, global = true)]
         print: bool,
 
-        /// File to save the produced PSBT
+        /// File to save the produced PSTT
         ///
         /// If not provided, uses the same filename as for the bundle, replacing the extension with
-        /// 'psbt'.
+        /// 'pstt'.
         #[clap(value_hint = ValueHint::FilePath)]
-        psbt: Option<PathBuf>,
+        pstt: Option<PathBuf>,
     },
 
-    /// Complete finalizes PSBT and adds information about witness to the contracts' store
+    /// Complete finalizes PSTT and adds information about witness to the contracts' store
     Complete {
         /// Wallet to use
         #[clap(short, long, global = true, env = RGB_WALLET_ENV)]
         wallet: Option<String>,
 
-        /// Prefabricated operation bundle, used in PSBT construction
+        /// Prefabricated operation bundle, used in PSTT construction
         bundle: PathBuf,
 
-        /// Signed PSBT
-        psbt: PathBuf,
+        /// Signed PSTT
+        pstt: PathBuf,
     },
 
     /// Create a consignment transferring part of a contract state to another peer
@@ -357,7 +357,7 @@ pub enum Cmd {
         output: PathBuf,
     },
 
-    /// Finalize signed PSBT, extract raw transaction and, optionally, broadcast it
+    /// Finalize signed PSTT, extract raw transaction and, optionally, broadcast it
     Finalize {
         #[clap(flatten)]
         wallet: WalletOpts,
@@ -366,8 +366,8 @@ pub enum Cmd {
         #[clap(short, long, global = true)]
         broadcast: bool,
 
-        /// Name of the PSBT file to finalize.
-        psbt: PathBuf,
+        /// Name of the PSTT file to finalize.
+        pstt: PathBuf,
 
         /// File to save the extracted signed transaction.
         tx: Option<PathBuf>,

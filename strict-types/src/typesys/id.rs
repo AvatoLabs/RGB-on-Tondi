@@ -33,7 +33,7 @@ use strict_encoding::STRICT_TYPES_LIB;
 use crate::ast::SemCommit;
 use crate::{CommitConsume, TypeSystem};
 
-pub const TYPESYS_ID_TAG: [u8; 32] = *b"urn:ubideco:strict-types:sys:v01";
+pub const TYPESYS_ID_TAG: [u8; 32] = *b"urn:tondi:strict-types:sys:v0001";
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]

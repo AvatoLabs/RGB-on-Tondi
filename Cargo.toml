@@ -30,10 +30,10 @@ members = [
     "bp-std/invoice",
     "bp-std/derive",
     "bp-std/descriptors",
-    "bp-std/psbt",
+    "bp-std/pstt",
     
-    # Bitcoin Protocol Esplora Client
-    "bp-esplora-client",
+    # Tondi RPC Client (replaces Esplora client)
+    "bp-tondi-client",
     
     # RGB Core
     "rgb-core",
@@ -46,7 +46,7 @@ members = [
     
     # RGB Runtime
     "rgb",
-    "rgb/psbt",
+    "rgb/pstt",
     "rgb/descriptors",
     "rgb/cli",
     
@@ -73,6 +73,7 @@ amplify = "4.9.0"
 bech32 = "0.9.1"
 secp256k1 = { version = "0.30.0", features = ["global-context"] }
 sha2 = "0.10.8"
+blake3 = "1.5"
 indexmap = "2.9.0"
 futures = "0.3.31"
 chrono = "0.4.41"
@@ -95,6 +96,9 @@ wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 rand = "0.9.1"
 getrandom = "0.3"
+thiserror = "2.0"
+async-trait = "0.1"
+hex = { version = "0.4", features = ["serde"] }
 
 # Workspace internal dependencies - strict encoding/types
 strict_encoding = { version = "2.9.1", path = "./strict-encoding/rust" }
@@ -121,10 +125,10 @@ bp-core = { version = "0.12.0", path = "./bp-core" }
 bp-invoice = { version = "0.12.0-rc.2", path = "./bp-std/invoice" }
 bp-derive = { version = "0.12.0-rc.3", path = "./bp-std/derive" }
 descriptors = { version = "0.12.0-rc.3", path = "./bp-std/descriptors" }
-psbt = { version = "0.12.0-rc.3", path = "./bp-std/psbt" }
+pstt = { version = "0.12.0-rc.3", path = "./bp-std/pstt" }
 bp-std = { version = "0.12.0-rc.3", path = "./bp-std" }
 
-bp-esplora = { version = "0.12.0-rc.3", path = "./bp-esplora-client" }
+bp-tondi = { version = "0.1.0", path = "./bp-tondi-client" }
 
 # Workspace internal dependencies - RGB
 rgb-core = { version = "0.12.0", path = "./rgb-core" }
@@ -132,7 +136,7 @@ rgb-invoice = { version = "0.12.0-rc.3", path = "./rgb-std/invoice" }
 rgb-persist-fs = { version = "0.12.0-rc.3", path = "./rgb-std/persistence/fs" }
 rgb-std = { version = "0.12.0-rc.3", path = "./rgb-std" }
 
-rgb-psbt = { version = "0.12.0-rc.3", path = "./rgb/psbt" }
+rgb-pstt = { version = "0.12.0-rc.3", path = "./rgb/pstt" }
 rgb-descriptors = { version = "0.12.0-rc.3", path = "./rgb/descriptors" }
 rgb-runtime = { version = "0.12.0-rc.3", path = "./rgb" }
 
@@ -177,6 +181,10 @@ bp-std = { path = "./bp-std" }
 rgb-core = { path = "./rgb-core" }
 rgb-std = { path = "./rgb-std" }
 rgb-interfaces = { path = "./rgb-interfaces" }
+
+# Forked external crates with Tondi support
+sonic-callreq = { path = "./external-forks/sonic-callreq" }
+sonic-api = { path = "./external-forks/sonic-api" }
 
 # External dependencies from git repositories are specified in individual crates
 

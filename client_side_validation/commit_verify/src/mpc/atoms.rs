@@ -1,14 +1,14 @@
-// Client-side-validation foundation libraries.
+// Client-side-validation foundation libraries for Tondi.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-// Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on original work by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
 // Copyright (C) 2024-2025 LNP/BP Laboratories,
-//                         Institute for Distributed and Cognitive Systems
-// (InDCS), Switzerland. Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+//                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
+// Copyright (C) 2025 AvatoLabs.
 // All rights under the above copyrights are reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -26,17 +26,18 @@
 use amplify::confinement::MediumOrdMap;
 use amplify::num::u5;
 use amplify::{Bytes32, FromSliceError, Wrapper};
-use sha2::Sha256;
 use strict_encoding::StrictDumb;
 
 use crate::merkle::MerkleHash;
-use crate::{CommitmentId, DigestExt};
+use crate::{CommitmentId, DigestExt, TondiBlake3};
 
 /// The constant defining the minimum depth of the MPC Merkle tree.
 pub const MPC_MINIMAL_DEPTH: u5 = u5::with(3);
 
 /// A specific cryptographic digest algorithm used in constructing MPC Merkle
 /// trees.
+///
+/// For Tondi L1, only BLAKE3 is supported.
 ///
 /// # Future use
 ///
@@ -49,9 +50,9 @@ pub const MPC_MINIMAL_DEPTH: u5 = u5::with(3);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 #[repr(u8)]
 pub enum Method {
-    /// A tagged SHA256 digest.
+    /// A tagged BLAKE3 digest (Tondi L1 native).
     #[default]
-    Sha256t = 0,
+    Blake3t = 0,
 }
 
 /// Map from protocol ids to commitment messages.
@@ -149,6 +150,8 @@ impl StrictDumb for Leaf {
 /// Represents tagged hash of the merkle root of [`super::MerkleTree`] and
 /// [`super::MerkleBlock`].
 ///
+/// For Tondi L1, this uses BLAKE3 with domain separation.
+///
 /// [LNPBP-4]: https://github.com/LNP-BP/LNPBPs/blob/master/lnpbp-0004.md
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, BorrowSlice, Display, FromStr, Hex, Index, RangeOps)]
@@ -162,7 +165,8 @@ pub struct Commitment(
 );
 
 impl CommitmentId for Commitment {
-    const TAG: &'static str = "urn:ubideco:mpc:commitment#2024-01-31";
+    /// Tondi-specific MPC commitment tag.
+    const TAG: &'static str = "urn:tondi:mpc:commitment#2025-01-01";
 }
 
 impl Commitment {
@@ -173,8 +177,8 @@ impl Commitment {
     }
 }
 
-impl From<Sha256> for Commitment {
-    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+impl From<TondiBlake3> for Commitment {
+    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
 }
 
 /// Structured source multi-message data for commitment creation

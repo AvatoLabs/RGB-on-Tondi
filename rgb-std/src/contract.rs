@@ -241,6 +241,25 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 impl<Seal: Clone> CreateParams<Seal> {
+    /// Creates new contract creation parameters for mainnet.
+    pub fn new_mainnet(
+        issuer: impl Into<IssuerSpec>,
+        consensus: Consensus,
+        name: impl Into<TypeName>,
+    ) -> Self {
+        Self {
+            issuer: issuer.into(),
+            consensus,
+            testnet: false,
+            method: vname!("issue"),
+            name: name.into(),
+            timestamp: None,
+            global: none![],
+            owned: none![],
+        }
+    }
+
+    /// Creates new contract creation parameters for testnet.
     pub fn new_testnet(
         issuer: impl Into<IssuerSpec>,
         consensus: Consensus,

@@ -26,7 +26,7 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
     })
     .unwrap();
 
-    let mut params = CreateParams::new_bitcoin_testnet(issuer.codex_id(), "Test");
+    let mut params = CreateParams::new_tondi_testnet(issuer.codex_id(), "Test");
     for _ in 0..20 {
         params.push_owned_unlocked(
             "amount",

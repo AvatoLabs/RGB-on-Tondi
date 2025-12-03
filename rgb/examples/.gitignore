@@ -3,5 +3,5 @@ dump/
 *.dump/
 /*/**/*.issuer
 *.rgb
-*.psbt
+*.pstt
 *.pfab

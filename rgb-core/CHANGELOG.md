@@ -71,7 +71,7 @@ v0.4.0
 - Disclosures
 - Improved concealment procedures; fixed node id mutability issue
 - Reveal-merge procedure
-- PSBT anchor processing refactoring & multiple bug fixes
+- PSTT anchor processing refactoring & multiple bug fixes
 - Improved commit-encoding and consensus-commit procedures
 - Improved owned rights type system
 - RGB20: asset data representation refactoring
@@ -92,12 +92,12 @@ v0.3.0
 - Serde encoding fixes (proper use of `serde_as` for wrapped types)
 - BIP32 & descriptor enhancements
 - Rust bitcoin 0.26 & Miniscript 5.0 migration
-- More robust PSBT processing
+- More robust PSTT processing
 
 v0.2.2
 ------
 
-- Fixed PSBT key serialization issue during commitment procedure
+- Fixed PSTT key serialization issue during commitment procedure
 
 v0.2.1
 ------
@@ -153,7 +153,7 @@ v0.2.0-beta.2
 
 ### BP module
 
-- Lexicographic orderings (BIP96) for transactions, PSBTs, inputs and outputs
+- Lexicographic orderings (BIP96) for transactions, PSTTs, inputs and outputs
 
 v0.2.0-beta.1
 -------------
@@ -259,8 +259,8 @@ v0.1.0-rc.2
 ### Breaking changes:
 
 - Changed embedded procedure names for RGB VM
-- Removed requirement for PSBT to contain fee key in RGB anchor creation (it
-  needs to be a properly constructed PSBT with `witness_utxo`/`non_witness_utxo`
+- Removed requirement for PSTT to contain fee key in RGB anchor creation (it
+  needs to be a properly constructed PSTT with `witness_utxo`/`non_witness_utxo`
   data)
 
 ### Other changes:
@@ -272,7 +272,7 @@ v0.1.0-rc.2
 - Implementation of Curve25519 public keys and Ed25519 signatures as RGB state
   and metadata
 - Bech types for Pedersen commitments, Bulletproofs, Curve25519 data
-- Tweaking factor is added into PSBT information during anchor creation
+- Tweaking factor is added into PSTT information during anchor creation
 - Added bitcoin protocol resolvers API
 
 v0.1.0-rc.1

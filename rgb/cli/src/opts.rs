@@ -4,12 +4,14 @@
 //
 // Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
 // Copyright (C) 2024-2025 LNP/BP Laboratories,
 //                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
 // Copyright (C) 2025 RGB Consortium, Switzerland.
 // Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+// Copyright (C) 2025 AvatoLabs.
 // All rights under the above copyrights are reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -27,10 +29,10 @@ use clap::ValueHint;
 use crate::cmd::RGB_WALLET_ENV;
 
 pub const DEFAULT_ELECTRUM: &str = "mycitadel.io:50001";
-pub const DEFAULT_ESPLORA: &str = "https://mempool.space/{network}/api";
+pub const DEFAULT_TONDI: &str = "localhost:17110";
 
 #[derive(Args, Clone, PartialEq, Eq, Debug)]
-#[group(args = ["electrum", "esplora"])]
+#[group(args = ["electrum", "tondi"])]
 pub struct ResolverOpt {
     /// Electrum server to use
     #[arg(
@@ -45,18 +47,18 @@ pub struct ResolverOpt {
     )]
     pub electrum: Option<String>,
 
-    /// Esplora server to use
+    /// Tondi RPC endpoint to use
     #[arg(
         long,
         global = true,
-        default_missing_value = DEFAULT_ESPLORA,
+        default_missing_value = DEFAULT_TONDI,
         num_args = 0..=1,
         require_equals = true,
-        env = "ESPLORA_SERVER",
+        env = "TONDI_RPC",
         value_hint = ValueHint::Url,
-        value_name = "URL"
+        value_name = "ENDPOINT"
     )]
-    pub esplora: Option<String>,
+    pub tondi: Option<String>,
 }
 
 #[derive(Args, Clone, PartialEq, Eq, Debug)]
@@ -77,7 +79,7 @@ impl WalletOpts {
         WalletOpts {
             wallet: name.clone(),
             sync: false,
-            resolver: ResolverOpt { electrum: None, esplora: None },
+            resolver: ResolverOpt { electrum: None, tondi: None },
         }
     }
 

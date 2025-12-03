@@ -25,8 +25,8 @@ pub use ::bp::{dbc, seals};
 pub use bc::{secp256k1, *};
 pub use derive::*;
 pub use descriptors::*;
-pub use psbt::{
-    self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer, Rejected, Signer,
+pub use pstt::{
+    self, Prevout, Pstt, PsttError, PsttParseError, PsttUnsupportedVer, PsttVer, Rejected, Signer,
     Unmodifiable, UnsignedTx, UnsignedTxIn,
 };
 

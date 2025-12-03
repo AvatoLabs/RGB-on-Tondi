@@ -25,5 +25,5 @@
 //! a) `PrivateKey, Msg -> ecdsa::Signature`;
 //! b) `KeyPair, Msg -> bip340::Signature`;
 //! **Convolve-commit:**
-//! c) `psbt::Input, PrivateKey, Msg -> psbt::Input'`;
-//! d) `psbt::Input, KeyPair, Msg -> psbt::Input'`;
+//! c) `pstt::Input, PrivateKey, Msg -> pstt::Input'`;
+//! d) `pstt::Input, KeyPair, Msg -> pstt::Input'`;

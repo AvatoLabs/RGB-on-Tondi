@@ -24,7 +24,7 @@
 
 use core::num::NonZeroU64;
 
-use bpstd::psbt::Utxo;
+use bpstd::pstt::Utxo;
 use bpstd::{Outpoint, Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx};
 use electrum::client::Client as ElectrumClient;
 use electrum::{ElectrumApi, Error as ElectrumError};

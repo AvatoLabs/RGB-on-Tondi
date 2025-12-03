@@ -1,11 +1,12 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2025 AvatoLabs. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +24,7 @@ use std::fmt::{self, Display, Formatter};
 use std::iter;
 
 use amplify::{ByteArray, Bytes32StrRev, Wrapper};
-use commit_verify::{DigestExt, Sha256};
+use commit_verify::{DigestExt, TondiBlake3};
 use secp256k1::{ecdsa, schnorr};
 
 use crate::{NonStandardValue, ScriptBytes, ScriptPubkey, WitnessScript, LIB_NAME_BITCOIN};
@@ -208,12 +209,16 @@ impl From<Sighash> for secp256k1::Message {
 }
 
 impl Sighash {
-    pub fn engine() -> Sha256 { Sha256::default() }
+    /// Create a new BLAKE3 engine for sighash computation.
+    pub fn engine() -> TondiBlake3 {
+        TondiBlake3::from_context("tondi.sighash")
+    }
 
-    pub fn from_engine(engine: Sha256) -> Self {
-        let mut engine2 = Sha256::default();
-        engine2.input_raw(&engine.finish());
-        Self(engine2.finish().into())
+    /// Finalize the sighash from a BLAKE3 engine.
+    ///
+    /// For Tondi, we use a single BLAKE3 hash (no double hashing).
+    pub fn from_engine(engine: TondiBlake3) -> Self {
+        Self(engine.finish().into())
     }
 }
 

@@ -151,12 +151,14 @@ mod test {
     #![cfg_attr(coverage_nightly, coverage(off))]
 
     use amplify::ByteArray;
-    use commit_verify::{Digest, Sha256};
+    use commit_verify::{DigestExt, TondiBlake3};
 
     use super::*;
 
     pub fn commitment() -> TapretCommitment {
-        let msg = Sha256::digest("test data");
+        let mut hasher = TondiBlake3::new();
+        hasher.input_raw(b"test data");
+        let msg = hasher.finish();
         TapretCommitment {
             mpc: mpc::Commitment::from_byte_array(msg),
             nonce: 8,

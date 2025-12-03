@@ -20,10 +20,10 @@ The main goals of the libraries are:
   on changing the integration each time the new version of `bp-wallet` is
   released;
 - **no use of private keys**: the library analyzes wallet state using
-  descriptors and allows to produce unsigned PSBTs, as well as publish and
-  analyze (partially) signed PSBTs - but doesn't provide a signer or a way to
+  descriptors and allows to produce unsigned PSTTs, as well as publish and
+  analyze (partially) signed PSTTs - but doesn't provide a signer or a way to
   work with any private key material (seeds, mnemonics, xprivs, private keys);
-  PSBT files must be signed with some external signers or hardware wallets;
+  PSTT files must be signed with some external signers or hardware wallets;
 - **standard-compliance**: the library tries to provide full compliance with
   existing bitcoin standards defined in BIPs and do not use any legacy
   approaches or "blockchain-not-bitcoin" practices (like the ones provided by

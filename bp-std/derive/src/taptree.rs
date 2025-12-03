@@ -270,7 +270,7 @@ impl Iterator for ControlBlockFactory {
 /// endian unsigned integer indexes concatenated with each other. Public keys are those needed
 /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
 /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
-/// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+/// Finalizers should remove this field after `PSTT_IN_FINAL_SCRIPTWITNESS` is constructed.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct TapDerivation {

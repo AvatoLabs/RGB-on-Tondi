@@ -23,9 +23,9 @@
 //!
 //! **Embed-commit by constructor:**
 //! a) `TapTree, Msg -> TapTree', TapRightPartner`, defined in `taptree` mod;
-//! b) `(psbt::Output, TxOut), Msg -> (psbt::Output, TxOut)', TapretProof`,
+//! b) `(pstt::Output, TxOut), Msg -> (pstt::Output, TxOut)', TapretProof`,
 //!    defined in `output` mod;
-//! c) `PSBT, Msg -> PSBT', TapretProof`, defined in `psbt` mod;
+//! c) `PSTT, Msg -> PSTT', TapretProof`, defined in `pstt` mod;
 //! **Convolve-commit by receiver:**
 //! d) `UntweakedPublicKey, TapRightPartner, Msg -> TweakedPublicKey'` in
 //!    `xonlypk`;
@@ -35,8 +35,8 @@
 //!
 //! **Verify by constructor:**
 //! a) `TapRightPartner, Msg, TapTree' -> bool`;
-//! b) `TapretProof, Msg, (psbt::Output, TxOut)' -> bool`;
-//! c) `TapretProof, Msg, PSBT' -> bool`.
+//! b) `TapretProof, Msg, (pstt::Output, TxOut)' -> bool`;
+//! c) `TapretProof, Msg, PSTT' -> bool`.
 //! **Verify by receiver:**
 //! d) `TweakedPublicKey, TapretProof, Msg -> bool`;
 //! e) `PubkeyScript', TapretProof, Msg -> bool`;
@@ -259,7 +259,7 @@ pub struct TapretPathProof {
     nonce: u8,
 }
 
-// Used by PSBT tapret keys
+// Used by PSTT tapret keys
 impl StrictSerialize for TapretPathProof {}
 impl StrictDeserialize for TapretPathProof {}
 
@@ -325,7 +325,7 @@ impl<'data> IntoIterator for &'data TapretPathProof {
  */
 
 /// Information proving tapret determinism for a given tapret commitment.
-/// Used both in the commitment procedure for PSBTs and in
+/// Used both in the commitment procedure for PSTTs and in
 /// client-side-validation of the commitment.
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]

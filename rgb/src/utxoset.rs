@@ -22,7 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use bpstd::psbt::Utxo;
+use bpstd::pstt::Utxo;
 use bpstd::{Idx, Keychain, NormalIndex, Outpoint, Sats, Terminal};
 use indexmap::IndexMap;
 

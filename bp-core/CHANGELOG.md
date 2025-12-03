@@ -93,7 +93,7 @@ v0.2.0-beta.2
 - Additional LN peer messages supporting RGB
 
 ### BP module
-- Lexicographic orderings (BIP96) for transactions, PSBTs, inputs and outputs
+- Lexicographic orderings (BIP96) for transactions, PSTTs, inputs and outputs
 
 v0.2.0-beta.1
 -------------
@@ -192,8 +192,8 @@ v0.1.0-rc.2
 
 ### Breaking changes:
 - Changed embedded procedure names for RGB VM
-- Removed requirement for PSBT to contain fee key in RGB anchor creation (it 
-  needs to be a properly constructed PSBT with `witness_utxo`/`non_witness_utxo` 
+- Removed requirement for PSTT to contain fee key in RGB anchor creation (it 
+  needs to be a properly constructed PSTT with `witness_utxo`/`non_witness_utxo` 
   data)
 
 ### Other changes:
@@ -204,7 +204,7 @@ v0.1.0-rc.2
 - Implementation of Curve25519 public keys and Ed25519 signatures as RGB state 
   and metadata
 - Bech types for Pedersen commitments, Bulletproofs, Curve25519 data
-- Tweaking factor is added into PSBT information during anchor creation
+- Tweaking factor is added into PSTT information during anchor creation
 - Added bitcoin protocol resolvers API
 
 
