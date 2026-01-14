@@ -123,7 +123,7 @@ impl Path {
 
     pub fn with(step: Step) -> Path { Path(small_vec!(step)) }
 
-    pub fn iter(&self) -> std::slice::Iter<Step> { self.0.iter() }
+    pub fn iter(&self) -> std::slice::Iter<'_, Step> { self.0.iter() }
 }
 
 impl<'path> IntoIterator for &'path Path {

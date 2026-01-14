@@ -27,7 +27,7 @@ use crate::{
     LegacyPk, LegacySig, LockHeight, LockTimestamp, OpCode, OutputPk, PubkeyHash, RedeemScript,
     ScriptHash, TapCode, TapLeafHash, TapNodeHash, TapScript, TimeLockInterval, Tx, UncompressedPk,
     VBytes, VarInt, WPubkeyHash, WScriptHash, WeightUnits, WitnessProgram, WitnessScript,
-    WitnessVer, Wtxid, LIB_NAME_BITCOIN,
+    WitnessVer, Wtxid, LIB_NAME_TONDI,
 };
 
 pub const LIB_ID_BP_TX: &str =
@@ -41,12 +41,12 @@ fn _bitcoin_stl() -> Result<TypeLib, CompileError> { _bp_tx_stl() }
 
 #[allow(clippy::result_large_err)]
 fn _bp_tx_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_BITCOIN), None).transpile::<Tx>().compile()
+    LibBuilder::with(libname!(LIB_NAME_TONDI), None).transpile::<Tx>().compile()
 }
 
 #[allow(clippy::result_large_err)]
 fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_BITCOIN), [
+    LibBuilder::with(libname!(LIB_NAME_TONDI), [
         strict_types::stl::std_stl().to_dependency_types()
     ])
     .transpile::<LegacySig>()

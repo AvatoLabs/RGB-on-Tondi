@@ -26,7 +26,7 @@ use amplify::{confinement, Bytes32StrRev, Wrapper};
 
 use crate::opcodes::*;
 use crate::{
-    ByteStr, RedeemScript, ScriptBytes, ScriptPubkey, VarIntArray, WScriptHash, LIB_NAME_BITCOIN,
+    ByteStr, RedeemScript, ScriptBytes, ScriptPubkey, VarIntArray, WScriptHash, LIB_NAME_TONDI,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
@@ -51,7 +51,7 @@ pub enum SegwitError {
 /// with 0 and 0x51-0x60 (inclusive).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[derive(StrictType, StrictEncode, StrictDecode, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN, tags = repr, into_u8, try_from_u8)]
+#[strict_type(lib = LIB_NAME_TONDI, tags = repr, into_u8, try_from_u8)]
 #[repr(u8)]
 pub enum WitnessVer {
     /// Initial version of witness program. Used for P2WPKH and P2WPK outputs
@@ -215,7 +215,7 @@ impl WitnessVer {
 /// Witness program as defined in BIP141.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[derive(StrictType, StrictEncode, StrictDecode, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN, dumb = Self::dumb())]
+#[strict_type(lib = LIB_NAME_TONDI, dumb = Self::dumb())]
 pub struct WitnessProgram {
     /// The witness program version.
     version: WitnessVer,
@@ -307,7 +307,7 @@ impl ScriptPubkey {
 #[wrapper(Deref, AsSlice, Hex)]
 #[wrapper_mut(DerefMut, AsSliceMut)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct WitnessScript(ScriptBytes);
 
@@ -352,7 +352,7 @@ impl WitnessScript {
 #[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
 #[wrapper(BorrowSlice, Index, RangeOps, Debug, Hex, Display, FromStr)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct Wtxid(
     #[from]
@@ -363,7 +363,7 @@ pub struct Wtxid(
 #[derive(Wrapper, Clone, Eq, PartialEq, Hash, Debug, From, Default)]
 #[wrapper(Deref, Index, RangeOps)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 pub struct Witness(VarIntArray<ByteStr>);
 
 impl IntoIterator for Witness {

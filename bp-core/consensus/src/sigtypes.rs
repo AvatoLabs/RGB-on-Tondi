@@ -27,11 +27,11 @@ use amplify::{ByteArray, Bytes32StrRev, Wrapper};
 use commit_verify::{DigestExt, TondiBlake3};
 use secp256k1::{ecdsa, schnorr};
 
-use crate::{NonStandardValue, ScriptBytes, ScriptPubkey, WitnessScript, LIB_NAME_BITCOIN};
+use crate::{NonStandardValue, ScriptBytes, ScriptPubkey, WitnessScript, LIB_NAME_TONDI};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN, tags = repr, into_u8, try_from_u8)]
+#[strict_type(lib = LIB_NAME_TONDI, tags = repr, into_u8, try_from_u8)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 #[display(uppercase)]
 #[repr(u8)]
@@ -51,7 +51,7 @@ pub enum SighashFlag {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct SighashType {
     pub flag: SighashFlag,
@@ -192,7 +192,7 @@ impl Display for SighashType {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Index, RangeOps, AsSlice, BorrowSlice, Hex, Display, FromStr)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct Sighash(
     #[from]
@@ -275,7 +275,7 @@ pub enum SigError {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 #[derive(StrictType)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct LegacySig {
     /// The underlying ECDSA Signature
@@ -316,7 +316,7 @@ impl LegacySig {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 #[derive(StrictType)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct Bip340Sig {
     /// The underlying ECDSA Signature

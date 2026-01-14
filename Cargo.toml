@@ -69,7 +69,7 @@ homepage = "https://github.com/AvatoLabs/RGB-X"
 
 [workspace.dependencies]
 # External dependencies
-amplify = "4.9.0"
+amplify = { version = "4.9.0", default-features = true }
 bech32 = "0.9.1"
 secp256k1 = { version = "0.30.0", features = ["global-context"] }
 sha2 = "0.10.8"
@@ -101,7 +101,7 @@ async-trait = "0.1"
 hex = { version = "0.4", features = ["serde"] }
 
 # Workspace internal dependencies - strict encoding/types
-strict_encoding = { version = "2.9.1", path = "./strict-encoding/rust" }
+strict_encoding = { version = "2.9.1", path = "./strict-encoding/rust", default-features = true }
 strict_encoding_derive = { version = "2.9.1", path = "./strict-encoding/rust/derive" }
 strict_types = { version = "2.9.0", path = "./strict-types" }
 
@@ -111,7 +111,7 @@ zk-aluvm = { version = "0.12.0", path = "./zk-aluvm" }
 ultrasonic = { version = "0.12.0", path = "./ultrasonic" }
 
 # Workspace internal dependencies - client-side validation
-commit_verify = { version = "0.12.0", path = "./client_side_validation/commit_verify" }
+commit_verify = { version = "0.12.0", path = "./client_side_validation/commit_verify", default-features = true }
 commit_verify_derive = { version = "0.12.0", path = "./client_side_validation/commit_verify/derive" }
 single_use_seals = { version = "0.12.0", path = "./client_side_validation/single_use_seals" }
 client_side_validation = { version = "0.12.0", path = "./client_side_validation" }

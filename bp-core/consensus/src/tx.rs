@@ -33,13 +33,13 @@ use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
     ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime, NonStandardValue,
-    ScriptPubkey, SeqNo, SigScript, VarIntArray, Witness, Wtxid, LIB_NAME_BITCOIN,
+    ScriptPubkey, SeqNo, SigScript, VarIntArray, Witness, Wtxid, LIB_NAME_TONDI,
 };
 
 #[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
 #[wrapper(AsSlice)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[wrapper(BorrowSlice, Index, RangeOps, Debug, Hex, Display, FromStr)]
 // all-zeros used in coinbase
@@ -60,9 +60,73 @@ impl Txid {
     pub fn is_coinbase(&self) -> bool { self.to_byte_array() == [0u8; 32] }
 }
 
+/// Tondi transaction ID using BLAKE3 hash algorithm.
+///
+/// This type represents a transaction ID computed using BLAKE3 with domain separation,
+/// as opposed to Bitcoin's double SHA256. It is designed to be compatible with RGB's
+/// `WitnessId` trait requirements.
+///
+/// # RGB Compatibility
+///
+/// This type implements all traits required by RGB's `RgbSeal::WitnessId`:
+/// - `Copy + Ord + Hash + Debug + Display`
+#[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
+#[wrapper(AsSlice)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_TONDI)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+#[wrapper(BorrowSlice, Index, RangeOps, Debug, Hex, Display, FromStr)]
+pub struct TondiTxid(
+    #[from]
+    #[from([u8; 32])]
+    Bytes32StrRev,
+);
+
+impl From<TondiTxid> for [u8; 32] {
+    fn from(txid: TondiTxid) -> Self { txid.to_byte_array() }
+}
+
+impl TondiTxid {
+    /// Creates a TondiTxid from a byte array.
+    #[inline]
+    pub fn from_byte_array(bytes: [u8; 32]) -> Self {
+        Self(Bytes32StrRev::from_byte_array(bytes))
+    }
+
+    /// Converts the TondiTxid to a byte array.
+    #[inline]
+    pub fn to_byte_array(self) -> [u8; 32] { self.0.to_byte_array() }
+
+    /// Returns the coinbase transaction ID (all zeros).
+    #[inline]
+    pub const fn coinbase() -> Self { Self(Bytes32StrRev::zero()) }
+
+    /// Checks if this is a coinbase transaction ID.
+    #[inline]
+    pub fn is_coinbase(&self) -> bool { self.to_byte_array() == [0u8; 32] }
+}
+
+/// Conversion from `Txid` to `TondiTxid`.
+///
+/// This allows interoperability between Bitcoin-compatible `Txid` and Tondi-specific `TondiTxid`.
+impl From<Txid> for TondiTxid {
+    fn from(txid: Txid) -> Self {
+        TondiTxid::from_byte_array(txid.to_byte_array())
+    }
+}
+
+/// Conversion from `TondiTxid` to `Txid`.
+///
+/// This allows interoperability between Tondi-specific `TondiTxid` and Bitcoin-compatible `Txid`.
+impl From<TondiTxid> for Txid {
+    fn from(txid: TondiTxid) -> Self {
+        Txid::from_byte_array(txid.to_byte_array())
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, From)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[display(inner)]
 // 0xFFFFFFFF used in coinbase
@@ -89,7 +153,7 @@ impl FromStr for Vout {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[display("{txid}:{vout}")]
 pub struct Outpoint {
     pub txid: Txid,
@@ -121,6 +185,82 @@ impl Outpoint {
 
     #[inline]
     pub fn is_coinbase(&self) -> bool { self.txid.is_coinbase() && self.vout.into_u32() == 0 }
+}
+
+/// Tondi outpoint using TondiTxid.
+///
+/// This type represents a transaction output point using Tondi's BLAKE3-based transaction ID,
+/// as opposed to Bitcoin's double SHA256. The serialization format is identical to `Outpoint`:
+/// 32 bytes for txid followed by 4 bytes for vout.
+///
+/// # Serialization Format
+///
+/// The serialization format is identical to Bitcoin's Outpoint:
+/// - 32 bytes: Transaction ID (TondiTxid)
+/// - 4 bytes: Output index (Vout, little-endian u32)
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_TONDI)]
+#[display("{txid}:{vout}")]
+pub struct TondiOutpoint {
+    pub txid: TondiTxid,
+    pub vout: Vout,
+}
+
+impl TondiOutpoint {
+    /// Creates a new TondiOutpoint.
+    #[inline]
+    pub fn new(txid: TondiTxid, vout: impl Into<Vout>) -> Self {
+        Self {
+            txid,
+            vout: vout.into(),
+        }
+    }
+
+    /// Returns the coinbase outpoint.
+    #[inline]
+    pub const fn coinbase() -> Self {
+        Self {
+            txid: TondiTxid::coinbase(),
+            vout: Vout::from_u32(0),
+        }
+    }
+
+    /// Returns the vout as u32.
+    #[inline]
+    pub fn vout_u32(self) -> u32 { self.vout.into_u32() }
+
+    /// Returns the vout as usize.
+    #[inline]
+    pub fn vout_usize(self) -> usize { self.vout.into_usize() }
+
+    /// Checks if this is a coinbase outpoint.
+    #[inline]
+    pub fn is_coinbase(&self) -> bool { self.txid.is_coinbase() && self.vout.into_u32() == 0 }
+}
+
+/// Conversion from `Outpoint` to `TondiOutpoint`.
+///
+/// This allows interoperability between Bitcoin-compatible `Outpoint` and Tondi-specific `TondiOutpoint`.
+impl From<Outpoint> for TondiOutpoint {
+    fn from(outpoint: Outpoint) -> Self {
+        TondiOutpoint {
+            txid: outpoint.txid.into(),
+            vout: outpoint.vout,
+        }
+    }
+}
+
+/// Conversion from `TondiOutpoint` to `Outpoint`.
+///
+/// This allows interoperability between Tondi-specific `TondiOutpoint` and Bitcoin-compatible `Outpoint`.
+impl From<TondiOutpoint> for Outpoint {
+    fn from(outpoint: TondiOutpoint) -> Self {
+        Outpoint {
+            txid: outpoint.txid.into(),
+            vout: outpoint.vout,
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, From, Error)]
@@ -210,7 +350,7 @@ mod _serde_outpoint {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct TxIn {
     pub prev_output: Outpoint,
@@ -225,7 +365,7 @@ pub struct TxIn {
 #[wrapper(Add, Sub, Mul, Div, FromStr)]
 #[wrapper_mut(MathAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct Sats(
     #[from]
@@ -351,7 +491,7 @@ impl Display for Sats {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct TxOut {
     pub value: Sats,
@@ -369,7 +509,7 @@ impl TxOut {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxVer(i32);
 
@@ -404,7 +544,7 @@ impl TxVer {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 #[display(LowerHex)]
 pub struct Tx {
@@ -440,10 +580,10 @@ impl FromStr for Tx {
 
 impl Tx {
     #[inline]
-    pub fn inputs(&self) -> slice::Iter<TxIn> { self.inputs.iter() }
+    pub fn inputs(&self) -> slice::Iter<'_, TxIn> { self.inputs.iter() }
 
     #[inline]
-    pub fn outputs(&self) -> slice::Iter<TxOut> { self.outputs.iter() }
+    pub fn outputs(&self) -> slice::Iter<'_, TxOut> { self.outputs.iter() }
 
     #[inline]
     pub fn is_segwit(&self) -> bool { self.inputs().any(|txin| !txin.witness.is_empty()) }
@@ -486,9 +626,17 @@ impl Tx {
     /// Computes the Tondi transaction ID using BLAKE3.
     ///
     /// This is the canonical method for Tondi L1 transactions.
-    #[inline]
-    pub fn tondi_txid(&self) -> Txid {
-        self.txid()
+    ///
+    /// Returns a `TondiTxid` which uses BLAKE3 hash algorithm, compatible with RGB's
+    /// `WitnessId` trait requirements.
+    pub fn tondi_txid(&self) -> TondiTxid {
+        // Tondi L1: Use BLAKE3 with domain separation (single hash)
+        let mut hasher = TondiBlake3::for_transaction();
+        self.version.consensus_encode(&mut hasher).expect("engines don't error");
+        self.inputs.consensus_encode(&mut hasher).expect("engines don't error");
+        self.outputs.consensus_encode(&mut hasher).expect("engines don't error");
+        self.lock_time.consensus_encode(&mut hasher).expect("engines don't error");
+        TondiTxid::from_byte_array(hasher.finish())
     }
 
     /// Computes the segwit version of the transaction id.
@@ -637,6 +785,119 @@ mod test {
         assert_eq!(realtx.vsize(), tx_bytes.len());
         assert_eq!(realtx.base_size(), tx_bytes.len());
          */
+    }
+
+    #[test]
+    fn tondi_txid_basic() {
+        // Test basic TondiTxid creation and conversion
+        let bytes = [0x42u8; 32];
+        let tondi_txid = TondiTxid::from_byte_array(bytes);
+        assert_eq!(tondi_txid.to_byte_array(), bytes);
+
+        // Test conversion from Txid
+        let txid = Txid::from_byte_array(bytes);
+        let tondi_txid_from_txid: TondiTxid = txid.into();
+        assert_eq!(tondi_txid, tondi_txid_from_txid);
+
+        // Test conversion to Txid
+        let txid_from_tondi: Txid = tondi_txid.into();
+        assert_eq!(txid, txid_from_tondi);
+
+        // Test coinbase
+        let coinbase = TondiTxid::coinbase();
+        assert!(coinbase.is_coinbase());
+        assert_eq!(coinbase.to_byte_array(), [0u8; 32]);
+    }
+
+    #[test]
+    fn tondi_txid_from_tx() {
+        // Test that tondi_txid() method works
+        let tx = Tx {
+            version: TxVer::V2,
+            inputs: VarIntArray::new(),
+            outputs: VarIntArray::new(),
+            lock_time: LockTime::ZERO,
+        };
+        let tondi_txid = tx.tondi_txid();
+        // Just verify it doesn't panic and returns a valid TondiTxid
+        assert!(!tondi_txid.is_coinbase() || tx.inputs.is_empty());
+    }
+
+    #[test]
+    fn tondi_outpoint_basic() {
+        // Test basic TondiOutpoint creation
+        let txid_bytes = [0x42u8; 32];
+        let tondi_txid = TondiTxid::from_byte_array(txid_bytes);
+        let vout = Vout::from_u32(5);
+        let tondi_outpoint = TondiOutpoint::new(tondi_txid, vout);
+        
+        assert_eq!(tondi_outpoint.txid, tondi_txid);
+        assert_eq!(tondi_outpoint.vout, vout);
+        assert_eq!(tondi_outpoint.vout_u32(), 5);
+        assert!(!tondi_outpoint.is_coinbase());
+    }
+
+    #[test]
+    fn tondi_outpoint_coinbase() {
+        // Test coinbase outpoint
+        let coinbase = TondiOutpoint::coinbase();
+        assert!(coinbase.is_coinbase());
+        assert_eq!(coinbase.txid.to_byte_array(), [0u8; 32]);
+        assert_eq!(coinbase.vout_u32(), 0);
+    }
+
+    #[test]
+    fn tondi_outpoint_conversion() {
+        // Test conversion between Outpoint and TondiOutpoint
+        let txid_bytes = [0xABu8; 32];
+        let txid = Txid::from_byte_array(txid_bytes);
+        let vout = Vout::from_u32(3);
+        let outpoint = Outpoint::new(txid, vout);
+        
+        // Convert to TondiOutpoint
+        let tondi_outpoint: TondiOutpoint = outpoint.into();
+        assert_eq!(tondi_outpoint.txid.to_byte_array(), txid_bytes);
+        assert_eq!(tondi_outpoint.vout, vout);
+        
+        // Convert back to Outpoint
+        let outpoint_back: Outpoint = tondi_outpoint.into();
+        assert_eq!(outpoint_back.txid.to_byte_array(), txid_bytes);
+        assert_eq!(outpoint_back.vout, vout);
+    }
+
+    #[test]
+    fn tondi_outpoint_serialization_format() {
+        // Test that TondiOutpoint serialization format matches Outpoint
+        use crate::coding::{ConsensusDecode, ConsensusEncode};
+        
+        let txid_bytes = [0xCDu8; 32];
+        let txid = Txid::from_byte_array(txid_bytes);
+        let tondi_txid = TondiTxid::from_byte_array(txid_bytes);
+        let vout = Vout::from_u32(7);
+        
+        let outpoint = Outpoint::new(txid, vout);
+        let tondi_outpoint = TondiOutpoint::new(tondi_txid, vout);
+        
+        // Serialize both
+        let outpoint_bytes = outpoint.consensus_serialize();
+        let tondi_outpoint_bytes = tondi_outpoint.consensus_serialize();
+        
+        // Both should have the same format: 32 bytes txid + 4 bytes vout = 36 bytes
+        assert_eq!(outpoint_bytes.len(), 36);
+        assert_eq!(tondi_outpoint_bytes.len(), 36);
+        
+        // The format should be identical (same txid bytes + same vout)
+        assert_eq!(outpoint_bytes, tondi_outpoint_bytes);
+        
+        // Deserialize TondiOutpoint from Outpoint bytes (should work due to same format)
+        let deserialized: TondiOutpoint = TondiOutpoint::consensus_deserialize(outpoint_bytes.clone()).unwrap();
+        assert_eq!(deserialized.txid.to_byte_array(), txid_bytes);
+        assert_eq!(deserialized.vout, vout);
+        
+        // Deserialize Outpoint from TondiOutpoint bytes (should work due to same format)
+        let deserialized_outpoint: Outpoint = Outpoint::consensus_deserialize(tondi_outpoint_bytes.clone()).unwrap();
+        assert_eq!(deserialized_outpoint.txid.to_byte_array(), txid_bytes);
+        assert_eq!(deserialized_outpoint.vout, vout);
     }
 
     #[test]

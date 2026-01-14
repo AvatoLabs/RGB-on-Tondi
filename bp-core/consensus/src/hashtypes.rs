@@ -24,7 +24,7 @@ use amplify::{Bytes20, Bytes32, Wrapper};
 use commit_verify::TondiBlake3;
 
 use crate::{
-    CompressedPk, LegacyPk, RedeemScript, UncompressedPk, WitnessScript, LIB_NAME_BITCOIN,
+    CompressedPk, LegacyPk, RedeemScript, UncompressedPk, WitnessScript, LIB_NAME_TONDI,
 };
 
 /// A hash of a public key, used in P2PKH and P2WPKH addresses.
@@ -33,7 +33,7 @@ use crate::{
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Index, RangeOps, AsSlice, BorrowSlice, Hex, Display, FromStr)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PubkeyHash(
     #[from]
@@ -81,7 +81,7 @@ impl From<LegacyPk> for PubkeyHash {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Index, RangeOps, AsSlice, BorrowSlice, Hex, Display, FromStr)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct ScriptHash(
     #[from]
@@ -109,7 +109,7 @@ impl From<&RedeemScript> for ScriptHash {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Index, RangeOps, AsSlice, BorrowSlice, Hex, Display, FromStr)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct WPubkeyHash(
     #[from]
@@ -137,7 +137,7 @@ impl From<CompressedPk> for WPubkeyHash {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Index, RangeOps, AsSlice, BorrowSlice, Hex, Display, FromStr)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct WScriptHash(
     #[from]

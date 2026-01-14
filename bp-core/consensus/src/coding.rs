@@ -28,7 +28,7 @@ use crate::{
     Annex, Block, BlockHash, BlockHeader, BlockMerkleRoot, ControlBlock, InternalPk,
     InvalidLeafVer, LeafVer, LockTime, Outpoint, Parity, RedeemScript, Sats, ScriptBytes,
     ScriptPubkey, SeqNo, SigScript, Sighash, TapBranchHash, TapLeafHash, TapMerklePath, TapScript,
-    Tx, TxIn, TxOut, TxVer, Txid, Vout, Witness, WitnessScript, LIB_NAME_BITCOIN,
+    Tx, TxIn, TxOut, TxVer, Txid, TondiTxid, TondiOutpoint, Vout, Witness, WitnessScript, LIB_NAME_TONDI,
     TAPROOT_ANNEX_PREFIX,
 };
 
@@ -44,7 +44,7 @@ pub type VarIntBytes<const MIN_LEN: usize = 0> = Confined<Vec<u8>, MIN_LEN, U32>
 /// A variable-length unsigned integer.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 pub struct VarInt(pub u64);
 
 #[allow(clippy::len_without_is_empty)] // VarInt has no concept of 'is_empty'.
@@ -89,7 +89,7 @@ impl<T, const MIN_LEN: usize> LenVarInt for VarIntArray<T, MIN_LEN> {
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[wrapper(Deref, Index, RangeOps, BorrowSlice, Hex)]
 #[wrapper_mut(DerefMut, IndexMut, RangeMut, BorrowSliceMut)]
 pub struct ByteStr(VarIntBytes);
@@ -442,6 +442,37 @@ impl ConsensusEncode for Txid {
 impl ConsensusDecode for Txid {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
         <[u8; 32]>::consensus_decode(reader).map(Self::from)
+    }
+}
+
+impl ConsensusEncode for TondiTxid {
+    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        writer.write_all(&self.to_byte_array())?;
+        Ok(32)
+    }
+}
+
+impl ConsensusDecode for TondiTxid {
+    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
+        <[u8; 32]>::consensus_decode(reader).map(TondiTxid::from_byte_array)
+    }
+}
+
+impl ConsensusEncode for TondiOutpoint {
+    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        // Serialization format is identical to Outpoint: 32 bytes txid + 4 bytes vout
+        let mut counter = self.txid.consensus_encode(writer)?;
+        counter += self.vout.consensus_encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl ConsensusDecode for TondiOutpoint {
+    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
+        // Deserialization format is identical to Outpoint: 32 bytes txid + 4 bytes vout
+        let txid = TondiTxid::consensus_decode(reader)?;
+        let vout = Vout::consensus_decode(reader)?;
+        Ok(TondiOutpoint { txid, vout })
     }
 }
 

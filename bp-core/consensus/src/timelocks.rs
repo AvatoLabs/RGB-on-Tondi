@@ -26,7 +26,7 @@ use std::str::FromStr;
 
 use chrono::Utc;
 
-use crate::LIB_NAME_BITCOIN;
+use crate::LIB_NAME_TONDI;
 
 /// The Threshold for deciding whether a lock time value is a height or a time
 /// (see [Bitcoin Core]).
@@ -75,7 +75,7 @@ pub enum TimelockParseError {
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct LockTime(u32);
 
@@ -151,7 +151,7 @@ impl LockTime {
 /// 500000000.
 #[derive(Copy, Clone, PartialOrd, Ord, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct LockTimestamp(u32);
 
@@ -263,7 +263,7 @@ impl FromStr for LockTimestamp {
 /// block height number which is always less than 500000000.
 #[derive(Copy, Clone, PartialOrd, Ord, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct LockHeight(u32);
 
@@ -365,7 +365,7 @@ impl FromStr for LockHeight {
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct SeqNo(u32);
 
@@ -408,7 +408,7 @@ impl SeqNo {
 /// absolute (OP_CHECKTIMELOCKVERIFY) timelocks.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_BITCOIN, tags = order)]
+#[strict_type(lib = LIB_NAME_TONDI, tags = order)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub enum TimeLockInterval {
     /// Describes number of blocks for the timelock

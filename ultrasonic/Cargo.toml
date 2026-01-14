@@ -22,9 +22,9 @@ name = "ultrasonic"
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-amplify = { workspace = true, default-features = false, features = ["derive", "hex"] }
+amplify = { workspace = true, features = ["derive", "hex"] }
 baid64 = { workspace = true, optional = true }
-strict_encoding = { workspace = true, default-features = false, features = ["derive"] }
+strict_encoding = { workspace = true, features = ["derive"] }
 strict_types = { workspace = true, optional = true }
 zk-aluvm = { workspace = true }
 commit_verify = { workspace = true, features = ["derive"] }

@@ -22,11 +22,11 @@
 use std::iter::Sum;
 use std::ops::{Add, AddAssign};
 
-use crate::{LenVarInt, ScriptPubkey, SigScript, Tx, TxIn, TxOut, Witness, LIB_NAME_BITCOIN};
+use crate::{LenVarInt, ScriptPubkey, SigScript, Tx, TxIn, TxOut, Witness, LIB_NAME_TONDI};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictEncode, StrictDecode, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[display("{0} vbytes")]
 pub struct VBytes(u32);
 
@@ -50,7 +50,7 @@ impl VBytes {
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictEncode, StrictDecode, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN)]
+#[strict_type(lib = LIB_NAME_TONDI)]
 #[display("{0} WU")]
 pub struct WeightUnits(u32);
 

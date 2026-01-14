@@ -21,7 +21,7 @@ name = "client_side_validation"
 path = "src/lib.rs"
 
 [dependencies]
-commit_verify = { workspace = true, default-features = false }
+commit_verify = { workspace = true }
 single_use_seals = { workspace = true, features = ["strict_encoding"] }
 serde = { workspace = true, optional = true }
 

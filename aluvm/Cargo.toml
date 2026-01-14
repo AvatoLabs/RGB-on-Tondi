@@ -21,9 +21,9 @@ name = "aluvm-stl"
 required-features = ["stl"]
 
 [dependencies]
-amplify = { workspace = true, default-features = false, features = ["derive"] }
+amplify = { workspace = true, features = ["derive"] }
 commit_verify = { workspace = true }
-strict_encoding = { workspace = true, default-features = false, features = ["derive"] }
+strict_encoding = { workspace = true, features = ["derive"] }
 strict_types = { workspace = true, optional = true }
 ascii-armor = { workspace = true, optional = true }
 baid64 = { workspace = true }

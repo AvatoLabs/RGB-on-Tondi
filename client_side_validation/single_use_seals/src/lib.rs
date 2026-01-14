@@ -130,18 +130,21 @@ use core::marker::PhantomData;
 #[cfg(feature = "strict_encoding")]
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
+/// Dummy trait for when strict_encoding feature is disabled.
 #[cfg(not(feature = "strict_encoding"))]
-trait StrictDumb {}
+pub trait StrictDumb {}
 #[cfg(not(feature = "strict_encoding"))]
 impl<T> StrictDumb for T {}
 
+/// Dummy trait for when strict_encoding feature is disabled.
 #[cfg(not(feature = "strict_encoding"))]
-trait StrictEncode {}
+pub trait StrictEncode {}
 #[cfg(not(feature = "strict_encoding"))]
 impl<T> StrictEncode for T {}
 
+/// Dummy trait for when strict_encoding feature is disabled.
 #[cfg(not(feature = "strict_encoding"))]
-trait StrictDecode {}
+pub trait StrictDecode {}
 #[cfg(not(feature = "strict_encoding"))]
 impl<T> StrictDecode for T {}
 

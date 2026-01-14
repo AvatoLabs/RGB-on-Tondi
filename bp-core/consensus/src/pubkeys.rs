@@ -30,7 +30,7 @@ use strict_encoding::{
     WriteStruct,
 };
 
-use crate::LIB_NAME_BITCOIN;
+use crate::LIB_NAME_TONDI;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -56,7 +56,7 @@ pub enum InvalidPubkey<const LEN: usize> {
 #[wrapper(Deref, LowerHex, Display)]
 #[wrapper_mut(DerefMut)]
 #[derive(StrictType, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN, dumb = Self::dumb())]
+#[strict_type(lib = LIB_NAME_TONDI, dumb = Self::dumb())]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct CompressedPk(PublicKey);
 
@@ -105,7 +105,7 @@ impl FromStr for CompressedPk {
 #[wrapper(Deref, LowerHex, Display)]
 #[wrapper_mut(DerefMut)]
 #[derive(StrictType, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN, dumb = Self::dumb())]
+#[strict_type(lib = LIB_NAME_TONDI, dumb = Self::dumb())]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct UncompressedPk(PublicKey);
 
@@ -150,7 +150,7 @@ impl FromStr for UncompressedPk {
 #[wrapper(Deref, LowerHex, Display)]
 #[wrapper_mut(DerefMut)]
 #[derive(StrictType, StrictDumb)]
-#[strict_type(lib = LIB_NAME_BITCOIN, dumb = Self::dumb())]
+#[strict_type(lib = LIB_NAME_TONDI, dumb = Self::dumb())]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LegacyPk {
     pub compressed: bool,

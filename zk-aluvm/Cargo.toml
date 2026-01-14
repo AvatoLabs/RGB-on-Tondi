@@ -17,8 +17,8 @@ exclude = [".github"]
 name = "zkaluvm"
 
 [dependencies]
-amplify = { workspace = true, default-features = false, features = ["derive"] }
-strict_encoding = { workspace = true, default-features = false, features = ["derive"] }
+amplify = { workspace = true, features = ["derive"] }
+strict_encoding = { workspace = true, features = ["derive"] }
 strict_types = { workspace = true, optional = true }
 aluvm = { workspace = true }
 serde = { workspace = true, optional = true }
