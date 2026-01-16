@@ -55,6 +55,7 @@ extern crate serde;
 #[cfg(feature = "derive")]
 pub use commit_encoding_derive::CommitEncode;
 
+mod annexret;
 mod commit;
 mod conceal;
 mod convolve;
@@ -69,6 +70,11 @@ mod digest;
 #[cfg(feature = "vesper")]
 pub mod vesper;
 
+pub use annexret::{
+    AnnexRetError, AnnexRetProtocol, RGB_COMMITMENT_LEN, RGB_COMMITMENT_TLV_TYPE,
+    TAPROOT_ANNEX_PREFIX, create_annex_with_commitment, extract_commitment_from_annex,
+    verify_annex_commitment,
+};
 pub use commit::{CommitVerify, TryCommitVerify, VerifyError};
 pub use conceal::Conceal;
 pub use convolve::{ConvolveCommit, ConvolveCommitProof, ConvolveVerifyError};
