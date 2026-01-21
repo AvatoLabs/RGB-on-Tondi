@@ -169,7 +169,7 @@ impl MultiResolver {
 
 #[cfg(not(feature = "async"))]
 impl Resolver for MultiResolver {
-    fn resolve_tx(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
+    fn resolve_tx(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_tx(txid);
@@ -181,7 +181,7 @@ impl Resolver for MultiResolver {
         NoResolver.call()
     }
 
-    fn resolve_tx_status(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
+    fn resolve_tx_status(&self, _txid: Txid) -> Result<WitnessStatus, ResolverError> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_tx_status(txid);
@@ -196,7 +196,7 @@ impl Resolver for MultiResolver {
     #[allow(unreachable_code)]
     fn resolve_utxos(
         &self,
-        iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
+        _iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
@@ -222,7 +222,7 @@ impl Resolver for MultiResolver {
         NoResolver.call()
     }
 
-    fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError> {
+    fn broadcast(&self, _tx: &Tx) -> Result<(), ResolverError> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.broadcast(tx);

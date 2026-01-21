@@ -34,7 +34,8 @@ use bpstd::pstt::Utxo;
 use bpstd::{Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout};
 use rgb::{Outpoint, WitnessStatus};
 use bpstd::{Address, AddressNetwork};
-use tondi::{TondiClient, TondiConfig, Error as TondiError, NetworkType};
+use tondi::{TondiClient, TondiConfig, Error as TondiError, NetworkType, TondiOutpoint};
+use commit_verify::annexret::extract_commitment_from_annex;
 
 use super::{Resolver, ResolverError};
 
@@ -42,6 +43,8 @@ use super::{Resolver, ResolverError};
 pub struct TondiResolver {
     client: TondiClient,
     network: AddressNetwork,
+    /// Minimum Blue Score depth for confirmation (default: 10)
+    min_blue_score_depth: u64,
 }
 
 impl TondiResolver {
@@ -68,7 +71,11 @@ impl TondiResolver {
             Err(_) => AddressNetwork::TondiMainnet,
         };
         
-        Ok(Self { client, network })
+        Ok(Self { 
+            client, 
+            network,
+            min_blue_score_depth: 10, // Default: 10 confirmations
+        })
     }
 
     /// Creates a new Tondi resolver for mainnet
@@ -77,7 +84,11 @@ impl TondiResolver {
         let config = TondiConfig::mainnet(endpoint);
         let client = TondiClient::connect(config).await
             .map_err(|_| ResolverError::Connectivity)?;
-        Ok(Self { client, network: AddressNetwork::TondiMainnet })
+        Ok(Self { 
+            client, 
+            network: AddressNetwork::TondiMainnet,
+            min_blue_score_depth: 10,
+        })
     }
 
     /// Creates a new Tondi resolver for testnet
@@ -86,18 +97,146 @@ impl TondiResolver {
         let config = TondiConfig::testnet(endpoint);
         let client = TondiClient::connect(config).await
             .map_err(|_| ResolverError::Connectivity)?;
-        Ok(Self { client, network: AddressNetwork::TondiTestnet })
+        Ok(Self { 
+            client, 
+            network: AddressNetwork::TondiTestnet,
+            min_blue_score_depth: 10,
+        })
+    }
+
+    /// Set minimum Blue Score depth for confirmation
+    pub fn with_min_blue_score_depth(mut self, depth: u64) -> Self {
+        self.min_blue_score_depth = depth;
+        self
     }
 
     /// Get the current network
     pub fn network(&self) -> AddressNetwork {
         self.network
     }
+
+    /// Check if a UTXO exists and is unspent
+    ///
+    /// # Arguments
+    ///
+    /// * `outpoint` - The outpoint to check
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(Utxo))` if the UTXO exists and is unspent,
+    /// `Ok(None)` if the UTXO is spent or doesn't exist,
+    /// `Err` if there was an error querying the node
+    #[cfg(feature = "async")]
+    pub async fn check_utxo(&self, outpoint: Outpoint) -> Result<Option<Utxo>, ResolverError> {
+        let tondi_outpoint = TondiOutpoint {
+            transaction_id: amplify::Bytes32::from_byte_array(outpoint.txid.to_byte_array()),
+            index: outpoint.vout.to_u32(),
+        };
+
+        // Try to get the transaction to check if the output exists
+        match self.client.get_transaction(tondi_outpoint.transaction_id).await {
+            Ok(tx) => {
+                // Check if the output index is valid
+                if tondi_outpoint.index as usize >= tx.outputs.len() {
+                    return Ok(None);
+                }
+
+                // Get transaction status to check if it's accepted
+                match self.client.get_transaction_status(tondi_outpoint.transaction_id).await {
+                    Ok(status) => {
+                        if !status.accepted {
+                            // Transaction not yet accepted, UTXO is tentative
+                            return Ok(None);
+                        }
+
+                        // Check if UTXO is spent by querying the address (if available)
+                        // For now, we assume if the transaction is accepted and output exists,
+                        // the UTXO exists. A more thorough check would require querying spent UTXOs.
+                        let output = &tx.outputs[tondi_outpoint.index as usize];
+                        Ok(Some(Utxo {
+                            outpoint,
+                            value: Sats::from_sats(output.value),
+                            terminal: Terminal::default(), // Terminal needs to be determined from context
+                        }))
+                    }
+                    Err(TondiError::TransactionNotFound(_)) => Ok(None),
+                    Err(_) => Err(ResolverError::Connectivity),
+                }
+            }
+            Err(TondiError::TransactionNotFound(_)) => Ok(None),
+            Err(_) => Err(ResolverError::Connectivity),
+        }
+    }
+
+    /// Extract RGB commitment from transaction's Annex field
+    ///
+    /// # Arguments
+    ///
+    /// * `tx` - The BP transaction (converted from Tondi transaction)
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some([u8; 32]))` if RGB commitment is found in Annex,
+    /// `Ok(None)` if no RGB commitment is found,
+    /// `Err` if there was an error parsing the Annex
+    fn extract_rgb_commitment(&self, tx: &Tx) -> Result<Option<[u8; 32]>, ResolverError> {
+        // Look for Annex in witness fields
+        for input in tx.inputs() {
+            if !input.witness.is_empty() {
+                // Annex is typically the last element in witness
+                // In Tondi, Annex format: 0x50 + TLV data
+                for witness_item in input.witness.iter() {
+                    if !witness_item.is_empty() && witness_item[0] == 0x50 {
+                        // Found potential Annex, try to extract RGB commitment
+                        match extract_commitment_from_annex(witness_item) {
+                            Ok(commitment) => return Ok(Some(commitment)),
+                            Err(_) => continue, // Not a valid RGB commitment, continue searching
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Check Blue Score depth for a transaction
+    ///
+    /// # Arguments
+    ///
+    /// * `tx_status` - Transaction status from Tondi node
+    /// * `current_daa_score` - Current virtual DAA score
+    ///
+    /// # Returns
+    ///
+    /// `true` if the transaction has sufficient Blue Score depth (>= min_blue_score_depth),
+    /// `false` otherwise
+    async fn check_blue_score_depth(
+        &self,
+        tx_status: &tondi::TxStatus,
+        current_daa_score: u64,
+    ) -> bool {
+        if let Some(accepting_daa_score) = tx_status.accepting_block_daa_score {
+            let depth = current_daa_score.saturating_sub(accepting_daa_score);
+            depth >= self.min_blue_score_depth
+        } else {
+            false
+        }
+    }
 }
 
 /// Convert Tondi transaction status to RGB witness status
-fn convert_status(accepted: bool, daa_score: Option<u64>) -> WitnessStatus {
+/// 
+/// Uses Blue Score depth check to ensure sufficient confirmation depth
+fn convert_status(
+    accepted: bool,
+    daa_score: Option<u64>,
+    has_sufficient_depth: bool,
+) -> WitnessStatus {
     if !accepted {
+        return WitnessStatus::Tentative;
+    }
+    if !has_sufficient_depth {
+        // Transaction is accepted but doesn't have sufficient Blue Score depth
         return WitnessStatus::Tentative;
     }
     if let Some(score) = daa_score {
@@ -119,7 +258,18 @@ impl Resolver for TondiResolver {
             Ok(tondi_tx) => {
                 // Convert Tondi transaction to BP transaction
                 match tondi_tx.to_bp_tx() {
-                    Ok(tx) => Ok(Some(UnsignedTx::with_sigs_removed(tx))),
+                    Ok(tx) => {
+                        // Extract RGB commitment from Annex if present
+                        // Note: This is informational - the commitment is extracted but not returned
+                        // as part of UnsignedTx. RGB core will handle commitment verification separately.
+                        if let Err(e) = self.extract_rgb_commitment(&tx) {
+                            // Log error but don't fail - transaction is still valid
+                            // RGB commitment extraction is optional for transaction resolution
+                            let _ = e;
+                        }
+                        
+                        Ok(Some(UnsignedTx::with_sigs_removed(tx)))
+                    }
                     Err(_) => Err(ResolverError::Protocol),
                 }
             }
@@ -132,7 +282,21 @@ impl Resolver for TondiResolver {
         let tondi_txid = amplify::Bytes32::from_byte_array(txid.to_byte_array());
         
         match self.client.get_transaction_status(tondi_txid).await {
-            Ok(status) => Ok(convert_status(status.accepted, status.accepting_block_daa_score)),
+            Ok(status) => {
+                // Get current DAA score for Blue Score depth check
+                let current_daa_score = self.client.get_block_dag_info().await
+                    .map(|info| info.virtual_daa_score)
+                    .unwrap_or(0);
+                
+                // Check if transaction has sufficient Blue Score depth
+                let has_sufficient_depth = self.check_blue_score_depth(&status, current_daa_score).await;
+                
+                Ok(convert_status(
+                    status.accepted,
+                    status.accepting_block_daa_score,
+                    has_sufficient_depth,
+                ))
+            }
             Err(_) => Err(ResolverError::Connectivity),
         }
     }

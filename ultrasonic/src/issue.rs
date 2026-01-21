@@ -21,6 +21,9 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+// Legacy variants in Consensus enum are deprecated but kept for backward compatibility
+#![allow(deprecated)]
+
 use core::fmt::Debug;
 use core::str::FromStr;
 

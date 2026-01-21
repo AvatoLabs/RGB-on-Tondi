@@ -90,7 +90,7 @@ pub trait Instruction<Id: SiteId>: Display + Debug + Bytecode<Id> + Clone + Eq {
 
     /// If an instruction is a jump operation inside the library, it should return its goto target
     /// position number.
-    fn local_goto_pos(&mut self) -> GotoTarget;
+    fn local_goto_pos(&mut self) -> GotoTarget<'_>;
 
     /// If an instruction is a jump operation into an external library, it should return its remote
     /// target.

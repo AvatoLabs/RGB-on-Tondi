@@ -41,7 +41,7 @@ impl<Id: SiteId> Instruction<Id> for Instr<Id> {
         }
     }
 
-    fn local_goto_pos(&mut self) -> GotoTarget {
+    fn local_goto_pos(&mut self) -> GotoTarget<'_> {
         match self {
             Instr::Ctrl(instr) => instr.local_goto_pos(),
             Instr::Reserved(instr) => Instruction::<Id>::local_goto_pos(instr),
@@ -111,7 +111,7 @@ impl<Id: SiteId> Instruction<Id> for ReservedInstr {
 
     fn is_goto_target(&self) -> bool { false }
 
-    fn local_goto_pos(&mut self) -> GotoTarget { GotoTarget::None }
+    fn local_goto_pos(&mut self) -> GotoTarget<'_> { GotoTarget::None }
 
     fn remote_goto_pos(&mut self) -> Option<&mut Site<Id>> { None }
 
@@ -156,7 +156,7 @@ impl<Id: SiteId> Instruction<Id> for CtrlInstr<Id> {
         }
     }
 
-    fn local_goto_pos(&mut self) -> GotoTarget {
+    fn local_goto_pos(&mut self) -> GotoTarget<'_> {
         match self {
             CtrlInstr::Nop
             | CtrlInstr::ChkCo
