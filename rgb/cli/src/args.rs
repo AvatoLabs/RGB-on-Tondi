@@ -130,15 +130,20 @@ impl Args {
             if self.network.is_testnet() {
                 dir.set_extension("testnet");
             }
+            // For mainnet, keep as "tondi" (no extension)
             dir
         }
     }
 
     pub fn contracts(&self) -> Contracts<StockpileDir<TxoSeal>> {
-        if !self.network.is_testnet() {
-            panic!("Non-testnet networks are not yet supported");
-        }
-        let stockpile = StockpileDir::load(self.data_dir(), Consensus::Tondi, true)
+        // Determine Consensus based on network
+        let consensus = if self.network.is_testnet() {
+            Consensus::TondiTestnet
+        } else {
+            Consensus::Tondi
+        };
+        
+        let stockpile = StockpileDir::load(self.data_dir(), consensus, true)
             .expect("Invalid contracts directory");
         Contracts::load(stockpile)
     }

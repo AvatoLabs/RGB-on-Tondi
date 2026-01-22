@@ -45,6 +45,10 @@ pub struct TondiResolver {
     network: AddressNetwork,
     /// Minimum Blue Score depth for confirmation (default: 10)
     min_blue_score_depth: u64,
+    /// Cache for full transactions (with Witness) keyed by txid
+    /// This is needed because UnsignedTx doesn't preserve Witness/Annex data
+    #[cfg(feature = "async")]
+    tx_cache: std::collections::HashMap<Txid, Tx>,
 }
 
 impl TondiResolver {
@@ -113,6 +117,50 @@ impl TondiResolver {
     /// Get the current network
     pub fn network(&self) -> AddressNetwork {
         self.network
+    }
+
+    /// Get full transaction with Witness data (for RGB commitment verification)
+    ///
+    /// **CRITICAL**: This method preserves Witness/Annex data that contains RGB commitments.
+    /// Unlike `resolve_tx_async()` which returns `UnsignedTx` (without Witness), this method
+    /// returns the complete `Tx` with Witness preserved.
+    ///
+    /// RGB needs the full transaction with Witness to verify commitments via `PublishedWitness::verify_commitment()`.
+    /// The Witness field contains Annex data (format: 0x50 + TLV) which stores the RGB commitment hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `txid` - The transaction ID to retrieve
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(Tx))` if the transaction exists (with Witness preserved),
+    /// `Ok(None)` if the transaction doesn't exist,
+    /// `Err` if there was an error retrieving the transaction
+    #[cfg(feature = "async")]
+    pub async fn get_full_tx(&self, txid: Txid) -> Result<Option<Tx>, ResolverError> {
+        let tondi_txid = amplify::Bytes32::from_byte_array(txid.to_byte_array());
+        
+        match self.client.get_transaction(tondi_txid).await {
+            Ok(tondi_tx) => {
+                // Convert Tondi transaction to BP transaction (preserves Witness/Annex)
+                // The to_bp_tx() method maps Tondi's payload (Annex) to BP Witness
+                // 
+                // Note: to_bp_tx() will fail if the transaction contains non-Standard
+                // inputs or outputs (ChannelStateSpend, IngotSpend, etc.), as RGB
+                // Purist Mode only supports Standard transaction types.
+                match tondi_tx.to_bp_tx() {
+                    Ok(tx) => Ok(Some(tx)),
+                    Err(e) => {
+                        // If conversion fails due to non-Standard inputs/outputs,
+                        // return Protocol error (RGB doesn't support these types)
+                        Err(ResolverError::Protocol)
+                    }
+                }
+            }
+            Err(TondiError::TransactionNotFound(_)) => Ok(None),
+            Err(_) => Err(ResolverError::Connectivity),
+        }
     }
 
     /// Check if a UTXO exists and is unspent
@@ -257,16 +305,31 @@ impl Resolver for TondiResolver {
         match self.client.get_transaction(tondi_txid).await {
             Ok(tondi_tx) => {
                 // Convert Tondi transaction to BP transaction
+                // Note: to_bp_tx() will fail if the transaction contains non-Standard
+                // inputs or outputs (ChannelStateSpend, IngotSpend, etc.), as RGB
+                // Purist Mode only supports Standard transaction types.
                 match tondi_tx.to_bp_tx() {
                     Ok(tx) => {
-                        // Extract RGB commitment from Annex if present
-                        // Note: This is informational - the commitment is extracted but not returned
-                        // as part of UnsignedTx. RGB core will handle commitment verification separately.
-                        if let Err(e) = self.extract_rgb_commitment(&tx) {
-                            // Log error but don't fail - transaction is still valid
-                            // RGB commitment extraction is optional for transaction resolution
-                            let _ = e;
-                        }
+                        // ⚠️ CRITICAL WARNING: Witness Data Loss
+                        //
+                        // `UnsignedTx::with_sigs_removed()` will discard ALL Witness data, including
+                        // the Annex field that contains RGB commitment (32-byte hash).
+                        //
+                        // The RGB commitment is stored in the Witness field of the first input as Annex
+                        // (format: 0x50 + TLV Type 0x20 + Length 0x20 + 32-byte commitment).
+                        //
+                        // RGB's `PublishedWitness::verify_commitment()` requires the full `Tx` with
+                        // Witness preserved to verify the commitment. However, the `Resolver` trait
+                        // only returns `UnsignedTx`, which doesn't preserve Witness.
+                        //
+                        // SOLUTION: Use `get_full_tx()` method to retrieve the complete transaction
+                        // with Witness preserved for RGB commitment verification:
+                        //
+                        //   let full_tx = resolver.get_full_tx(txid).await?;
+                        //   // full_tx contains Witness/Annex with RGB commitment
+                        //
+                        // For now, we return UnsignedTx as required by the trait signature.
+                        // RGB core should use `get_full_tx()` if commitment verification is needed.
                         
                         Ok(Some(UnsignedTx::with_sigs_removed(tx)))
                     }
@@ -284,11 +347,12 @@ impl Resolver for TondiResolver {
         match self.client.get_transaction_status(tondi_txid).await {
             Ok(status) => {
                 // Get current DAA score for Blue Score depth check
-                let current_daa_score = self.client.get_block_dag_info().await
-                    .map(|info| info.virtual_daa_score)
-                    .unwrap_or(0);
+                let dag_info = self.client.get_block_dag_info().await
+                    .map_err(|_| ResolverError::Connectivity)?;
+                let current_daa_score = dag_info.virtual_daa_score;
                 
                 // Check if transaction has sufficient Blue Score depth
+                // This prevents micro-reorganizations in GhostDAG
                 let has_sufficient_depth = self.check_blue_score_depth(&status, current_daa_score).await;
                 
                 Ok(convert_status(
@@ -357,11 +421,40 @@ impl Resolver for TondiResolver {
 }
 
 /// Convert a BP transaction to Tondi transaction format
+///
+/// This conversion preserves RGB commitment data by extracting Annex from BP Witness
+/// and storing it in Tondi's payload field.
+///
+/// # RGB Purist Mode
+///
+/// This function only generates Standard inputs and outputs, as RGB Purist Mode
+/// does not support Channel, Ingot, or other non-Standard transaction types.
 fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverError> {
     use tondi::{TondiTransaction, TondiTxInput, TondiTxOutput, TondiOutpoint, ScriptPublicKey};
+    use commit_verify::annexret::extract_commitment_from_annex;
     
+    // Extract Annex data from the first input's witness (where RGB commitment is stored)
+    let mut payload = Vec::new();
+    if let Some(first_input) = tx.inputs().next() {
+        if !first_input.witness.is_empty() {
+            // Look for Annex in witness (typically the last element)
+            // Annex format: 0x50 + TLV data
+            for witness_item in first_input.witness.iter().rev() {
+                if !witness_item.is_empty() && witness_item[0] == 0x50 {
+                    // Found Annex data, extract and store in payload
+                    // Verify it's a valid RGB commitment format
+                    if let Ok(_commitment) = extract_commitment_from_annex(witness_item) {
+                        payload = witness_item.to_vec();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Convert inputs: RGB only uses Standard inputs
     let inputs: Vec<TondiTxInput> = tx.inputs.iter().map(|input| {
-        TondiTxInput {
+        TondiTxInput::Standard {
             previous_outpoint: TondiOutpoint {
                 transaction_id: amplify::Bytes32::from_byte_array(
                     input.prev_output.txid.to_byte_array()
@@ -374,8 +467,9 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
         }
     }).collect();
     
+    // Convert outputs: RGB only uses Standard outputs
     let outputs: Vec<TondiTxOutput> = tx.outputs.iter().map(|output| {
-        TondiTxOutput {
+        TondiTxOutput::Standard {
             value: output.value.sats(),
             script_public_key: ScriptPublicKey {
                 version: 0, // P2PK version
@@ -391,7 +485,7 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
         lock_time: tx.lock_time.to_consensus_u32() as u64,
         subnetwork_id: amplify::Bytes32::default(), // Default subnetwork
         gas: 0,
-        payload: vec![],
+        payload, // Preserve RGB commitment Annex data
         mass: 0, // Will be calculated by node
     })
 }

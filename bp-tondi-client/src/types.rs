@@ -1,4 +1,4 @@
-//! Types for Tondi RPC API
+git fetch//! Types for Tondi RPC API
 //!
 //! These types provide compatibility between Tondi's native RPC types
 //! and the BP/RGB stack types.
@@ -118,29 +118,100 @@ pub struct BalanceByAddressEntry {
     pub balance: Option<u64>,
 }
 
-/// Transaction input
+/// Transaction input (enum-based, following Tondi's UTXO-Native architecture)
+///
+/// RGB on Tondi only supports Standard inputs. Other input types (ChannelStateSpend,
+/// ChannelFundSpend, IngotSpend, IngotRef) are not supported in RGB Purist Mode.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TondiTxInput {
-    /// Previous outpoint
-    pub previous_outpoint: TondiOutpoint,
-    /// Signature script
-    #[serde(with = "hex::serde")]
-    pub signature_script: Vec<u8>,
-    /// Sequence number
-    pub sequence: u64,
-    /// Signature operation count
-    pub sig_op_count: u8,
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum TondiTxInput {
+    /// Standard Bitcoin-style input (RGB must use this)
+    #[serde(rename = "standard")]
+    Standard {
+        /// Previous outpoint
+        previous_outpoint: TondiOutpoint,
+        /// Signature script (note: no witness field in Standard input)
+        #[serde(with = "hex::serde")]
+        signature_script: Vec<u8>,
+        /// Sequence number
+        sequence: u64,
+        /// Signature operation count
+        sig_op_count: u8,
+    },
+    /// Channel state spend input (not supported in RGB Purist Mode)
+    #[serde(rename = "channelStateSpend")]
+    ChannelStateSpend {
+        /// Previous outpoint
+        previous_outpoint: TondiOutpoint,
+        /// Additional channel-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
+    /// Channel fund spend input (not supported in RGB Purist Mode)
+    #[serde(rename = "channelFundSpend")]
+    ChannelFundSpend {
+        /// Previous outpoint
+        previous_outpoint: TondiOutpoint,
+        /// Additional channel-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
+    /// Ingot (native asset) spend input (not supported in RGB Purist Mode)
+    #[serde(rename = "ingotSpend")]
+    IngotSpend {
+        /// Previous outpoint
+        previous_outpoint: TondiOutpoint,
+        /// Additional ingot-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
+    /// Ingot reference input (read-only reference, not supported in RGB Purist Mode)
+    #[serde(rename = "ingotRef")]
+    IngotRef {
+        /// Previous outpoint
+        previous_outpoint: TondiOutpoint,
+        /// Additional ingot-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
 }
 
-/// Transaction output
+/// Transaction output (enum-based, following Tondi's UTXO-Native architecture)
+///
+/// RGB on Tondi only supports Standard outputs. Other output types (ChannelFund,
+/// ChannelState, Ingot) are not supported in RGB Purist Mode.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TondiTxOutput {
-    /// Value in saus
-    pub value: u64,
-    /// Script public key
-    pub script_public_key: ScriptPublicKey,
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum TondiTxOutput {
+    /// Standard output (RGB must use this)
+    #[serde(rename = "standard")]
+    Standard {
+        /// Value in saus
+        value: u64,
+        /// Script public key
+        script_public_key: ScriptPublicKey,
+    },
+    /// Channel fund output (not supported in RGB Purist Mode)
+    #[serde(rename = "channelFund")]
+    ChannelFund {
+        /// Additional channel-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
+    /// Channel state output (not supported in RGB Purist Mode)
+    #[serde(rename = "channelState")]
+    ChannelState {
+        /// Additional channel-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
+    /// Ingot (native asset) output (not supported in RGB Purist Mode)
+    #[serde(rename = "ingot")]
+    Ingot {
+        /// Additional ingot-specific fields
+        #[serde(flatten)]
+        extra: serde_json::Value,
+    },
 }
 
 /// Tondi transaction
@@ -168,18 +239,78 @@ pub struct TondiTransaction {
 
 impl TondiTransaction {
     /// Convert to BP Transaction type
+    ///
+    /// This conversion preserves RGB commitment data stored in Tondi's payload field
+    /// (which contains Annex data) by mapping it to BP Witness structure.
+    /// 
+    /// According to AnnexRet protocol, Annex data is stored in Tondi's payload field
+    /// and must be mapped to the Witness field of the first input in BP format.
+    ///
+    /// # RGB Purist Mode
+    ///
+    /// Only Standard inputs and outputs are supported. Non-Standard inputs/outputs
+    /// (ChannelStateSpend, ChannelFundSpend, IngotSpend, IngotRef, ChannelFund, ChannelState, Ingot)
+    /// will cause this conversion to fail, as RGB Purist Mode does not support these types.
     pub fn to_bp_tx(&self) -> Result<Transaction, confinement::Error> {
-        let inputs = self.inputs.iter().map(|input| TxIn {
-            prev_output: input.previous_outpoint.into(),
-            sig_script: SigScript::from_checked(input.signature_script.clone()),
-            sequence: SeqNo::from_consensus_u32(input.sequence as u32),
-            witness: Witness::new(), // Tondi uses different witness structure
-        });
+        use amplify::confinement::Confined;
+        
+        // Extract Annex data from payload if present
+        // Tondi stores Annex in payload field, format: 0x50 + TLV data (RGB commitment)
+        let has_annex = !self.payload.is_empty() && self.payload[0] == 0x50;
+        
+        // Convert inputs: only Standard inputs are supported in RGB Purist Mode
+        let inputs: Vec<TxIn> = self.inputs.iter().enumerate().map(|(idx, input)| {
+            // Extract Standard input fields
+            let (previous_outpoint, signature_script, sequence) = match input {
+                TondiTxInput::Standard {
+                    previous_outpoint,
+                    signature_script,
+                    sequence,
+                    ..
+                } => (previous_outpoint, signature_script, sequence),
+                // RGB Purist Mode does not support non-Standard inputs
+                _ => {
+                    return Err(confinement::Error::InvalidValue(
+                        format!("RGB on Tondi only supports Standard inputs, found: {:?}", input)
+                    ));
+                }
+            };
+            
+            let mut witness = Witness::new();
+            
+            // Put Annex data in the witness of the first input
+            // This follows Bitcoin's Annex convention (last element in witness stack)
+            if idx == 0 && has_annex {
+                // Create witness stack with Annex as the last element
+                let mut witness_items = Vec::new();
+                witness_items.push(Vec::new()); // Placeholder for signature
+                witness_items.push(self.payload.clone()); // Annex data
+                witness = Witness::from_consensus_stack(witness_items);
+            }
+            
+            Ok(TxIn {
+                prev_output: (*previous_outpoint).into(),
+                sig_script: SigScript::from_checked(signature_script.clone()),
+                sequence: SeqNo::from_consensus_u32(*sequence as u32),
+                witness,
+            })
+        }).collect::<Result<Vec<_>, _>>()?;
 
-        let outputs = self.outputs.iter().map(|output| TxOut {
-            value: output.value.into(),
-            script_pubkey: ScriptPubkey::from_checked(output.script_public_key.script.clone()),
-        });
+        // Convert outputs: only Standard outputs are supported in RGB Purist Mode
+        let outputs = self.outputs.iter().map(|output| {
+            match output {
+                TondiTxOutput::Standard { value, script_public_key } => {
+                    Ok(TxOut {
+                        value: (*value).into(),
+                        script_pubkey: ScriptPubkey::from_checked(script_public_key.script.clone()),
+                    })
+                }
+                // RGB Purist Mode does not support non-Standard outputs
+                _ => Err(confinement::Error::InvalidValue(
+                    format!("RGB on Tondi only supports Standard outputs, found: {:?}", output)
+                )),
+            }
+        }).collect::<Result<Vec<_>, _>>()?;
 
         Ok(Transaction {
             version: TxVer::from_consensus_i32(self.version as i32),
