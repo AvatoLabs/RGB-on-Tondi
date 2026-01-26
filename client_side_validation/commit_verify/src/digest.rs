@@ -85,14 +85,18 @@ pub trait DigestExt<const BYTE_LEN: usize = 32> {
 /// BLAKE3 hasher for Tondi L1.
 ///
 /// This is the primary and only hash function for Tondi. It implements
-/// domain separation via BLAKE3's `derive_key` functionality.
+/// domain separation via BLAKE3's `derive_key` functionality for most operations,
+/// but uses **Prefix Mode** for transaction IDs to match Tondi's native implementation.
 ///
-/// Domain separation format: "tondi.{domain}:{tag}"
-/// Examples:
-/// - "tondi.commitment:urn:tondi:rgb:schema#2025-01-01"
-/// - "tondi.txid"
-/// - "tondi.block.hash"
-/// - "tondi.merkle:node"
+/// # Domain Separation Modes
+///
+/// - **KDF Mode** (most operations): Uses `new_derive_key()` with context strings
+///   - Format: "tondi.{domain}:{tag}"
+///   - Examples: "tondi.commitment:urn:tondi:rgb:schema#2025-01-01", "tondi.block.hash"
+///
+/// - **Prefix Mode** (transaction IDs only): Uses regular hasher with `b"TransactionID"` prefix
+///   - This matches Tondi's native implementation in `crypto/hashes/src/hashers.rs`
+///   - Behavior: `blake3("TransactionID" + tx_data)` instead of KDF mode
 #[derive(Clone)]
 pub struct TondiBlake3 {
     hasher: blake3::Hasher,
@@ -136,8 +140,33 @@ impl TondiBlake3 {
     }
 
     /// Create a BLAKE3 hasher for transaction operations.
+    ///
+    /// # Critical: Tondi Compatibility
+    ///
+    /// This method MUST match Tondi's native implementation exactly:
+    /// - Uses **Prefix Mode** (not KDF Mode)
+    /// - Prefix: `b"TransactionID"` (13 bytes)
+    /// - Behavior: `blake3("TransactionID" + tx_data)`
+    ///
+    /// Tondi's implementation (from `crypto/hashes/src/hashers.rs`):
+    /// ```rust
+    /// let prefix = Vec::from(b"TransactionID");
+    /// // ... later in finalize:
+    /// blake3_256(&self.0) // where self.0 = prefix + data
+    /// ```
+    ///
+    /// This is fundamentally different from BLAKE3's KDF mode (`new_derive_key`),
+    /// which modifies the hash state's initialization flags and compresses the
+    /// context into the IV. Prefix mode simply concatenates the prefix with the data.
     pub fn for_transaction() -> Self {
-        Self::from_context("tondi.txid")
+        // Use Prefix Mode to match Tondi's native implementation
+        // 1. Create a regular hasher (not KDF)
+        let mut hasher = blake3::Hasher::new();
+        
+        // 2. Write the prefix first (matching Tondi's Vec<u8> prefix behavior)
+        hasher.update(b"TransactionID");
+        
+        Self { hasher }
     }
 
     /// Create a BLAKE3 hasher for block operations.

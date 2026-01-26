@@ -38,6 +38,12 @@ use tondi::{TondiClient, TondiConfig, Error as TondiError, NetworkType, TondiOut
 use commit_verify::annexret::extract_commitment_from_annex;
 
 use super::{Resolver, ResolverError};
+use bpstd::ScriptPubkey as BpScriptPubkey;
+use bp::opcodes::{
+    OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_CHECKMULTISIG, OP_CHECKMULTISIGVERIFY,
+    OP_PUSHBYTES_1, OP_PUSHBYTES_75, OP_PUSHDATA1, OP_PUSHDATA2, OP_PUSHDATA4,
+    OP_PUSHNUM_1, OP_PUSHNUM_16,
+};
 
 /// Tondi async resolver for RGB wallet operations
 pub struct TondiResolver {
@@ -420,6 +426,277 @@ impl Resolver for TondiResolver {
     }
 }
 
+/// Calculate signature operation count from a script.
+///
+/// This function counts signature operations in a script according to Bitcoin/Tondi consensus rules:
+/// - `OP_CHECKSIG` and `OP_CHECKSIGVERIFY`: 1 sig op each
+/// - `OP_CHECKMULTISIG` and `OP_CHECKMULTISIGVERIFY`: N sig ops (where N is the number of pubkeys)
+///
+/// For common script types:
+/// - P2PKH: Always returns 1 (OP_CHECKSIG)
+/// - P2SH: Attempts to parse the redeem script from signature_script
+/// - P2PK: Returns 1
+/// - Multisig: Parses the script to count pubkeys
+///
+/// # Arguments
+///
+/// * `signature_script` - The signature script (scriptSig) to analyze
+/// * `script_pubkey` - Optional scriptPubkey for P2SH/P2PKH detection
+///
+/// # Returns
+///
+/// The number of signature operations (u8, clamped to 255)
+fn calculate_sig_op_count(signature_script: &[u8], script_pubkey: Option<&BpScriptPubkey>) -> u8 {
+    use bp::opcodes::*;
+    
+    // Quick check for common script types using scriptPubkey
+    if let Some(spk) = script_pubkey {
+        // P2PKH: OP_DUP OP_HASH160 <20 bytes> OP_EQUALVERIFY OP_CHECKSIG
+        // Signature script: <sig> <pubkey>
+        if spk.is_p2pkh() {
+            return 1; // P2PKH always has 1 sig op (OP_CHECKSIG)
+        }
+        
+        // P2SH: OP_HASH160 <20 bytes> OP_EQUAL
+        // Signature script: <sig1> <sig2> ... <redeem_script>
+        // Sig ops are in the redeem script (last push data in signature_script)
+        if spk.is_p2sh() {
+            // Try to extract redeem script from signature_script
+            // The redeem script is typically the last push data
+            if let Some(redeem_script) = extract_last_push_data(signature_script) {
+                return count_sig_ops_in_script(&redeem_script);
+            }
+            // If we can't parse, default to 1 (conservative)
+            return 1;
+        }
+    }
+    
+    // Parse the signature script directly
+    count_sig_ops_in_script(signature_script)
+}
+
+/// Extract the last push data from a script (used for P2SH redeem scripts).
+fn extract_last_push_data(script: &[u8]) -> Option<Vec<u8>> {
+    use bp::opcodes::*;
+    
+    let mut i = 0;
+    let mut last_push: Option<Vec<u8>> = None;
+    
+    while i < script.len() {
+        let opcode = script[i];
+        
+        // Handle push data opcodes (0x01-0x4b)
+        if opcode >= OP_PUSHBYTES_1 && opcode <= OP_PUSHBYTES_75 {
+            let push_len = opcode as usize;
+            i += 1;
+            if i + push_len > script.len() {
+                break;
+            }
+            last_push = Some(script[i..i + push_len].to_vec());
+            i += push_len;
+            continue;
+        }
+        
+        // Handle OP_PUSHDATA1 (0x4c)
+        if opcode == OP_PUSHDATA1 {
+            i += 1;
+            if i >= script.len() {
+                break;
+            }
+            let push_len = script[i] as usize;
+            i += 1;
+            if i + push_len > script.len() {
+                break;
+            }
+            last_push = Some(script[i..i + push_len].to_vec());
+            i += push_len;
+            continue;
+        }
+        
+        // Handle OP_PUSHDATA2 (0x4d)
+        if opcode == OP_PUSHDATA2 {
+            i += 1;
+            if i + 2 > script.len() {
+                break;
+            }
+            let push_len = u16::from_le_bytes([script[i], script[i + 1]]) as usize;
+            i += 2;
+            if i + push_len > script.len() {
+                break;
+            }
+            last_push = Some(script[i..i + push_len].to_vec());
+            i += push_len;
+            continue;
+        }
+        
+        // Handle OP_PUSHDATA4 (0x4e)
+        if opcode == OP_PUSHDATA4 {
+            i += 1;
+            if i + 4 > script.len() {
+                break;
+            }
+            let push_len = u32::from_le_bytes([
+                script[i],
+                script[i + 1],
+                script[i + 2],
+                script[i + 3],
+            ]) as usize;
+            i += 4;
+            if i + push_len > script.len() {
+                break;
+            }
+            last_push = Some(script[i..i + push_len].to_vec());
+            i += push_len;
+            continue;
+        }
+        
+        // Other opcodes - not push data
+        i += 1;
+    }
+    
+    last_push
+}
+
+/// Count signature operations in a script by parsing opcodes.
+fn count_sig_ops_in_script(script: &[u8]) -> u8 {
+    use bp::opcodes::*;
+    
+    let mut count = 0u32;
+    let mut i = 0;
+    
+    while i < script.len() {
+        let opcode = script[i];
+        
+        // Handle push data opcodes (0x01-0x4b)
+        if opcode >= OP_PUSHBYTES_1 && opcode <= OP_PUSHBYTES_75 {
+            let push_len = opcode as usize;
+            i += 1;
+            if i + push_len > script.len() {
+                break; // Invalid script
+            }
+            i += push_len;
+            continue;
+        }
+        
+        // Handle OP_PUSHDATA1 (0x4c)
+        if opcode == OP_PUSHDATA1 {
+            i += 1;
+            if i >= script.len() {
+                break;
+            }
+            let push_len = script[i] as usize;
+            i += 1;
+            if i + push_len > script.len() {
+                break;
+            }
+            i += push_len;
+            continue;
+        }
+        
+        // Handle OP_PUSHDATA2 (0x4d)
+        if opcode == OP_PUSHDATA2 {
+            i += 1;
+            if i + 2 > script.len() {
+                break;
+            }
+            let push_len = u16::from_le_bytes([script[i], script[i + 1]]) as usize;
+            i += 2;
+            if i + push_len > script.len() {
+                break;
+            }
+            i += push_len;
+            continue;
+        }
+        
+        // Handle OP_PUSHDATA4 (0x4e)
+        if opcode == OP_PUSHDATA4 {
+            i += 1;
+            if i + 4 > script.len() {
+                break;
+            }
+            let push_len = u32::from_le_bytes([
+                script[i],
+                script[i + 1],
+                script[i + 2],
+                script[i + 3],
+            ]) as usize;
+            i += 4;
+            if i + push_len > script.len() {
+                break;
+            }
+            i += push_len;
+            continue;
+        }
+        
+        // Count signature operations
+        match opcode {
+            OP_CHECKSIG | OP_CHECKSIGVERIFY => {
+                count += 1;
+            }
+            OP_CHECKMULTISIG | OP_CHECKMULTISIGVERIFY => {
+                // OP_CHECKMULTISIG format: <M> <pubkey1> ... <pubkeyN> <N> OP_CHECKMULTISIG
+                // We need to find N (number of pubkeys) which is pushed just before the opcode
+                // The format is: [push M] [push pubkey1] ... [push pubkeyN] [push N] OP_CHECKMULTISIG
+                // N is typically a small number (1-20) pushed as a single byte
+                if i > 0 {
+                    // Look backwards for the number of pubkeys (N)
+                    // It should be pushed just before OP_CHECKMULTISIG
+                    let mut found_count = false;
+                    let mut j = i.saturating_sub(1);
+                    
+                    // Look backwards up to 100 bytes (reasonable limit for script parsing)
+                    while j > 0 && i - j < 100 {
+                        let prev_opcode = script[j];
+                        
+                        // Check if this is a push opcode for a small number (1-20)
+                        // OP_PUSHBYTES_1 through OP_PUSHBYTES_20 correspond to pushing 1-20 bytes
+                        // But for numbers, we typically use OP_PUSHNUM_* or direct push
+                        if prev_opcode >= OP_PUSHBYTES_1 && prev_opcode <= OP_PUSHBYTES_20 {
+                            let push_len = prev_opcode as usize;
+                            if j + push_len < i && push_len == 1 {
+                                // Single byte push - could be the number N
+                                let num = script[j + 1];
+                                if num >= 1 && num <= 20 {
+                                    count += num as u32;
+                                    found_count = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Also check for OP_PUSHNUM_* opcodes (0x51-0x60 for 1-16)
+                        // OP_PUSHNUM_1 = 0x51, OP_PUSHNUM_2 = 0x52, ..., OP_PUSHNUM_16 = 0x60
+                        if prev_opcode >= OP_PUSHNUM_1 && prev_opcode <= OP_PUSHNUM_16 {
+                            let num = (prev_opcode - OP_PUSHNUM_1 + 1) as u8;
+                            count += num as u32;
+                            found_count = true;
+                            break;
+                        }
+                        
+                        j = j.saturating_sub(1);
+                    }
+                    
+                    if !found_count {
+                        // Default to 1 if we can't determine (conservative)
+                        // This is safe for most scripts
+                        count += 1;
+                    }
+                } else {
+                    count += 1; // Default to 1 if we can't determine
+                }
+            }
+            _ => {
+                // Other opcodes don't count as sig ops
+            }
+        }
+        
+        i += 1;
+    }
+    
+    // Clamp to u8::MAX (255) as per Tondi's sig_op_count type
+    count.min(255) as u8
+}
+
 /// Convert a BP transaction to Tondi transaction format
 ///
 /// This conversion preserves RGB commitment data by extracting Annex from BP Witness
@@ -453,7 +730,48 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
     }
     
     // Convert inputs: RGB only uses Standard inputs
-    let inputs: Vec<TondiTxInput> = tx.inputs.iter().map(|input| {
+    // 
+    // CRITICAL: Tondi's Standard input does NOT have a separate witness field.
+    // If the BP transaction has witness data (SegWit/Taproot signatures), we need
+    // to merge it into signature_script. However, for RGB Purist Mode, we typically
+    // use legacy P2PKH or P2SH scripts, so witness should be empty.
+    // 
+    // TODO: If witness data is present and contains signatures (not just Annex),
+    // we may need to serialize it into signature_script format. For now, we only
+    // copy sig_script and warn if witness contains non-Annex data.
+    let inputs: Vec<TondiTxInput> = tx.inputs.iter().enumerate().map(|(idx, input)| {
+        // Check if witness contains non-Annex data (signatures)
+        let has_non_annex_witness = !input.witness.is_empty() && {
+            // Check if witness contains anything other than Annex (0x50 prefix)
+            input.witness.iter().any(|item| {
+                item.is_empty() || item[0] != 0x50
+            })
+        };
+        
+        if has_non_annex_witness && idx == 0 {
+            // Warn about potential signature loss (but continue for now)
+            eprintln!("Warning: Input {} has witness data that will be lost in Tondi conversion. Tondi Standard inputs only support signature_script.", idx);
+        }
+        
+        // Build signature_script from sig_script
+        // Note: If witness contains signatures, they should be merged here,
+        // but Tondi's Standard input format doesn't support SegWit-style witness.
+        let signature_script = input.sig_script.to_vec();
+        
+        // Calculate sig_op_count dynamically from the script
+        // Note: We don't have direct access to scriptPubkey here, so we infer from signature_script
+        // For P2PKH: signature_script is typically <sig> <pubkey> (variable length)
+        // For P2SH: signature_script ends with <redeem_script> (last push data)
+        let sig_op_count = if signature_script.is_empty() {
+            0 // Empty script has no sig ops
+        } else {
+            // Try to infer script type from signature_script structure
+            // P2PKH: typically has a pubkey (33 or 65 bytes) and signature (variable)
+            // P2SH: last push data is the redeem script
+            // For now, parse the script directly to count sig ops
+            calculate_sig_op_count(&signature_script, None)
+        };
+        
         TondiTxInput::Standard {
             previous_outpoint: TondiOutpoint {
                 transaction_id: amplify::Bytes32::from_byte_array(
@@ -461,9 +779,9 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
                 ),
                 index: input.prev_output.vout.to_u32(),
             },
-            signature_script: input.sig_script.to_vec(),
+            signature_script,
             sequence: input.sequence.to_consensus_u32() as u64,
-            sig_op_count: 1, // Default, actual value depends on script
+            sig_op_count, // Dynamically calculated
         }
     }).collect();
     
@@ -479,10 +797,12 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
     }).collect();
     
     Ok(TondiTransaction {
-        version: tx.version.to_consensus_i32() as u16,
+        // Version: Use u16 directly (Tondi format)
+        version: tx.version.to_consensus_u16(),
         inputs,
         outputs,
-        lock_time: tx.lock_time.to_consensus_u32() as u64,
+        // LockTime: Use u64 directly (Tondi format)
+        lock_time: tx.lock_time.to_consensus_u64(),
         subnetwork_id: amplify::Bytes32::default(), // Default subnetwork
         gas: 0,
         payload, // Preserve RGB commitment Annex data

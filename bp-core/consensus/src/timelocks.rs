@@ -28,21 +28,15 @@ use chrono::Utc;
 
 use crate::LIB_NAME_TONDI;
 
-/// The Threshold for deciding whether a lock time value is a height or a time
-/// (see [Bitcoin Core]).
+/// The Threshold for deciding whether a lock time value is a height or a time.
 ///
 /// `LockTime` values _below_ the threshold are interpreted as block heights,
 /// values _above_ (or equal to) the threshold are interpreted as block times
 /// (UNIX timestamp, seconds since epoch).
 ///
-/// Bitcoin is able to safely use this value because a block height greater than
-/// 500,000,000 would never occur because it would represent a height in
-/// approximately 9500 years. Conversely, block times under 500,000,000 will
-/// never happen because they would represent times before 1986 which
-/// are, for obvious reasons, not useful within the Bitcoin network.
-///
-/// [Bitcoin Core]: https://github.com/bitcoin/bitcoin/blob/9ccaee1d5e2e4b79b0a7c29aadb41b97e4741332/src/script/script.h#L39
-pub const LOCKTIME_THRESHOLD: u32 = 500_000_000;
+/// For Tondi, we use u64 for lock time, allowing much larger values than Bitcoin's u32.
+/// The threshold remains the same conceptually, but is now u64.
+pub const LOCKTIME_THRESHOLD: u64 = 500_000_000;
 
 pub const SEQ_NO_CSV_DISABLE_MASK: u32 = 0x80000000;
 pub const SEQ_NO_CSV_TYPE_MASK: u32 = 0x00400000;
@@ -73,11 +67,18 @@ pub enum TimelockParseError {
     NoRand,
 }
 
+/// Lock time for Tondi L1 transactions.
+///
+/// # Critical: Type Compatibility
+///
+/// Tondi uses `u64` (8 bytes) for lock time, not `u32` (4 bytes) like Bitcoin.
+/// This type MUST match Tondi's native `Transaction.lock_time` field exactly
+/// to ensure correct Txid calculation.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-pub struct LockTime(u32);
+pub struct LockTime(u64);
 
 impl PartialOrd for LockTime {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -100,10 +101,10 @@ impl LockTime {
 
     /// Creates absolute time lock with the given block height.
     ///
-    /// Block height must be strictly less than `0x1DCD6500`, otherwise
+    /// Block height must be strictly less than `LOCKTIME_THRESHOLD`, otherwise
     /// `None` is returned.
     #[inline]
-    pub const fn from_height(height: u32) -> Option<Self> {
+    pub const fn from_height(height: u64) -> Option<Self> {
         if height < LOCKTIME_THRESHOLD {
             Some(Self(height))
         } else {
@@ -113,10 +114,10 @@ impl LockTime {
 
     /// Creates absolute time lock with the given UNIX timestamp value.
     ///
-    /// Timestamp value must be greater or equal to `0x1DCD6500`, otherwise
+    /// Timestamp value must be greater or equal to `LOCKTIME_THRESHOLD`, otherwise
     /// `None` is returned.
     #[inline]
-    pub const fn from_unix_timestamp(timestamp: u32) -> Option<Self> {
+    pub const fn from_unix_timestamp(timestamp: u64) -> Option<Self> {
         if timestamp < LOCKTIME_THRESHOLD {
             None
         } else {
@@ -124,16 +125,40 @@ impl LockTime {
         }
     }
 
-    /// Converts into full u32 representation of `nLockTime` value as it is
-    /// serialized in bitcoin transaction.
+    /// Converts into full u64 representation of `nLockTime` value as it is
+    /// serialized in Tondi transaction.
     #[inline]
-    pub const fn from_consensus_u32(lock_time: u32) -> Self { LockTime(lock_time) }
+    pub const fn from_consensus_u64(lock_time: u64) -> Self { LockTime(lock_time) }
 
     #[inline]
-    pub const fn to_consensus_u32(&self) -> u32 { self.0 }
+    pub const fn to_consensus_u64(&self) -> u64 { self.0 }
 
     #[inline]
-    pub const fn into_consensus_u32(self) -> u32 { self.0 }
+    pub const fn into_consensus_u64(self) -> u64 { self.0 }
+
+    /// Legacy method: Convert from u32 (for backward compatibility)
+    /// 
+    /// # Warning
+    /// This is safe as u32 can always fit in u64, but use `from_consensus_u64` for new code.
+    #[inline]
+    pub const fn from_consensus_u32(lock_time: u32) -> Self { LockTime(lock_time as u64) }
+
+    /// Legacy method: Convert to u32 (for backward compatibility)
+    /// 
+    /// # Warning
+    /// This may truncate values > u32::MAX. Use `to_consensus_u64` for new code.
+    #[inline]
+    pub const fn to_consensus_u32(&self) -> u32 { 
+        if self.0 > u32::MAX as u64 {
+            u32::MAX
+        } else {
+            self.0 as u32
+        }
+    }
+
+    /// Legacy method: Convert to u32 (for backward compatibility)
+    #[inline]
+    pub const fn into_consensus_u32(self) -> u32 { self.to_consensus_u32() }
 
     /// Checks if the absolute timelock provided by the `nLockTime` value
     /// specifies height-based lock

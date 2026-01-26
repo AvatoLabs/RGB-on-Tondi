@@ -319,6 +319,13 @@ impl ConsensusEncode for Tx {
             }
         }
         counter += self.lock_time.consensus_encode(writer)?;
+        
+        // Tondi-specific fields (required for Tondi consensus)
+        writer.write_all(&self.subnetwork_id)?;
+        counter += 32;
+        counter += self.gas.consensus_encode(writer)?;
+        counter += self.payload.consensus_encode(writer)?;
+        
         Ok(counter)
     }
 }
@@ -351,26 +358,44 @@ impl ConsensusDecode for Tx {
                 input.witness = Witness::consensus_decode(reader)?;
             }
         }
-        let lock_time = LockTime::consensus_decode(reader)?;
+        // LockTime: u64 (8 bytes) - Tondi format
+        let mut lock_time_bytes = [0u8; 8];
+        reader.read_exact(&mut lock_time_bytes)?;
+        let lock_time = LockTime::from_consensus_u64(u64::from_le_bytes(lock_time_bytes));
 
+        // Tondi-specific fields: subnetwork_id, gas, payload
+        // These fields are required for Tondi consensus and must be deserialized
+        let subnetwork_id = {
+            let mut buf = [0u8; 32];
+            reader.read_exact(&mut buf)?;
+            buf
+        };
+        let gas = u64::consensus_decode(reader)?;
+        let payload = VarIntBytes::consensus_decode(reader)?;
+        
         Ok(Tx {
             version,
             inputs,
             outputs,
             lock_time,
+            subnetwork_id,
+            gas,
+            payload,
         })
     }
 }
 
 impl ConsensusEncode for TxVer {
     fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.to_consensus_i32().consensus_encode(writer)
+        // Tondi uses u16 (2 bytes) for transaction version
+        self.to_consensus_u16().consensus_encode(writer)
     }
 }
 
 impl ConsensusDecode for TxVer {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        i32::consensus_decode(reader).map(Self::from_consensus_i32)
+        // Tondi uses u16 (2 bytes) for transaction version
+        u16::consensus_decode(reader).map(Self::from_consensus_u16)
     }
 }
 
@@ -502,13 +527,18 @@ impl ConsensusDecode for SeqNo {
 
 impl ConsensusEncode for LockTime {
     fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.to_consensus_u32().consensus_encode(writer)
+        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Bitcoin
+        writer.write_all(&self.to_consensus_u64().to_le_bytes())?;
+        Ok(8)
     }
 }
 
 impl ConsensusDecode for LockTime {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        u32::consensus_decode(reader).map(Self::from_consensus_u32)
+        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Bitcoin
+        let mut bytes = [0u8; 8];
+        reader.read_exact(&mut bytes)?;
+        Ok(LockTime::from_consensus_u64(u64::from_le_bytes(bytes)))
     }
 }
 

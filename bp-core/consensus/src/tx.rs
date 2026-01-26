@@ -33,7 +33,7 @@ use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
     ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime, NonStandardValue,
-    ScriptPubkey, SeqNo, SigScript, VarIntArray, Witness, Wtxid, LIB_NAME_TONDI,
+    ScriptPubkey, SeqNo, SigScript, VarInt, VarIntArray, VarIntBytes, Witness, Wtxid, LIB_NAME_TONDI,
 };
 
 #[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
@@ -507,39 +507,61 @@ impl TxOut {
     }
 }
 
+/// Transaction version for Tondi L1.
+///
+/// # Critical: Type Compatibility
+///
+/// Tondi uses `u16` (2 bytes) for transaction version, not `i32` (4 bytes) like Bitcoin.
+/// This type MUST match Tondi's native `Transaction.version` field exactly to ensure
+/// correct Txid calculation.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct TxVer(i32);
+pub struct TxVer(u16);
 
 impl Default for TxVer {
-    fn default() -> Self { TxVer(2) }
+    fn default() -> Self { TxVer(1) }
 }
 
 impl TxVer {
-    /// Pre-BIP68 version.
+    /// Version 1 (default for Tondi)
     pub const V1: Self = TxVer(1);
-    /// Current version (post-BIP68).
+    /// Version 2
     pub const V2: Self = TxVer(2);
 
+    /// Create from u16 (Tondi's native format)
     #[inline]
-    pub const fn from_consensus_i32(ver: i32) -> Self { TxVer(ver) }
+    pub const fn from_consensus_u16(ver: u16) -> Self { TxVer(ver) }
 
-    pub const fn try_from_standard(ver: i32) -> Result<Self, NonStandardValue<i32>> {
-        let ver = TxVer::from_consensus_i32(ver);
-        if !ver.is_standard() {
-            Err(NonStandardValue::with(ver.0, "TxVer"))
-        } else {
-            Ok(ver)
-        }
+    /// Create from u16 (alias for from_consensus_u16)
+    #[inline]
+    pub const fn from_u16(ver: u16) -> Self { TxVer(ver) }
+
+    /// Convert to u16 (Tondi's native format)
+    #[inline]
+    pub const fn to_consensus_u16(&self) -> u16 { self.0 }
+
+    /// Convert to u16 (alias for to_consensus_u16)
+    #[inline]
+    pub const fn to_u16(&self) -> u16 { self.0 }
+
+    /// Legacy method: Convert from i32 (for backward compatibility)
+    /// 
+    /// # Warning
+    /// This may truncate values > u16::MAX. Use `from_u16` for new code.
+    #[inline]
+    pub const fn from_consensus_i32(ver: i32) -> Self { 
+        TxVer(ver as u16) 
     }
 
+    /// Legacy method: Convert to i32 (for backward compatibility)
     #[inline]
-    pub const fn is_standard(self) -> bool { self.0 <= TxVer::V2.0 }
+    pub const fn to_consensus_i32(&self) -> i32 { self.0 as i32 }
 
+    /// Check if version is standard (for Tondi, this is always true for valid u16)
     #[inline]
-    pub const fn to_consensus_i32(&self) -> i32 { self.0 }
+    pub const fn is_standard(self) -> bool { true }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -552,6 +574,23 @@ pub struct Tx {
     pub inputs: VarIntArray<TxIn>,
     pub outputs: VarIntArray<TxOut>,
     pub lock_time: LockTime,
+    /// Subnetwork ID (32 bytes) - Required for Tondi consensus
+    ///
+    /// This field is part of Tondi's transaction structure and must be included
+    /// in the transaction hash calculation to match Tondi's native implementation.
+    pub subnetwork_id: [u8; 32],
+    /// Gas fee (in saus) - Required for Tondi consensus
+    ///
+    /// This field is part of Tondi's transaction structure and must be included
+    /// in the transaction hash calculation to match Tondi's native implementation.
+    pub gas: u64,
+    /// Payload (variable-length bytes) - Required for Tondi consensus
+    ///
+    /// This field typically contains RGB commitment data (Annex) and must be included
+    /// in the transaction hash calculation to match Tondi's native implementation.
+    ///
+    /// In Tondi, payload is serialized as VarInt-prefixed bytes.
+    pub payload: VarIntBytes,
 }
 
 impl LowerHex for Tx {
@@ -606,7 +645,8 @@ impl Tx {
 
     /// Computes the [`Txid`].
     ///
-    /// For Tondi L1: Uses BLAKE3 with "tondi.txid" domain separation (single hash).
+    /// For Tondi L1: Uses BLAKE3 with Prefix Mode (b"TransactionID" prefix).
+    /// The hash is computed as `blake3("TransactionID" + tx_data)` to match Tondi's native implementation.
     /// For Bitcoin compatibility: Uses double SHA256.
     ///
     /// Hashes the transaction **excluding** the segwit data (i.e. the marker,
@@ -614,12 +654,33 @@ impl Tx {
     /// transactions which do not have any segwit data, this will be equal
     /// to [`Tx::wtxid()`].
     pub fn txid(&self) -> Txid {
-        // Tondi L1: Use BLAKE3 with domain separation (single hash)
+        // Tondi L1: Use BLAKE3 with Prefix Mode (b"TransactionID" prefix)
+        // 
+        // CRITICAL: The serialization order MUST match Tondi's native implementation:
+        // 1. version
+        // 2. inputs
+        // 3. outputs
+        // 4. lock_time
+        // 5. subnetwork_id (32 bytes)
+        // 6. gas (u64, little-endian)
+        // 7. payload (VarInt-prefixed bytes)
+        //
+        // Reference: Tondi/consensus/core/src/hashing/tx.rs::write_transaction
         let mut hasher = TondiBlake3::for_transaction();
-        self.version.consensus_encode(&mut hasher).expect("engines don't error");
+        // Version: u16 (2 bytes) - Tondi format (NOT i32/4 bytes)
+        hasher.update(&self.version.to_consensus_u16().to_le_bytes());
         self.inputs.consensus_encode(&mut hasher).expect("engines don't error");
         self.outputs.consensus_encode(&mut hasher).expect("engines don't error");
-        self.lock_time.consensus_encode(&mut hasher).expect("engines don't error");
+        // LockTime: u64 (8 bytes) - Tondi format (NOT u32/4 bytes)
+        hasher.update(&self.lock_time.to_consensus_u64().to_le_bytes());
+        
+        // Tondi-specific fields (required for correct Txid calculation)
+        hasher.update(&self.subnetwork_id);
+        hasher.update(&self.gas.to_le_bytes());
+        // Payload is serialized as VarInt-prefixed bytes in Tondi
+        VarInt::with(self.payload.len()).consensus_encode(&mut hasher).expect("engines don't error");
+        hasher.update(&self.payload);
+        
         Txid::from_byte_array(hasher.finish())
     }
 
@@ -627,15 +688,39 @@ impl Tx {
     ///
     /// This is the canonical method for Tondi L1 transactions.
     ///
+    /// Uses Prefix Mode with `b"TransactionID"` prefix to match Tondi's native implementation
+    /// in `crypto/hashes/src/hashers.rs`. The hash is computed as `blake3("TransactionID" + tx_data)`.
+    ///
     /// Returns a `TondiTxid` which uses BLAKE3 hash algorithm, compatible with RGB's
     /// `WitnessId` trait requirements.
     pub fn tondi_txid(&self) -> TondiTxid {
-        // Tondi L1: Use BLAKE3 with domain separation (single hash)
+        // Tondi L1: Use BLAKE3 with Prefix Mode (b"TransactionID" prefix)
+        //
+        // CRITICAL: The serialization order and byte lengths MUST match Tondi's native implementation:
+        // 1. version (u16, 2 bytes) - NOT i32 (4 bytes)
+        // 2. inputs
+        // 3. outputs
+        // 4. lock_time (u64, 8 bytes) - NOT u32 (4 bytes)
+        // 5. subnetwork_id (32 bytes)
+        // 6. gas (u64, little-endian)
+        // 7. payload (VarInt-prefixed bytes)
+        //
+        // Reference: Tondi/consensus/core/src/hashing/tx.rs::write_transaction
         let mut hasher = TondiBlake3::for_transaction();
-        self.version.consensus_encode(&mut hasher).expect("engines don't error");
+        // Version: u16 (2 bytes) - Tondi format (NOT i32/4 bytes)
+        hasher.update(&self.version.to_consensus_u16().to_le_bytes());
         self.inputs.consensus_encode(&mut hasher).expect("engines don't error");
         self.outputs.consensus_encode(&mut hasher).expect("engines don't error");
-        self.lock_time.consensus_encode(&mut hasher).expect("engines don't error");
+        // LockTime: u64 (8 bytes) - Tondi format (NOT u32/4 bytes)
+        hasher.update(&self.lock_time.to_consensus_u64().to_le_bytes());
+        
+        // Tondi-specific fields (required for correct Txid calculation)
+        hasher.update(&self.subnetwork_id);
+        hasher.update(&self.gas.to_le_bytes());
+        // Payload is serialized as VarInt-prefixed bytes in Tondi
+        VarInt::with(self.payload.len()).consensus_encode(&mut hasher).expect("engines don't error");
+        hasher.update(&self.payload);
+        
         TondiTxid::from_byte_array(hasher.finish())
     }
 
@@ -817,6 +902,9 @@ mod test {
             inputs: VarIntArray::new(),
             outputs: VarIntArray::new(),
             lock_time: LockTime::ZERO,
+            subnetwork_id: [0u8; 32], // Default subnetwork
+            gas: 0,
+            payload: VarIntBytes::new(),
         };
         let tondi_txid = tx.tondi_txid();
         // Just verify it doesn't panic and returns a valid TondiTxid

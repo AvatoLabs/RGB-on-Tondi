@@ -1,4 +1,4 @@
-git fetch//! Types for Tondi RPC API
+//! Types for Tondi RPC API
 //!
 //! These types provide compatibility between Tondi's native RPC types
 //! and the BP/RGB stack types.
@@ -7,7 +7,7 @@ use amplify::confinement::Confined;
 use amplify::{confinement, Bytes32, ByteArray};
 use bp::{
     LockTime, Outpoint, ScriptPubkey, SeqNo, SigScript, Tx as Transaction, TxIn, TxOut, TxVer,
-    Txid, Vout, Witness,
+    Txid, VarIntBytes, Vout, Witness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -122,8 +122,15 @@ pub struct BalanceByAddressEntry {
 ///
 /// RGB on Tondi only supports Standard inputs. Other input types (ChannelStateSpend,
 /// ChannelFundSpend, IngotSpend, IngotRef) are not supported in RGB Purist Mode.
+///
+/// # Serialization Format
+///
+/// Uses externally tagged format (default) to match Tondi node's JSON format:
+/// ```json
+/// {"standard": {"previousOutpoint": {...}, "signatureScript": "...", ...}}
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(rename_all = "camelCase")]
 pub enum TondiTxInput {
     /// Standard Bitcoin-style input (RGB must use this)
     #[serde(rename = "standard")]
@@ -180,8 +187,15 @@ pub enum TondiTxInput {
 ///
 /// RGB on Tondi only supports Standard outputs. Other output types (ChannelFund,
 /// ChannelState, Ingot) are not supported in RGB Purist Mode.
+///
+/// # Serialization Format
+///
+/// Uses externally tagged format (default) to match Tondi node's JSON format:
+/// ```json
+/// {"standard": {"value": 1000, "scriptPublicKey": {...}}}
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(rename_all = "camelCase")]
 pub enum TondiTxOutput {
     /// Standard output (RGB must use this)
     #[serde(rename = "standard")]
@@ -312,11 +326,19 @@ impl TondiTransaction {
             }
         }).collect::<Result<Vec<_>, _>>()?;
 
+        // Convert Tondi payload to VarIntBytes format
+        let payload = VarIntBytes::try_from(self.payload.clone())
+            .map_err(|e| confinement::Error::InvalidValue(format!("Invalid payload length: {}", e)))?;
+        
         Ok(Transaction {
-            version: TxVer::from_consensus_i32(self.version as i32),
-            lock_time: LockTime::from_consensus_u32(self.lock_time as u32),
+            version: TxVer::from_consensus_u16(self.version),
+            lock_time: LockTime::from_consensus_u64(self.lock_time),
             inputs: Confined::try_from_iter(inputs)?,
             outputs: Confined::try_from_iter(outputs)?,
+            // Tondi-specific fields (required for Tondi consensus)
+            subnetwork_id: self.subnetwork_id.to_byte_array(),
+            gas: self.gas,
+            payload,
         })
     }
 }
