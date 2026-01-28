@@ -217,14 +217,18 @@ impl LockTimestamp {
 
     /// Creates absolute time lock with the given UNIX timestamp value.
     ///
-    /// Timestamp value must be greater or equal to `0x1DCD6500`, otherwise
+    /// Timestamp value must be greater or equal to `LOCKTIME_THRESHOLD`, otherwise
     /// `None` is returned.
+    ///
+    /// Note: For backward compatibility, this function accepts `u32`, but internally
+    /// converts to `u64` for comparison with `LOCKTIME_THRESHOLD` (which is `u64`).
     #[inline]
     pub fn from_unix_timestamp(timestamp: u32) -> Option<Self> {
-        if timestamp < LOCKTIME_THRESHOLD {
+        let timestamp_u64 = timestamp as u64;
+        if timestamp_u64 < LOCKTIME_THRESHOLD {
             None
         } else {
-            Some(Self(timestamp))
+            Some(Self(timestamp)) // LockTimestamp is u32, use original value
         }
     }
 
@@ -321,12 +325,16 @@ impl LockHeight {
 
     /// Creates absolute time lock with the given block height.
     ///
-    /// Block height must be strictly less than `0x1DCD6500`, otherwise
+    /// Block height must be strictly less than `LOCKTIME_THRESHOLD`, otherwise
     /// `None` is returned.
+    ///
+    /// Note: For backward compatibility, this function accepts `u32`, but internally
+    /// converts to `u64` for comparison with `LOCKTIME_THRESHOLD` (which is `u64`).
     #[inline]
     pub fn from_height(height: u32) -> Option<Self> {
-        if height < LOCKTIME_THRESHOLD {
-            Some(Self(height))
+        let height_u64 = height as u64;
+        if height_u64 < LOCKTIME_THRESHOLD {
+            Some(Self(height)) // LockHeight is u32, use original value
         } else {
             None
         }

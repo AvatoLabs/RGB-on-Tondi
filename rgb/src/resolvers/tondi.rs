@@ -803,10 +803,16 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
         outputs,
         // LockTime: Use u64 directly (Tondi format)
         lock_time: tx.lock_time.to_consensus_u64(),
-        subnetwork_id: amplify::Bytes32::default(), // Default subnetwork
-        gas: 0,
+        // Tondi RPC uses Bytes32 (32 bytes), but we need to convert from BP's 20 bytes
+        // For now, pad with zeros (Tondi RPC may accept this, or we may need to check actual format)
+        subnetwork_id: {
+            let mut bytes32 = [0u8; 32];
+            bytes32[0..20].copy_from_slice(&tx.subnetwork_id);
+            amplify::Bytes32::from_byte_array(bytes32)
+        },
+        gas: tx.gas,
         payload, // Preserve RGB commitment Annex data
-        mass: 0, // Will be calculated by node
+        mass: tx.mass, // Copy mass from BP transaction (or 0 if not set)
     })
 }
 

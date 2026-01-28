@@ -336,9 +336,17 @@ impl TondiTransaction {
             inputs: Confined::try_from_iter(inputs)?,
             outputs: Confined::try_from_iter(outputs)?,
             // Tondi-specific fields (required for Tondi consensus)
-            subnetwork_id: self.subnetwork_id.to_byte_array(),
+            // Tondi uses 20 bytes for subnetwork_id, but RPC may return Bytes32 (32 bytes)
+            // Take only the first 20 bytes
+            subnetwork_id: {
+                let bytes32 = self.subnetwork_id.to_byte_array();
+                let mut subnetwork_id_20 = [0u8; 20];
+                subnetwork_id_20.copy_from_slice(&bytes32[0..20]);
+                subnetwork_id_20
+            },
             gas: self.gas,
             payload,
+            mass: self.mass, // Copy mass field from Tondi transaction
         })
     }
 }

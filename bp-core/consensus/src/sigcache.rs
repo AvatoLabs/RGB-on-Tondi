@@ -399,6 +399,11 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
             lock_time: tx_src.lock_time,
             inputs: none!(),
             outputs: none!(),
+            // Tondi-specific fields (required for Tondi consensus)
+            subnetwork_id: tx_src.subnetwork_id,
+            gas: tx_src.gas,
+            payload: tx_src.payload.clone(),
+            mass: tx_src.mass, // Copy mass field
         };
 
         // Add all necessary inputs...

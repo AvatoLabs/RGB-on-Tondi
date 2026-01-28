@@ -279,6 +279,7 @@ mod test {
     }
 
     #[test]
+    #[allow(deprecated)] // These tests verify Bitcoin genesis hashes for backward compatibility
     fn genesis_hashes() {
         assert_eq!(
             &BlockHash::GENESIS_MAINNET.to_string(),

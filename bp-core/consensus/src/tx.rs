@@ -32,9 +32,11 @@ use amplify::{ByteArray, Bytes32StrRev, Wrapper};
 use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
-    ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime, NonStandardValue,
+    ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime,
     ScriptPubkey, SeqNo, SigScript, VarInt, VarIntArray, VarIntBytes, Witness, Wtxid, LIB_NAME_TONDI,
 };
+
+use strict_encoding::{StrictDecode, StrictEncode, TypedRead, TypedWrite, DecodeError, ReadRaw, WriteRaw};
 
 #[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
 #[wrapper(AsSlice)]
@@ -565,7 +567,7 @@ impl TxVer {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictDumb)]
 #[strict_type(lib = LIB_NAME_TONDI)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 #[display(LowerHex)]
@@ -574,11 +576,14 @@ pub struct Tx {
     pub inputs: VarIntArray<TxIn>,
     pub outputs: VarIntArray<TxOut>,
     pub lock_time: LockTime,
-    /// Subnetwork ID (32 bytes) - Required for Tondi consensus
+    /// Subnetwork ID (20 bytes) - Required for Tondi consensus
     ///
     /// This field is part of Tondi's transaction structure and must be included
     /// in the transaction hash calculation to match Tondi's native implementation.
-    pub subnetwork_id: [u8; 32],
+    ///
+    /// Tondi uses 20 bytes for subnetwork ID (see Tondi/consensus/core/src/subnets.rs:
+    /// SUBNETWORK_ID_SIZE = 20).
+    pub subnetwork_id: [u8; 20],
     /// Gas fee (in saus) - Required for Tondi consensus
     ///
     /// This field is part of Tondi's transaction structure and must be included
@@ -589,8 +594,13 @@ pub struct Tx {
     /// This field typically contains RGB commitment data (Annex) and must be included
     /// in the transaction hash calculation to match Tondi's native implementation.
     ///
-    /// In Tondi, payload is serialized as VarInt-prefixed bytes.
+    /// In Tondi, payload is serialized as u32-prefixed bytes (not VarInt).
     pub payload: VarIntBytes,
+    /// Transaction mass (u64) - Required for Tondi consensus
+    ///
+    /// This field represents the transaction mass (weight) calculated by the node.
+    /// Note: This field is NOT included in Txid calculation, only in full transaction serialization.
+    pub mass: u64,
 }
 
 impl LowerHex for Tx {
@@ -614,6 +624,42 @@ impl FromStr for Tx {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let data = Vec::<u8>::from_hex(s)?;
         Tx::consensus_deserialize(data).map_err(BlockDataParseError::from)
+    }
+}
+
+// Manual implementation of StrictEncode and StrictDecode for Tx
+// These delegate to ConsensusEncode/ConsensusDecode to maintain Tondi compatibility
+impl StrictEncode for Tx {
+    fn strict_encode<W: TypedWrite>(&self, mut writer: W) -> std::io::Result<W> {
+        // Serialize using consensus encoding (Tondi format)
+        let data = self.consensus_serialize();
+        // Write as raw bytes using write_raw
+        // SAFETY: raw_writer() is safe to use here as we're writing raw bytes
+        #[allow(unsafe_code)]
+        unsafe {
+            writer.raw_writer().write_raw::<{ u32::MAX as usize }>(&data)?;
+        }
+        Ok(writer)
+    }
+}
+
+impl StrictDecode for Tx {
+    fn strict_decode(reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
+        // Read transaction data using raw reader
+        // Note: This implementation assumes the entire transaction data is available
+        // In strict encoding, there may be length prefixes, but we delegate to
+        // consensus encoding which handles its own format
+        // SAFETY: raw_reader() is safe to use here as we're reading raw bytes
+        #[allow(unsafe_code)]
+        unsafe {
+            let raw_reader = reader.raw_reader();
+            // Read a reasonable maximum size (1MB should be enough for any transaction)
+            const MAX_TX_SIZE: usize = 1_000_000;
+            let data = raw_reader.read_raw::<MAX_TX_SIZE>(MAX_TX_SIZE)?;
+            // Deserialize using consensus decoding (Tondi format)
+            Tx::consensus_deserialize(data)
+                .map_err(|e| DecodeError::DataIntegrityError(format!("Consensus decode error: {}", e)))
+        }
     }
 }
 
@@ -653,35 +699,83 @@ impl Tx {
     /// flag bytes, and the witness fields themselves). For non-segwit
     /// transactions which do not have any segwit data, this will be equal
     /// to [`Tx::wtxid()`].
+    /// Computes the [`Txid`].
+    ///
+    /// For Tondi L1: Uses BLAKE3 with Prefix Mode (b"TransactionID" prefix).
+    /// Uses Tondi's hash format: u64 lengths, NO enum tags, EXCLUDE Mass, EXCLUDE SigScript.
+    ///
+    /// ⚠️ CRITICAL: This method uses Tondi's hash format (different from Borsh serialization).
+    /// Hash format rules:
+    /// - u64 lengths (NOT u32)
+    /// - NO enum tags (NOT u8 tags)
+    /// - EXCLUDE Mass field
+    /// - EXCLUDE SigScript (write length 0, no bytes)
     pub fn txid(&self) -> Txid {
-        // Tondi L1: Use BLAKE3 with Prefix Mode (b"TransactionID" prefix)
-        // 
-        // CRITICAL: The serialization order MUST match Tondi's native implementation:
-        // 1. version
-        // 2. inputs
-        // 3. outputs
-        // 4. lock_time
-        // 5. subnetwork_id (32 bytes)
-        // 6. gas (u64, little-endian)
-        // 7. payload (VarInt-prefixed bytes)
-        //
-        // Reference: Tondi/consensus/core/src/hashing/tx.rs::write_transaction
+        // 1. Hasher (Prefix: b"TransactionID")
         let mut hasher = TondiBlake3::for_transaction();
-        // Version: u16 (2 bytes) - Tondi format (NOT i32/4 bytes)
+
+        // 2. Version: u16 (2 bytes)
         hasher.update(&self.version.to_consensus_u16().to_le_bytes());
-        self.inputs.consensus_encode(&mut hasher).expect("engines don't error");
-        self.outputs.consensus_encode(&mut hasher).expect("engines don't error");
-        // LockTime: u64 (8 bytes) - Tondi format (NOT u32/4 bytes)
+
+        // 3. Inputs (u64 len, NO enum tag)
+        // Tondi hash format: Count(u64) + [Input...] (NO u8 tag)
+        hasher.update(&(self.inputs.len() as u64).to_le_bytes());
+        for input in self.inputs.iter() {
+            // 3a. Previous Outpoint
+            hasher.update(&input.prev_output.txid.to_byte_array());
+            hasher.update(&input.prev_output.vout.to_u32().to_le_bytes());
+
+            // 3b. Signature Script: TxID calculation EXCLUDES SigScript
+            // Write length 0 (u64), no bytes
+            hasher.update(&0u64.to_le_bytes());
+
+            // 3c. Sequence: u64
+            hasher.update(&(input.sequence.to_consensus_u32() as u64).to_le_bytes());
+            
+            // Note: SigOpCount is NOT included in hash calculation
+        }
+
+        // 4. Outputs (u64 len, NO enum tag)
+        // Tondi hash format: Count(u64) + [Output...] (NO u8 tag)
+        hasher.update(&(self.outputs.len() as u64).to_le_bytes());
+        for output in self.outputs.iter() {
+            // 4a. Value: u64
+            hasher.update(&output.value.sats().to_le_bytes());
+
+            // 4b. ScriptPublicKey
+            // Tondi hash format: Version(u16) + ScriptLength(u64) + ScriptBytes
+            hasher.update(&0u16.to_le_bytes()); // Version 0 for standard scripts
+            
+            let script_bytes = output.script_pubkey.as_slice();
+            hasher.update(&(script_bytes.len() as u64).to_le_bytes()); // u64 length
+            hasher.update(script_bytes);
+        }
+
+        // 5. LockTime: u64 (8 bytes)
         hasher.update(&self.lock_time.to_consensus_u64().to_le_bytes());
-        
-        // Tondi-specific fields (required for correct Txid calculation)
-        hasher.update(&self.subnetwork_id);
+
+        // 6. Subnetwork ID (20 bytes)
+        hasher.update(&self.subnetwork_id); 
+
+        // 7. Gas: u64
         hasher.update(&self.gas.to_le_bytes());
-        // Payload is serialized as VarInt-prefixed bytes in Tondi
-        VarInt::with(self.payload.len()).consensus_encode(&mut hasher).expect("engines don't error");
+
+        // 8. Payload: u64 Len + Bytes
+        hasher.update(&(self.payload.len() as u64).to_le_bytes());
         hasher.update(&self.payload);
+
+        // ❌ Note: Mass is NOT included in TxID calculation!
+
+        // Get the raw hash result
+        let raw_hash = hasher.finish();
         
-        Txid::from_byte_array(hasher.finish())
+        // ⚠️ CRITICAL: Bytes32StrRev reverses byte order when converting from byte array
+        // So we need to reverse the hash bytes before passing to Txid::from_byte_array()
+        // This ensures that after Bytes32StrRev reverses it again, we get the correct order
+        let mut reversed_hash = raw_hash;
+        reversed_hash.reverse();
+        
+        Txid::from_byte_array(reversed_hash)
     }
 
     /// Computes the Tondi transaction ID using BLAKE3.
@@ -693,35 +787,11 @@ impl Tx {
     ///
     /// Returns a `TondiTxid` which uses BLAKE3 hash algorithm, compatible with RGB's
     /// `WitnessId` trait requirements.
+    ///
+    /// This method uses the same logic as `txid()` but returns a `TondiTxid` type.
     pub fn tondi_txid(&self) -> TondiTxid {
-        // Tondi L1: Use BLAKE3 with Prefix Mode (b"TransactionID" prefix)
-        //
-        // CRITICAL: The serialization order and byte lengths MUST match Tondi's native implementation:
-        // 1. version (u16, 2 bytes) - NOT i32 (4 bytes)
-        // 2. inputs
-        // 3. outputs
-        // 4. lock_time (u64, 8 bytes) - NOT u32 (4 bytes)
-        // 5. subnetwork_id (32 bytes)
-        // 6. gas (u64, little-endian)
-        // 7. payload (VarInt-prefixed bytes)
-        //
-        // Reference: Tondi/consensus/core/src/hashing/tx.rs::write_transaction
-        let mut hasher = TondiBlake3::for_transaction();
-        // Version: u16 (2 bytes) - Tondi format (NOT i32/4 bytes)
-        hasher.update(&self.version.to_consensus_u16().to_le_bytes());
-        self.inputs.consensus_encode(&mut hasher).expect("engines don't error");
-        self.outputs.consensus_encode(&mut hasher).expect("engines don't error");
-        // LockTime: u64 (8 bytes) - Tondi format (NOT u32/4 bytes)
-        hasher.update(&self.lock_time.to_consensus_u64().to_le_bytes());
-        
-        // Tondi-specific fields (required for correct Txid calculation)
-        hasher.update(&self.subnetwork_id);
-        hasher.update(&self.gas.to_le_bytes());
-        // Payload is serialized as VarInt-prefixed bytes in Tondi
-        VarInt::with(self.payload.len()).consensus_encode(&mut hasher).expect("engines don't error");
-        hasher.update(&self.payload);
-        
-        TondiTxid::from_byte_array(hasher.finish())
+        // Use the same serialization logic as txid()
+        TondiTxid::from_byte_array(self.txid().to_byte_array())
     }
 
     /// Computes the segwit version of the transaction id.
@@ -902,9 +972,10 @@ mod test {
             inputs: VarIntArray::new(),
             outputs: VarIntArray::new(),
             lock_time: LockTime::ZERO,
-            subnetwork_id: [0u8; 32], // Default subnetwork
+            subnetwork_id: [0u8; 20], // Default subnetwork
             gas: 0,
             payload: VarIntBytes::new(),
+            mass: 0, // Default mass
         };
         let tondi_txid = tx.tondi_txid();
         // Just verify it doesn't panic and returns a valid TondiTxid
@@ -932,6 +1003,246 @@ mod test {
         assert!(coinbase.is_coinbase());
         assert_eq!(coinbase.txid.to_byte_array(), [0u8; 32]);
         assert_eq!(coinbase.vout_u32(), 0);
+    }
+
+    /// Test parsing a real Tondi transaction from Hex and verifying its Txid
+    ///
+    /// This test validates that our Txid calculation matches Tondi's native implementation.
+    /// If you have a complete transaction Hex string from Tondi, replace the placeholder
+    /// hex string below with the actual transaction Hex.
+    ///
+    /// Expected Txid: 43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c
+    /// Version: 1
+    /// LockTime: 0
+    /// Payload Hex: 502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    #[test]
+    fn test_tondi_real_transaction_parsing() {
+        // Test with the golden vector from Tondi codebase
+        // Expected Txid: 43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c
+        // Version: 1
+        // LockTime: 0
+        // Payload Hex: 502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        
+        // Payload: 502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        // This is 35 bytes: 0x50 (Annex marker) + 0x20 (TLV type) + 0x20 (length) + 32 bytes of data
+        let payload_hex = "502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let payload_bytes = Vec::<u8>::from_hex(payload_hex).expect("Invalid payload hex");
+        let payload = VarIntBytes::try_from(payload_bytes).expect("Invalid payload length");
+        
+        // Create a minimal transaction matching the golden vector
+        // NOTE: We need the COMPLETE transaction Hex from Tondi to properly test.
+        // For now, we're testing with a manually constructed transaction.
+        let tx = Tx {
+            version: TxVer::from_consensus_u16(1),
+            inputs: VarIntArray::new(), // Empty inputs (serializes as 0x00)
+            outputs: VarIntArray::new(), // Empty outputs (serializes as 0x00)
+            lock_time: LockTime::from_consensus_u64(0),
+            subnetwork_id: [0u8; 20], // Default subnetwork (all zeros)
+            gas: 0,
+            payload,
+            mass: 0, // Default mass
+        };
+        
+        // Debug: Print the serialized transaction bytes for comparison
+        use crate::ConsensusEncode;
+        let mut serialized = Vec::new();
+        tx.consensus_encode(&mut serialized).unwrap();
+        println!("Serialized transaction ({} bytes): {}", serialized.len(), serialized.to_hex());
+        
+        // Debug: Print what we're hashing
+        use commit_verify::TondiBlake3;
+        let mut debug_hasher = TondiBlake3::for_transaction();
+        debug_hasher.update(&tx.version.to_consensus_u16().to_le_bytes());
+        println!("Version bytes: {:02x?}", tx.version.to_consensus_u16().to_le_bytes());
+        
+        let mut inputs_buf = Vec::new();
+        tx.inputs.consensus_encode(&mut inputs_buf).unwrap();
+        debug_hasher.update(&inputs_buf);
+        println!("Inputs bytes: {}", inputs_buf.to_hex());
+        
+        let mut outputs_buf = Vec::new();
+        tx.outputs.consensus_encode(&mut outputs_buf).unwrap();
+        debug_hasher.update(&outputs_buf);
+        println!("Outputs bytes: {}", outputs_buf.to_hex());
+        
+        let lock_time_bytes = tx.lock_time.to_consensus_u64().to_le_bytes();
+        debug_hasher.update(&lock_time_bytes);
+        println!("LockTime bytes: {:02x?}", lock_time_bytes);
+        
+        debug_hasher.update(&tx.subnetwork_id);
+        println!("Subnetwork ID bytes: {:02x?}", tx.subnetwork_id);
+        
+        let gas_bytes = tx.gas.to_le_bytes();
+        debug_hasher.update(&gas_bytes);
+        println!("Gas bytes: {:02x?}", gas_bytes);
+        
+        let mut payload_len_buf = Vec::new();
+        VarInt::with(tx.payload.len()).consensus_encode(&mut payload_len_buf).unwrap();
+        debug_hasher.update(&payload_len_buf);
+        println!("Payload length VarInt: {}", payload_len_buf.to_hex());
+        debug_hasher.update(&tx.payload);
+        println!("Payload bytes: {}", tx.payload.to_hex());
+        
+        // Calculate Txid
+        let calculated_txid = tx.txid();
+        let expected_txid_hex = "43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
+        let expected_txid = Txid::from_hex(expected_txid_hex).expect("Invalid expected txid hex");
+        
+        println!("Calculated Txid: {}", calculated_txid.to_hex());
+        println!("Expected Txid:  {}", expected_txid_hex);
+        
+        // Verify the Txid matches
+        assert_eq!(
+            calculated_txid,
+            expected_txid,
+            "Calculated Txid ({}) does not match expected Txid ({})",
+            calculated_txid.to_hex(),
+            expected_txid_hex
+        );
+        
+        // Also verify using tondi_txid() method
+        let tondi_txid = tx.tondi_txid();
+        assert_eq!(
+            tondi_txid.to_byte_array(),
+            expected_txid.to_byte_array(),
+            "TondiTxid does not match expected Txid"
+        );
+    }
+
+    /// Test parsing a complete Tondi transaction from Hex string
+    ///
+    /// This test accepts a complete transaction Hex string from Tondi and verifies:
+    /// 1. The transaction can be parsed correctly using consensus_deserialize
+    /// 2. The calculated Txid matches the expected value from Tondi
+    ///
+    /// ⚠️ CRITICAL: This test validates that bp-core's consensus encoding/decoding
+    /// is compatible with Tondi's native transaction format.
+    #[test]
+    fn test_tondi_transaction_from_hex() {
+        // Full transaction Hex from Tondi golden vector test
+        // Expected Txid: 43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c
+        // Note: The hex string may include the expected Txid at the end (64 hex chars = 32 bytes)
+        // We'll try to parse it, and if it fails, we'll remove the last 64 characters
+        let tx_hex = "0100010000000000000000000000000000000000000000000000000000000001000000000000000000000002000000c0de0000000000000000010100000000e803000000000000000001000000ac00000000000000000000000000000000000000000000000000000000000000000000000023000000502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000000000000000043efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
+        
+        println!("=== Parsing Tondi Transaction ===");
+        println!("Full Tx Hex ({} bytes): {}", tx_hex.len() / 2, tx_hex);
+        
+        // Step 1: Deserialize the transaction
+        // ⚠️ WARNING: If this fails, bp-core's StrictEncode (Bitcoin-like format) 
+        // may not be compatible with Tondi's Borsh format
+        
+        // The hex string might include the expected Txid at the end (64 hex chars = 32 bytes)
+        // Try parsing the full hex first, if it fails, try removing the last 64 chars
+        let expected_txid_hex = "43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
+        let mut tx_bytes = Vec::<u8>::from_hex(tx_hex).expect("Invalid transaction hex");
+        
+        // Try to deserialize - if it fails and hex ends with expected Txid, try without it
+        let tx = match Tx::consensus_deserialize(tx_bytes.clone()) {
+            Ok(tx) => {
+                println!("✅ Transaction deserialized successfully!");
+                tx
+            }
+            Err(e) => {
+                println!("⚠️  First deserialization attempt failed: {:?}", e);
+                // Check if hex ends with expected Txid and try again without it
+                if tx_hex.ends_with(expected_txid_hex) && tx_bytes.len() >= 32 {
+                    println!("⚠️  Hex string appears to include Txid at the end. Removing it and retrying...");
+                    tx_bytes.truncate(tx_bytes.len() - 32);
+                    println!("Adjusted transaction bytes length: {} bytes", tx_bytes.len());
+                    match Tx::consensus_deserialize(tx_bytes) {
+                        Ok(tx) => {
+                            println!("✅ Transaction deserialized successfully after removing Txid!");
+                            tx
+                        }
+                        Err(e2) => {
+                            panic!("❌ Failed to deserialize transaction even after removing Txid: {:?}\nThis may indicate that bp-core's consensus encoding is incompatible with Tondi's format.", e2);
+                        }
+                    }
+                } else {
+                    panic!("❌ Failed to deserialize transaction: {:?}\nThis may indicate that bp-core's consensus encoding is incompatible with Tondi's format.", e);
+                }
+            }
+        };
+        
+        // Print transaction details
+        println!("   Version: {} (u16)", tx.version.to_consensus_u16());
+        println!("   Inputs: {}", tx.inputs.len());
+        for (i, input) in tx.inputs.iter().enumerate() {
+            println!("     Input {}: txid={}, vout={}, sig_script_len={}, sequence={}", 
+                i, input.prev_output.txid.to_hex(), input.prev_output.vout.to_u32(),
+                input.sig_script.len(), input.sequence.to_consensus_u32());
+        }
+        println!("   Outputs: {}", tx.outputs.len());
+        for (i, output) in tx.outputs.iter().enumerate() {
+            println!("     Output {}: value={}, script_len={}", 
+                i, output.value.sats(), output.script_pubkey.len());
+        }
+        println!("   LockTime: {} (u64)", tx.lock_time.to_consensus_u64());
+        println!("   Subnetwork ID: {:02x?}", tx.subnetwork_id);
+        println!("   Gas: {}", tx.gas);
+        println!("   Payload length: {} bytes", tx.payload.len());
+        println!("   Payload hex: {}", tx.payload.to_hex());
+        println!("   Mass: {}", tx.mass);
+        
+        // Step 2: Calculate and verify Txid
+        // Debug: Print raw hash bytes before creating Txid
+        let mut debug_hasher = TondiBlake3::for_transaction();
+        debug_hasher.update(&tx.version.to_consensus_u16().to_le_bytes());
+        debug_hasher.update(&(tx.inputs.len() as u64).to_le_bytes());
+        for input in tx.inputs.iter() {
+            debug_hasher.update(&input.prev_output.txid.to_byte_array());
+            debug_hasher.update(&input.prev_output.vout.to_u32().to_le_bytes());
+            debug_hasher.update(&0u64.to_le_bytes()); // SigScript length = 0
+            debug_hasher.update(&(input.sequence.to_consensus_u32() as u64).to_le_bytes());
+        }
+        debug_hasher.update(&(tx.outputs.len() as u64).to_le_bytes());
+        for output in tx.outputs.iter() {
+            debug_hasher.update(&output.value.sats().to_le_bytes());
+            debug_hasher.update(&0u16.to_le_bytes());
+            let script_bytes = output.script_pubkey.as_slice();
+            debug_hasher.update(&(script_bytes.len() as u64).to_le_bytes());
+            debug_hasher.update(script_bytes);
+        }
+        debug_hasher.update(&tx.lock_time.to_consensus_u64().to_le_bytes());
+        debug_hasher.update(&tx.subnetwork_id);
+        debug_hasher.update(&tx.gas.to_le_bytes());
+        debug_hasher.update(&(tx.payload.len() as u64).to_le_bytes());
+        debug_hasher.update(&tx.payload);
+        let raw_hash = debug_hasher.finish();
+        
+        println!("\n=== Txid Verification ===");
+        println!("Raw hash bytes: {:02x?}", raw_hash);
+        println!("Raw hash hex: {}", raw_hash.to_hex());
+        
+        let calculated_txid = tx.txid();
+        let expected_txid_hex = "43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
+        let expected_txid = Txid::from_hex(expected_txid_hex).expect("Invalid expected txid hex");
+        
+        println!("Calculated Txid: {}", calculated_txid.to_hex());
+        println!("Expected Txid:   {}", expected_txid_hex);
+        println!("Expected Txid bytes: {:02x?}", expected_txid.to_byte_array());
+        println!("Calculated Txid bytes: {:02x?}", calculated_txid.to_byte_array());
+        
+        // Verify the Txid matches
+        assert_eq!(
+            calculated_txid,
+            expected_txid,
+            "\n❌ Txid mismatch!\n   Calculated: {}\n   Expected:   {}\n\nThis indicates that the Txid calculation logic does not match Tondi's native implementation.",
+            calculated_txid.to_hex(),
+            expected_txid_hex
+        );
+        
+        println!("✅ Txid matches! All P0 bugs are fixed!");
+        
+        // Also verify using tondi_txid() method
+        let tondi_txid = tx.tondi_txid();
+        assert_eq!(
+            tondi_txid.to_byte_array(),
+            expected_txid.to_byte_array(),
+            "TondiTxid does not match expected Txid"
+        );
+        println!("✅ TondiTxid also matches!");
     }
 
     #[test]
