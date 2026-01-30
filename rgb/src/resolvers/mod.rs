@@ -83,6 +83,8 @@ pub struct MultiResolver {
     electrum: Option<ElectrumResolver>,
     
     // Tondi resolver (async-only for DAG-based blockchain)
+    // Tondi resolver (async-only for DAG-based blockchain)
+    // Note: This field is conditionally compiled based on resolver-tondi features
     #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
     tondi: Option<TondiResolver>,
     // TODO: Implement Bitcoin RPC resolver
@@ -169,7 +171,7 @@ impl MultiResolver {
 
 #[cfg(not(feature = "async"))]
 impl Resolver for MultiResolver {
-    fn resolve_tx(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
+    fn resolve_tx(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_tx(txid);
@@ -181,7 +183,7 @@ impl Resolver for MultiResolver {
         NoResolver.call()
     }
 
-    fn resolve_tx_status(&self, _txid: Txid) -> Result<WitnessStatus, ResolverError> {
+    fn resolve_tx_status(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.resolve_tx_status(txid);
@@ -196,7 +198,7 @@ impl Resolver for MultiResolver {
     #[allow(unreachable_code)]
     fn resolve_utxos(
         &self,
-        _iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
+        iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
@@ -222,10 +224,27 @@ impl Resolver for MultiResolver {
         NoResolver.call()
     }
 
-    fn broadcast(&self, _tx: &Tx) -> Result<(), ResolverError> {
+    fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError> {
         #[cfg(feature = "resolver-electrum")]
         if let Some(resolver) = &self.electrum {
             return resolver.broadcast(tx);
+        }
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
+            // Tondi resolver is async-only, so we need to use tokio runtime
+            // to run the async broadcast in a sync context
+            #[cfg(feature = "tokio")]
+            {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|_| ResolverError::Local)?;
+                return rt.block_on(async {
+                    resolver.broadcast_async(tx).await
+                });
+            }
+            #[cfg(not(feature = "tokio"))]
+            {
+                return Err(ResolverError::Local);
+            }
         }
         // #[cfg(feature = "resolver-bitcoinrpc")]
         // if let Some(resolver) = &self.bitcoinrpc {

@@ -31,6 +31,7 @@ rgb-pstt = { workspace = true, features = ["bp"] }
 rgb-descriptors = { workspace = true }
 rgb-persist-fs = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
+tokio = { version = "1.40", optional = true, features = ["rt", "macros"] }
 indexmap = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 serde = { workspace = true, optional = true }
@@ -85,7 +86,7 @@ resolvers-all-async = [
 ]
 #resolver-electrum-async = ["async", "dep:bp-electrum"] # TODO: ["bp-electrum/async"]
 # Tondi client is async-only
-resolver-tondi = ["async", "bp-tondi/async"]
+resolver-tondi = ["async", "bp-tondi/async", "dep:tokio"]
 resolver-tondi-async = ["resolver-tondi"]
 #resolver-bitcoinrpc-async = ["async"] # TODO
 

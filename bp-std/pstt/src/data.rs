@@ -28,6 +28,7 @@ use derive::{
     Bip340Sig, ByteStr, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk, LegacySig,
     LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptCode, ScriptPubkey,
     SeqNo, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx,
+    VarIntBytes,
     TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use descriptors::{Descriptor, LegacyKeySig, TaprootKeySig};
@@ -112,6 +113,10 @@ impl From<UnsignedTx> for Tx {
             ),
             outputs: unsigned_tx.outputs,
             lock_time: unsigned_tx.lock_time,
+            subnetwork_id: [0u8; 20], // Default subnetwork ID
+            gas: 0, // Default gas
+            payload: VarIntBytes::new(), // Default empty payload
+            mass: 0, // Default mass
         }
     }
 }
@@ -539,6 +544,10 @@ impl Pstt {
             inputs: VarIntArray::from_iter_checked(self.inputs.iter().map(Input::to_signed_txin)),
             outputs: VarIntArray::from_iter_checked(self.outputs.iter().map(Output::to_txout)),
             lock_time: self.lock_time(),
+            subnetwork_id: [0u8; 20], // Default subnetwork ID
+            gas: 0, // Default gas
+            payload: VarIntBytes::new(), // Default empty payload
+            mass: 0, // Default mass
         })
     }
 }

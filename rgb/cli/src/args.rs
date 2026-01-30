@@ -96,6 +96,10 @@ pub struct Args {
     /// Command to execute
     #[clap(subcommand)]
     pub command: Cmd,
+
+    /// Resolver options (Electrum or Tondi)
+    #[clap(flatten)]
+    pub resolver: ResolverOpt,
 }
 
 impl Args {
@@ -168,9 +172,16 @@ impl Args {
             RgbpRuntimeDir::from(RgbWallet::with_components(wallet, self.contracts()));
         if opts.sync {
             eprint!("Synchronizing wallet:");
-            runtime
-                .update(self.min_confirmations)
-                .expect("Unable to synchronize wallet");
+            // 修复：强制使用异步更新（通过 tokio runtime 阻塞调用）
+            // 因为 RgbRuntime/RgbWallet 不再提供同步的 update() 方法
+            let rt = tokio::runtime::Runtime::new()
+                .expect("Unable to create tokio runtime");
+            rt.block_on(async {
+                runtime
+                    .update_async(self.min_confirmations)
+                    .await
+                    .expect("Unable to synchronize wallet");
+            });
             eprintln!(" done");
         }
         runtime
@@ -178,15 +189,21 @@ impl Args {
 
     pub fn resolver(&self, resolver: &ResolverOpt) -> MultiResolver {
         match (&resolver.tondi, &resolver.electrum) {
-            (None, Some(url)) => MultiResolver::new_electrum(url),
-            (Some(_endpoint), None) => {
-                // TODO: Tondi resolver requires async runtime
-                // For now, fallback to absent resolver
-                eprintln!("Warning: Tondi resolver not yet supported in sync mode, use --electrum instead");
-                MultiResolver::new_absent()
+            (None, Some(url)) => MultiResolver::new_electrum(url)
+                .expect("Unable to connect to Electrum server"),
+            (Some(endpoint), None) => {
+                // Tondi resolver requires async runtime, so we use tokio::runtime::Runtime
+                // to run the async code in a sync context
+                let rt = tokio::runtime::Runtime::new()
+                    .expect("Unable to create tokio runtime for Tondi resolver");
+                rt.block_on(async {
+                    // Use MultiResolver::new_tondi which is available when resolver-tondi feature is enabled
+                    MultiResolver::new_tondi(endpoint).await
+                        .expect("Unable to connect to Tondi node")
+                })
             }
-            _ => MultiResolver::new_absent(),
+            _ => MultiResolver::new_absent()
+                .expect("Unable to create resolver"),
         }
-        .expect("Unable to connect to the indexing server")
     }
 }

@@ -33,7 +33,7 @@ use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
     ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime,
-    ScriptPubkey, SeqNo, SigScript, VarInt, VarIntArray, VarIntBytes, Witness, Wtxid, LIB_NAME_TONDI,
+    ScriptPubkey, SeqNo, SigScript, VarIntArray, VarIntBytes, Witness, Wtxid, LIB_NAME_TONDI,
 };
 
 use strict_encoding::{StrictDecode, StrictEncode, TypedRead, TypedWrite, DecodeError, ReadRaw, WriteRaw};

@@ -38,6 +38,7 @@ impl ElectrumResolver {
     pub fn new(url: &str) -> Result<Self, ResolverError> { Ok(Self(ElectrumClient::new(url)?)) }
 }
 
+#[cfg(not(feature = "async"))]
 impl Resolver for ElectrumResolver {
     fn resolve_tx(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
         let tx = self.0.transaction_get(&txid)?;
@@ -87,6 +88,61 @@ impl Resolver for ElectrumResolver {
     }
 
     fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError> {
+        self.0.transaction_broadcast(tx)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "async")]
+impl Resolver for ElectrumResolver {
+    async fn resolve_tx_async(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
+        let tx = self.0.transaction_get(&txid)?;
+        Ok(tx.map(UnsignedTx::with_sigs_removed))
+    }
+
+    async fn resolve_tx_status_async(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
+        let Some(verbose) = self.0.transaction_get_verbose(&txid)? else {
+            return Ok(WitnessStatus::Archived);
+        };
+        if verbose.block_hash.is_none() {
+            return Ok(WitnessStatus::Tentative);
+        };
+        if verbose.time.is_none() {
+            return Ok(WitnessStatus::Tentative);
+        };
+        let last_height = self.last_block_height_async().await?;
+        let height = last_height - verbose.confirmations as u64;
+        let Some(height) = NonZeroU64::new(height) else {
+            return Ok(WitnessStatus::Genesis);
+        };
+        Ok(WitnessStatus::Mined(height))
+    }
+
+    async fn resolve_utxos_async(
+        &self,
+        iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
+    ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
+        iter.into_iter()
+            .flat_map(|(terminal, spk)| match self.0.script_list_unspent(&spk) {
+                Err(err) => vec![Err(ResolverError::from(err))],
+                Ok(list) => list
+                    .into_iter()
+                    .map(|res| {
+                        Ok(Utxo {
+                            outpoint: Outpoint::new(res.tx_hash, res.tx_pos as u32),
+                            value: Sats::from_sats(res.value),
+                            terminal,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            })
+    }
+
+    async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
+        Ok(self.0.block_headers_subscribe()?.height as u64)
+    }
+
+    async fn broadcast_async(&self, tx: &Tx) -> Result<(), ResolverError> {
         self.0.transaction_broadcast(tx)?;
         Ok(())
     }

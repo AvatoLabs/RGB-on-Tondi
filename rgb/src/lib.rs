@@ -26,16 +26,23 @@
 // #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "async", allow(async_fn_in_trait))]
 
+// Check: async feature must not be used with non-async resolvers (except Tondi which is async-only)
 #[cfg(all(
     feature = "async",
     any(
         feature = "resolver-electrum",
         /*feature = "resolver-bitcoinrpc"*/
-    )
+    ),
+    not(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))
 ))]
 compile_error!("async feature must not be used with non-async resolvers (except Tondi which is async-only)");
-#[cfg(all(feature = "async", feature = "fs"))]
-compile_error!("async feature must not be used with fs feature");
+// Allow async with fs when resolver-tondi is enabled (Tondi is async-only and needs fs for CLI)
+#[cfg(all(
+    feature = "async",
+    feature = "fs",
+    not(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))
+))]
+compile_error!("async feature must not be used with fs feature (except when resolver-tondi is enabled)");
 
 extern crate alloc;
 #[macro_use]

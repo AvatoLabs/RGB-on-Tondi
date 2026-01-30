@@ -23,14 +23,20 @@ bp-std = { workspace = true }
 bp-electrum = { workspace = true }
 bp-tondi = { workspace = true }
 rgb-std = { workspace = true, features = ["binfile", "uri", "serde"] }
-rgb-runtime = { workspace = true, features = ["resolvers-all", "fs", "serde"] }
+rgb-runtime = { workspace = true, features = ["resolvers-all", "resolver-tondi", "fs", "serde"] }
 rgb-persist-fs.workspace = true
 serde.workspace = true
 serde_yaml = "0.9.34"
 anyhow = "1.0.93"
 clap = { version = "4.5.21", features = ["derive", "env"] }
+tokio = { version = "1.40", features = ["rt", "macros"] }
 
 [features]
 default = []
 all = ["log"]
 log = ["rgb-runtime/log"]
+# These features are passed through from rgb-runtime
+# They are defined in rgb-runtime but used in rgb-cli code
+resolver-electrum = ["rgb-runtime/resolver-electrum"]
+resolver-tondi = ["rgb-runtime/resolver-tondi"]
+resolver-tondi-async = ["rgb-runtime/resolver-tondi-async"]

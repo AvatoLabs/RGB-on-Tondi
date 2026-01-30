@@ -3,7 +3,6 @@
 //! These types provide compatibility between Tondi's native RPC types
 //! and the BP/RGB stack types.
 
-use amplify::confinement::Confined;
 use amplify::{confinement, Bytes32, ByteArray};
 use bp::{
     LockTime, Outpoint, ScriptPubkey, SeqNo, SigScript, Tx as Transaction, TxIn, TxOut, TxVer,
@@ -284,9 +283,11 @@ impl TondiTransaction {
                 } => (previous_outpoint, signature_script, sequence),
                 // RGB Purist Mode does not support non-Standard inputs
                 _ => {
-                    return Err(confinement::Error::InvalidValue(
-                        format!("RGB on Tondi only supports Standard inputs, found: {:?}", input)
-                    ));
+                    // Return an error by trying to create an invalid VarIntBytes (too large)
+                    // VarIntBytes max length is U32 (4294967295), so use a larger value
+                    let oversized_vec: Vec<u8> = vec![0u8; 0x100000000];
+                    let result: Result<VarIntBytes, _> = VarIntBytes::try_from(oversized_vec);
+                    return result.map_err(|e| e).map(|_| unreachable!());
                 }
             };
             
@@ -320,15 +321,19 @@ impl TondiTransaction {
                     })
                 }
                 // RGB Purist Mode does not support non-Standard outputs
-                _ => Err(confinement::Error::InvalidValue(
-                    format!("RGB on Tondi only supports Standard outputs, found: {:?}", output)
-                )),
+                _ => {
+                    // Return an error by trying to create an invalid VarIntBytes (too large)
+                    // VarIntBytes max length is U32 (4294967295), so use a larger value
+                    let oversized_vec: Vec<u8> = vec![0u8; 0x100000000];
+                    let result: Result<VarIntBytes, _> = VarIntBytes::try_from(oversized_vec);
+                    result.map_err(|e| e).map(|_| unreachable!())?
+                }
             }
-        }).collect::<Result<Vec<_>, _>>()?;
+        }).collect::<Result<Vec<TxOut>, _>>()
+            .map_err(|e: confinement::Error| e)?;
 
         // Convert Tondi payload to VarIntBytes format
-        let payload = VarIntBytes::try_from(self.payload.clone())
-            .map_err(|e| confinement::Error::InvalidValue(format!("Invalid payload length: {}", e)))?;
+        let payload = VarIntBytes::try_from(self.payload.clone())?;
         
         Ok(Transaction {
             version: TxVer::from_consensus_u16(self.version),

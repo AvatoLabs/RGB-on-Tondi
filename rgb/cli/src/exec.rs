@@ -107,7 +107,13 @@ impl Args {
 
             Cmd::Sync { wallet, resolver } => {
                 let mut runtime = self.runtime(&WalletOpts::with(wallet, resolver));
-                runtime.update(self.min_confirmations)?;
+                
+                let rt = tokio::runtime::Runtime::new()
+                    .expect("Unable to create tokio runtime");
+                rt.block_on(async {
+                    runtime.update_async(self.min_confirmations).await
+                })?;
+                
                 println!();
             }
 
@@ -252,7 +258,11 @@ impl Args {
             Cmd::State { wallet, all, global, owned, contract } => {
                 let mut runtime = self.runtime(wallet);
                 if wallet.sync {
-                    runtime.update(self.min_confirmations)?;
+                    let rt = tokio::runtime::Runtime::new()
+                        .expect("Unable to create tokio runtime");
+                    rt.block_on(async {
+                        runtime.update_async(self.min_confirmations).await
+                    })?;
                     println!();
                 }
                 let contract_id = contract
@@ -512,7 +522,7 @@ impl Args {
             }
 
             Cmd::Finalize { broadcast, wallet, pstt: pstt_filename, tx: tx_filename } => {
-                let runtime = self.runtime(wallet);
+                let mut runtime = self.runtime(wallet);
                 let mut pstt_file = File::open(pstt_filename).context("Unable to open PSTT")?;
                 let mut pstt = Pstt::decode(&mut pstt_file)?;
 
@@ -558,9 +568,14 @@ impl Args {
                 };
 
                 if *broadcast {
-                    // TODO: Implement new finalization workflow
-                    //runtime.finalize(pstt);
-                    self.resolver(&wallet.resolver).broadcast(&extracted)?;
+                    // 使用 wallet.broadcast_async() 而不是 resolver.broadcast_async()
+                    // 这样可以自动更新钱包的 UTXO 集（移除已花费的输入）
+                    // 注意：由于没有 PsttMeta，无法自动添加找零输出，但至少会移除已花费的 UTXO
+                    let rt = tokio::runtime::Runtime::new()
+                        .expect("Unable to create tokio runtime");
+                    rt.block_on(async {
+                        runtime.wallet.broadcast_async(&extracted, None).await
+                    })?;
                 }
             }
 

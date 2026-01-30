@@ -35,15 +35,24 @@ use bpstd::{Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout};
 use rgb::{Outpoint, WitnessStatus};
 use bpstd::{Address, AddressNetwork};
 use tondi::{TondiClient, TondiConfig, Error as TondiError, NetworkType, TondiOutpoint};
-use commit_verify::annexret::extract_commitment_from_annex;
+use commit_verify::extract_commitment_from_annex;
 
 use super::{Resolver, ResolverError};
 use bpstd::ScriptPubkey as BpScriptPubkey;
-use bp::opcodes::{
-    OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_CHECKMULTISIG, OP_CHECKMULTISIGVERIFY,
-    OP_PUSHBYTES_1, OP_PUSHBYTES_75, OP_PUSHDATA1, OP_PUSHDATA2, OP_PUSHDATA4,
-    OP_PUSHNUM_1, OP_PUSHNUM_16,
-};
+// Opcodes are constants, not exported directly from bc
+// We'll use the numeric values directly or import from opcodes module
+const OP_CHECKSIG: u8 = 0xac;
+const OP_CHECKSIGVERIFY: u8 = 0xad;
+const OP_CHECKMULTISIG: u8 = 0xae;
+const OP_CHECKMULTISIGVERIFY: u8 = 0xaf;
+const OP_PUSHBYTES_1: u8 = 0x01;
+const OP_PUSHBYTES_20: u8 = 0x14;
+const OP_PUSHBYTES_75: u8 = 0x4b;
+const OP_PUSHDATA1: u8 = 0x4c;
+const OP_PUSHDATA2: u8 = 0x4d;
+const OP_PUSHDATA4: u8 = 0x4e;
+const OP_PUSHNUM_1: u8 = 0x51;
+const OP_PUSHNUM_16: u8 = 0x60;
 
 /// Tondi async resolver for RGB wallet operations
 pub struct TondiResolver {
@@ -71,7 +80,7 @@ impl TondiResolver {
     pub async fn new(endpoint: &str) -> Result<Self, ResolverError> {
         let config = TondiConfig::new(endpoint);
         let client = TondiClient::connect(config).await
-            .map_err(|e| ResolverError::Connectivity)?;
+            .map_err(|_| ResolverError::Connectivity)?;
         
         // Determine network from connection
         let network = match client.get_current_network().await {
@@ -85,6 +94,8 @@ impl TondiResolver {
             client, 
             network,
             min_blue_score_depth: 10, // Default: 10 confirmations
+            #[cfg(feature = "async")]
+            tx_cache: std::collections::HashMap::new(),
         })
     }
 
@@ -98,6 +109,8 @@ impl TondiResolver {
             client, 
             network: AddressNetwork::TondiMainnet,
             min_blue_score_depth: 10,
+            #[cfg(feature = "async")]
+            tx_cache: std::collections::HashMap::new(),
         })
     }
 
@@ -111,6 +124,8 @@ impl TondiResolver {
             client, 
             network: AddressNetwork::TondiTestnet,
             min_blue_score_depth: 10,
+            #[cfg(feature = "async")]
+            tx_cache: std::collections::HashMap::new(),
         })
     }
 
@@ -157,7 +172,7 @@ impl TondiResolver {
                 // Purist Mode only supports Standard transaction types.
                 match tondi_tx.to_bp_tx() {
                     Ok(tx) => Ok(Some(tx)),
-                    Err(e) => {
+                    Err(_e) => {
                         // If conversion fails due to non-Standard inputs/outputs,
                         // return Protocol error (RGB doesn't support these types)
                         Err(ResolverError::Protocol)
@@ -207,10 +222,14 @@ impl TondiResolver {
                         // For now, we assume if the transaction is accepted and output exists,
                         // the UTXO exists. A more thorough check would require querying spent UTXOs.
                         let output = &tx.outputs[tondi_outpoint.index as usize];
+                        let value = match output {
+                            tondi::TondiTxOutput::Standard { value, .. } => *value,
+                            _ => return Ok(None), // Non-standard outputs not supported
+                        };
                         Ok(Some(Utxo {
                             outpoint,
-                            value: Sats::from_sats(output.value),
-                            terminal: Terminal::default(), // Terminal needs to be determined from context
+                            value: Sats::from_sats(value),
+                            terminal: Terminal::new(0u8, 0u16.into()), // Terminal needs to be determined from context
                         }))
                     }
                     Err(TondiError::TransactionNotFound(_)) => Ok(None),
@@ -233,6 +252,7 @@ impl TondiResolver {
     /// `Ok(Some([u8; 32]))` if RGB commitment is found in Annex,
     /// `Ok(None)` if no RGB commitment is found,
     /// `Err` if there was an error parsing the Annex
+    #[allow(dead_code)]
     fn extract_rgb_commitment(&self, tx: &Tx) -> Result<Option<[u8; 32]>, ResolverError> {
         // Look for Annex in witness fields
         for input in tx.inputs() {
@@ -379,8 +399,8 @@ impl Resolver for TondiResolver {
         
         for (terminal, spk) in iter {
             let address = match Address::with(&spk, self.network) {
-                Some(addr) => addr.to_string(),
-                None => {
+                Ok(addr) => addr.to_string(),
+                Err(_) => {
                     utxos.push(Err(ResolverError::Protocol));
                     continue;
                 }
@@ -391,7 +411,7 @@ impl Resolver for TondiResolver {
                 Ok(list) => {
                     utxos.extend(list.into_iter().map(|utxo_entry| {
                         let txid = Txid::from_byte_array(
-                            utxo_entry.outpoint.transaction_id.into_inner()
+                            utxo_entry.outpoint.transaction_id.to_byte_array()
                         );
                         Ok(Utxo {
                             outpoint: Outpoint::new(txid, Vout::from_u32(utxo_entry.outpoint.index)),
@@ -447,7 +467,7 @@ impl Resolver for TondiResolver {
 ///
 /// The number of signature operations (u8, clamped to 255)
 fn calculate_sig_op_count(signature_script: &[u8], script_pubkey: Option<&BpScriptPubkey>) -> u8 {
-    use bp::opcodes::*;
+    // Use opcode constants defined above
     
     // Quick check for common script types using scriptPubkey
     if let Some(spk) = script_pubkey {
@@ -477,7 +497,7 @@ fn calculate_sig_op_count(signature_script: &[u8], script_pubkey: Option<&BpScri
 
 /// Extract the last push data from a script (used for P2SH redeem scripts).
 fn extract_last_push_data(script: &[u8]) -> Option<Vec<u8>> {
-    use bp::opcodes::*;
+    // Use opcode constants defined above
     
     let mut i = 0;
     let mut last_push: Option<Vec<u8>> = None;
@@ -559,7 +579,7 @@ fn extract_last_push_data(script: &[u8]) -> Option<Vec<u8>> {
 
 /// Count signature operations in a script by parsing opcodes.
 fn count_sig_ops_in_script(script: &[u8]) -> u8 {
-    use bp::opcodes::*;
+    // Use opcode constants defined above
     
     let mut count = 0u32;
     let mut i = 0;
@@ -629,64 +649,58 @@ fn count_sig_ops_in_script(script: &[u8]) -> u8 {
         }
         
         // Count signature operations
-        match opcode {
-            OP_CHECKSIG | OP_CHECKSIGVERIFY => {
-                count += 1;
-            }
-            OP_CHECKMULTISIG | OP_CHECKMULTISIGVERIFY => {
-                // OP_CHECKMULTISIG format: <M> <pubkey1> ... <pubkeyN> <N> OP_CHECKMULTISIG
-                // We need to find N (number of pubkeys) which is pushed just before the opcode
-                // The format is: [push M] [push pubkey1] ... [push pubkeyN] [push N] OP_CHECKMULTISIG
-                // N is typically a small number (1-20) pushed as a single byte
-                if i > 0 {
-                    // Look backwards for the number of pubkeys (N)
-                    // It should be pushed just before OP_CHECKMULTISIG
-                    let mut found_count = false;
-                    let mut j = i.saturating_sub(1);
+        if opcode == OP_CHECKSIG || opcode == OP_CHECKSIGVERIFY {
+            count += 1;
+        } else if opcode == OP_CHECKMULTISIG || opcode == OP_CHECKMULTISIGVERIFY {
+            // OP_CHECKMULTISIG format: <M> <pubkey1> ... <pubkeyN> <N> OP_CHECKMULTISIG
+            // We need to find N (number of pubkeys) which is pushed just before the opcode
+            // The format is: [push M] [push pubkey1] ... [push pubkeyN] [push N] OP_CHECKMULTISIG
+            // N is typically a small number (1-20) pushed as a single byte
+            if i > 0 {
+                // Look backwards for the number of pubkeys (N)
+                // It should be pushed just before OP_CHECKMULTISIG
+                let mut found_count = false;
+                let mut j = i.saturating_sub(1);
+                
+                // Look backwards up to 100 bytes (reasonable limit for script parsing)
+                while j > 0 && i - j < 100 {
+                    let prev_opcode = script[j];
                     
-                    // Look backwards up to 100 bytes (reasonable limit for script parsing)
-                    while j > 0 && i - j < 100 {
-                        let prev_opcode = script[j];
-                        
-                        // Check if this is a push opcode for a small number (1-20)
-                        // OP_PUSHBYTES_1 through OP_PUSHBYTES_20 correspond to pushing 1-20 bytes
-                        // But for numbers, we typically use OP_PUSHNUM_* or direct push
-                        if prev_opcode >= OP_PUSHBYTES_1 && prev_opcode <= OP_PUSHBYTES_20 {
-                            let push_len = prev_opcode as usize;
-                            if j + push_len < i && push_len == 1 {
-                                // Single byte push - could be the number N
-                                let num = script[j + 1];
-                                if num >= 1 && num <= 20 {
-                                    count += num as u32;
-                                    found_count = true;
-                                    break;
-                                }
+                    // Check if this is a push opcode for a small number (1-20)
+                    // OP_PUSHBYTES_1 through OP_PUSHBYTES_20 correspond to pushing 1-20 bytes
+                    // But for numbers, we typically use OP_PUSHNUM_* or direct push
+                    if prev_opcode >= OP_PUSHBYTES_1 && prev_opcode <= OP_PUSHBYTES_20 {
+                        let push_len = prev_opcode as usize;
+                        if j + push_len < i && push_len == 1 {
+                            // Single byte push - could be the number N
+                            let num = script[j + 1];
+                            if num >= 1 && num <= 20 {
+                                count += num as u32;
+                                found_count = true;
+                                break;
                             }
                         }
-                        
-                        // Also check for OP_PUSHNUM_* opcodes (0x51-0x60 for 1-16)
-                        // OP_PUSHNUM_1 = 0x51, OP_PUSHNUM_2 = 0x52, ..., OP_PUSHNUM_16 = 0x60
-                        if prev_opcode >= OP_PUSHNUM_1 && prev_opcode <= OP_PUSHNUM_16 {
-                            let num = (prev_opcode - OP_PUSHNUM_1 + 1) as u8;
-                            count += num as u32;
-                            found_count = true;
-                            break;
-                        }
-                        
-                        j = j.saturating_sub(1);
                     }
                     
-                    if !found_count {
-                        // Default to 1 if we can't determine (conservative)
-                        // This is safe for most scripts
-                        count += 1;
+                    // Also check for OP_PUSHNUM_* opcodes (0x51-0x60 for 1-16)
+                    // OP_PUSHNUM_1 = 0x51, OP_PUSHNUM_2 = 0x52, ..., OP_PUSHNUM_16 = 0x60
+                    if prev_opcode >= OP_PUSHNUM_1 && prev_opcode <= OP_PUSHNUM_16 {
+                        let num = (prev_opcode - OP_PUSHNUM_1 + 1) as u8;
+                        count += num as u32;
+                        found_count = true;
+                        break;
                     }
-                } else {
-                    count += 1; // Default to 1 if we can't determine
+                    
+                    j = j.saturating_sub(1);
                 }
-            }
-            _ => {
-                // Other opcodes don't count as sig ops
+                
+                if !found_count {
+                    // Default to 1 if we can't determine (conservative)
+                    // This is safe for most scripts
+                    count += 1;
+                }
+            } else {
+                count += 1; // Default to 1 if we can't determine
             }
         }
         
@@ -708,7 +722,7 @@ fn count_sig_ops_in_script(script: &[u8]) -> u8 {
 /// does not support Channel, Ingot, or other non-Standard transaction types.
 fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverError> {
     use tondi::{TondiTransaction, TondiTxInput, TondiTxOutput, TondiOutpoint, ScriptPublicKey};
-    use commit_verify::annexret::extract_commitment_from_annex;
+    use commit_verify::extract_commitment_from_annex;
     
     // Extract Annex data from the first input's witness (where RGB commitment is stored)
     let mut payload = Vec::new();
