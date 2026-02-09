@@ -446,6 +446,50 @@ pub struct DagInfo {
     pub sink: TondiBlockHash,
 }
 
+#[cfg(feature = "grpc")]
+impl From<crate::client::proto::GetBlockDagInfoResponseMessage> for DagInfo {
+    fn from(info: crate::client::proto::GetBlockDagInfoResponseMessage) -> Self {
+        DagInfo {
+            network_name: info.network_name,
+            block_count: info.block_count,
+            header_count: info.header_count,
+            tip_hashes: info
+                .tip_hashes
+                .iter()
+                .map(|hash_str| {
+                    hash_str
+                        .trim_start_matches("0x")
+                        .parse::<TondiBlockHash>()
+                        .unwrap_or_else(|_| TondiBlockHash::from_byte_array([0u8; 32]))
+                })
+                .collect(),
+            difficulty: info.difficulty,
+            past_median_time: info.past_median_time as u64,
+            virtual_parent_hashes: info
+                .virtual_parent_hashes
+                .iter()
+                .map(|hash_str| {
+                    hash_str
+                        .trim_start_matches("0x")
+                        .parse::<TondiBlockHash>()
+                        .unwrap_or_else(|_| TondiBlockHash::from_byte_array([0u8; 32]))
+                })
+                .collect(),
+            pruning_point_hash: info
+                .pruning_point_hash
+                .trim_start_matches("0x")
+                .parse::<TondiBlockHash>()
+                .unwrap_or_else(|_| TondiBlockHash::from_byte_array([0u8; 32])),
+            virtual_daa_score: info.virtual_daa_score,
+            sink: info
+                .sink
+                .trim_start_matches("0x")
+                .parse::<TondiBlockHash>()
+                .unwrap_or_else(|_| TondiBlockHash::from_byte_array([0u8; 32])),
+        }
+    }
+}
+
 /// Server info response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -464,6 +508,36 @@ pub struct ServerInfo {
     pub is_synced: bool,
     /// Virtual DAA score
     pub virtual_daa_score: DaaScore,
+}
+
+#[cfg(feature = "grpc")]
+impl From<crate::client::proto::GetInfoResponseMessage> for ServerInfo {
+    fn from(info: crate::client::proto::GetInfoResponseMessage) -> Self {
+        ServerInfo {
+            rpc_api_version: 0, 
+            rpc_api_revision: 0, 
+            server_version: info.server_version,
+            network_id: String::new(), 
+            has_utxo_index: info.is_utxo_indexed,
+            is_synced: info.is_synced,
+            virtual_daa_score: 0, 
+        }
+    }
+}
+
+#[cfg(feature = "grpc")]
+impl From<crate::client::proto::GetServerInfoResponseMessage> for ServerInfo {
+    fn from(info: crate::client::proto::GetServerInfoResponseMessage) -> Self {
+        ServerInfo {
+            rpc_api_version: info.rpc_api_version as u32,
+            rpc_api_revision: info.rpc_api_revision as u32,
+            server_version: info.server_version,
+            network_id: info.network_id,
+            has_utxo_index: info.has_utxo_index,
+            is_synced: info.is_synced,
+            virtual_daa_score: info.virtual_daa_score,
+        }
+    }
 }
 
 /// Fee estimate
@@ -498,5 +572,66 @@ pub struct MempoolEntry {
     pub transaction: TondiTransaction,
     /// Is orphan
     pub is_orphan: bool,
+}
+
+#[cfg(feature = "grpc")]
+impl From<crate::client::proto::RpcUtxosByAddressesEntry> for UtxosByAddressEntry {
+    fn from(entry: crate::client::proto::RpcUtxosByAddressesEntry) -> Self {
+        let outpoint = entry.outpoint.as_ref();
+        UtxosByAddressEntry {
+            address: if entry.address.is_empty() {
+                None
+            } else {
+                Some(entry.address)
+            },
+            outpoint: TondiOutpoint {
+                transaction_id: outpoint
+                    .and_then(|op| {
+                        op.transaction_id
+                            .trim_start_matches("0x")
+                            .parse::<TondiBlockHash>()
+                            .ok()
+                    })
+                    .unwrap_or_else(|| TondiBlockHash::from_byte_array([0u8; 32])),
+                index: outpoint
+                    .map(|op| op.index)
+                    .unwrap_or(0),
+            },
+            utxo_entry: entry
+                .utxo_entry
+                .map(TondiUtxoEntry::from)
+                .unwrap_or_else(|| TondiUtxoEntry {
+                    amount: 0,
+                    script_public_key: ScriptPublicKey {
+                        version: 0,
+                        script: Vec::new(),
+                    },
+                    block_daa_score: 0,
+                    is_coinbase: false,
+                }),
+        }
+    }
+}
+
+#[cfg(feature = "grpc")]
+impl From<crate::client::proto::RpcUtxoEntry> for TondiUtxoEntry {
+    fn from(entry: crate::client::proto::RpcUtxoEntry) -> Self {
+        TondiUtxoEntry {
+            amount: entry.amount,
+            script_public_key: entry
+                .script_public_key
+                .map(|spk| ScriptPublicKey {
+                    version: spk.version as u16,
+                    script: hex::decode(spk.script_public_key.trim_start_matches("0x"))
+                        .unwrap_or_else(|_| Vec::new()),
+                })
+                .unwrap_or_else(|| ScriptPublicKey {
+                    version: 0,
+                    script: Vec::new(),
+                }),
+            block_daa_score: entry.block_daa_score,
+            is_coinbase: entry.is_coinbase,
+        }
+    }
 }
 

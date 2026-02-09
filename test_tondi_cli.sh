@@ -73,3 +73,10 @@ echo "  3. Issue a contract using: rgb issue --wallet <name> <params.yaml>"
 echo "  4. Create and sign a PSTT"
 echo "  5. Finalize and broadcast: rgb finalize --broadcast <pstt>"
 
+
+
+
+
+
+
+

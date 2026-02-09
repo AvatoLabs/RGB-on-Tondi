@@ -18,7 +18,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use bc::stl::bp_tx_stl;
+use bc::stl::bp_consensus_stl;
 use commit_verify::stl::commit_verify_stl;
 use strict_types::stl::std_stl;
 use strict_types::{LibBuilder, SemId, SymbolicSys, SystemBuilder, TypeLib, TypeSystem};
@@ -37,7 +37,7 @@ pub const LIB_ID_RGB21: &str = "stl:hS_TcpfI-JCz36Es-E8NtlsS-bG0A68X-Te6ouRs-7_F
 pub fn rgb_contract_stl() -> TypeLib {
     LibBuilder::with(libname!(LIB_NAME_RGB_CONTRACT), [
         std_stl().to_dependency_types(),
-        bp_tx_stl().to_dependency_types(),
+        bp_consensus_stl().to_dependency_types(),
     ])
     .transpile::<Amount>()
     .transpile::<Precision>()
@@ -54,7 +54,7 @@ pub fn rgb21_stl() -> TypeLib {
         std_stl().to_dependency_types(),
         rgb_contract_stl().to_dependency_types(),
         commit_verify_stl().to_dependency_types(),
-        bp_tx_stl().to_dependency_types(),
+        bp_consensus_stl().to_dependency_types(),
     ])
     .transpile::<Nft>()
     .transpile::<OwnedNft>()
@@ -77,7 +77,7 @@ impl CommonTypes {
             SystemBuilder::new()
                 .import(std_stl())
                 .unwrap()
-                .import(bp_tx_stl())
+                .import(bp_consensus_stl())
                 .unwrap()
                 .import(rgb_contract_stl())
                 .unwrap()
@@ -117,7 +117,7 @@ impl Rgb21Types {
                 .unwrap()
                 .import(commit_verify_stl())
                 .unwrap()
-                .import(bp_tx_stl())
+                .import(bp_consensus_stl())
                 .unwrap()
                 .import(rgb21_stl())
                 .unwrap()

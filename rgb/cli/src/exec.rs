@@ -568,9 +568,6 @@ impl Args {
                 };
 
                 if *broadcast {
-                    // 使用 wallet.broadcast_async() 而不是 resolver.broadcast_async()
-                    // 这样可以自动更新钱包的 UTXO 集（移除已花费的输入）
-                    // 注意：由于没有 PsttMeta，无法自动添加找零输出，但至少会移除已花费的 UTXO
                     let rt = tokio::runtime::Runtime::new()
                         .expect("Unable to create tokio runtime");
                     rt.block_on(async {

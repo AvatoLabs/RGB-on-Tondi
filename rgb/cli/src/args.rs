@@ -172,8 +172,6 @@ impl Args {
             RgbpRuntimeDir::from(RgbWallet::with_components(wallet, self.contracts()));
         if opts.sync {
             eprint!("Synchronizing wallet:");
-            // 修复：强制使用异步更新（通过 tokio runtime 阻塞调用）
-            // 因为 RgbRuntime/RgbWallet 不再提供同步的 update() 方法
             let rt = tokio::runtime::Runtime::new()
                 .expect("Unable to create tokio runtime");
             rt.block_on(async {

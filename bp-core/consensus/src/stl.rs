@@ -24,10 +24,10 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use crate::{
     Bip340Sig, Block, ByteStr, CompressedPk, ControlBlock, FutureLeafVer, InternalPk, LeafScript,
-    LegacyPk, LegacySig, LockHeight, LockTimestamp, OpCode, OutputPk, PubkeyHash, RedeemScript,
-    ScriptHash, TapCode, TapLeafHash, TapNodeHash, TapScript, TimeLockInterval, Tx, UncompressedPk,
-    VBytes, VarInt, WPubkeyHash, WScriptHash, WeightUnits, WitnessProgram, WitnessScript,
-    WitnessVer, Wtxid, LIB_NAME_TONDI,
+    LegacyPk, LegacySig, LockHeight, LockTimestamp, OpCode, Outpoint, OutputPk, PubkeyHash, RedeemScript,
+    ScriptHash, TapCode, TapLeafHash, TapNodeHash, TapScript, TimeLockInterval, TondiOutpoint, TondiTxid,
+    Tx, Txid, UncompressedPk, VBytes, VarInt, Vout, WPubkeyHash, WScriptHash, WeightUnits, WitnessProgram,
+    WitnessScript, WitnessVer, Wtxid, LIB_NAME_TONDI,
 };
 
 pub const LIB_ID_BP_TX: &str =
@@ -82,6 +82,11 @@ fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {
     .transpile::<ByteStr>()
     .transpile::<WeightUnits>()
     .transpile::<VBytes>()
+    .transpile::<Vout>()
+    .transpile::<Txid>()
+    .transpile::<TondiTxid>()
+    .transpile::<Outpoint>()
+    .transpile::<TondiOutpoint>()
     .compile()
 }
 

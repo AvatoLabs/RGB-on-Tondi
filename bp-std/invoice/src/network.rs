@@ -89,7 +89,7 @@ impl TryFrom<BlockHash> for Network {
     fn try_from(hash: BlockHash) -> Result<Self, Self::Error> {
         match hash {
             BlockHash::GENESIS_TONDI_MAINNET => Ok(Network::Mainnet),
-            BlockHash::GENESIS_TONDI_TESTNET => Ok(Network::Testnet),
+            BlockHash::GENESIS_TONDI_TESTNET | BlockHash::GENESIS_TONDI_TESTNET_11 => Ok(Network::Testnet),
             BlockHash::GENESIS_TONDI_SIMNET => Ok(Network::Simnet),
             BlockHash::GENESIS_TONDI_DEVNET => Ok(Network::Devnet),
             _ => Err(UnknownGenesisBlock(hash)),

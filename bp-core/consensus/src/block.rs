@@ -72,12 +72,21 @@ impl BlockHash {
     ]);
     
     /// Tondi devnet genesis block hash
-    /// Hash: 53218a310490f0f36670baab6ef9b92571968798959b54639521cf2ca3bbd481
+    /// Hash: 53218a310490f0f36670baab6ef9b9257196879a959b54639521cf2ca3bbd481
     pub const GENESIS_TONDI_DEVNET: BlockHash = BlockHash::from_u64_be_array([
         0x53218a31_0490f0f3,
         0x6670baab_6ef9b925,
-        0x71968798_959b5463,
+        0x7196879a_959b5463,
         0x9521cf2c_a3bbd481,
+    ]);
+    
+    /// Tondi testnet-11 genesis block hash
+    /// Hash: 439fb3e6edbdd5c41244126b59e144e6c996520d92d2e5446b57c27979eb1463
+    pub const GENESIS_TONDI_TESTNET_11: BlockHash = BlockHash::from_u64_be_array([
+        0x439fb3e6_edbdd5c4,
+        0x1244126b_59e144e6,
+        0xc996520d_92d2e544,
+        0x6b57c279_79eb1463,
     ]);
     
     // Bitcoin genesis block hashes (deprecated, kept for backward compatibility)

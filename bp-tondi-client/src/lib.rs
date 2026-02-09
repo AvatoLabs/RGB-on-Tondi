@@ -16,11 +16,13 @@
 //! ## Example
 //!
 //! ```no_run
-//! use tondi::{TondiClient, TondiConfig};
+//! use tondi::{TondiClient, TondiConfig, DEFAULT_GRPC_PORT};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), tondi::Error> {
-//!     let config = TondiConfig::new("localhost:17110");
+//!     // For gRPC connection (port 16210)
+//!     let config = TondiConfig::new(format!("localhost:{}", DEFAULT_GRPC_PORT));
+//!     // Or use a remote node: TondiConfig::new("38.190.226.7:16210")
 //!     let client = TondiClient::connect(config).await?;
 //!     
 //!     // Check connection
@@ -49,9 +51,15 @@ pub use client::*;
 pub use error::*;
 pub use types::*;
 
-/// Default Tondi mainnet RPC port
+/// Default Tondi mainnet RPC port (Borsh RPC)
 pub const DEFAULT_RPC_PORT: u16 = 17110;
 
-/// Default Tondi testnet RPC port
+/// Default Tondi testnet RPC port (Borsh RPC)
 pub const DEFAULT_TESTNET_RPC_PORT: u16 = 17210;
+
+/// Default Tondi mainnet gRPC port
+pub const DEFAULT_GRPC_PORT: u16 = 16210;
+
+/// Default Tondi testnet gRPC port
+pub const DEFAULT_TESTNET_GRPC_PORT: u16 = 16220;
 

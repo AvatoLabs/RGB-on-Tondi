@@ -1,0 +1,39 @@
+# RGB20 资产发行参数模板
+# 使用 Tondi 测试网共识
+
+consensus: tondi-testnet
+testnet: true
+issuer:
+  codexId: 7C15w3W1-L0T~zXw-Aeh5~kV-Zquz729-HXQFKQW-_5lX9O8
+  version: 0
+  checksum: AYkSrg
+name: TestToken
+method: issue
+timestamp: "2024-12-18T10:32:00Z"
+
+global:
+  - name: ticker
+    verified: TEST
+  - name: name
+    verified: Test Token
+  - name: precision
+    verified: 8
+  - name: issued
+    verified: 1000000
+
+owned:
+  - name: balance
+    seal: <REPLACE_WITH_UTXO>  # 例如: "b7116550736fbe5d3e234d0141c6bc8d1825f94da78514a3cede5674e9a5eae9:1"
+    data: 1000000
+
+# 使用说明:
+# 1. 将 <REPLACE_WITH_UTXO> 替换为实际的 UTXO（从 `rgb --wallet <name> seals` 获取）
+# 2. 根据需要修改 ticker、name、issued 等字段
+# 3. 保存文件后使用: rgb --wallet <name> issue <this-file>.yaml
+
+
+
+
+
+
+
