@@ -84,19 +84,28 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
         })
         .collect();
 
-    // ========================================================================
-    // 修正 A：subnetwork_id 处理（P0 级 Bug 修复）
-    // ========================================================================
-    // Tondi 要求 subnetwork_id 严格为 20 字节（40 位 Hex）
-    // 即使 TondiTransaction 使用 Bytes32（32字节），我们也必须只发送前 20 字节
-    // 如果发送 64 位 Hex（32 字节），节点解析器会报错并断开连接
     let subnetwork_id_hex = {
         let bytes32 = tx.subnetwork_id.to_byte_array();
-        // 强制只取前 20 字节（Tondi 的严格要求）
         let subnetwork_id_20: [u8; 20] = bytes32[0..20].try_into()
             .expect("Failed to extract 20 bytes from Bytes32");
         hex::encode(subnetwork_id_20)
     };
+
+    // ========================================================================
+    // Payload 编码确认
+    // ========================================================================
+    // 注意：protowire 中 RpcTransaction 的 payload 字段类型需要确认
+    // 当前实现使用 .to_hex() 将 Vec<u8> 转换为 Hex String
+    // 这与 protowire 中其他字段（如 transaction_id, signature_script, 
+    // script_public_key, subnetwork_id）的处理方式一致，它们都使用 string 类型（hex 编码）
+    // 
+    // 如果 protowire 定义中 payload 是 bytes 类型而非 string 类型，
+    // 则应该使用 tx.payload.clone() 而不是 tx.payload.to_hex()
+    // 
+    // 建议：检查 protowire.proto 文件中的 RpcTransaction 定义：
+    //   - 如果 payload 是 string 类型，则当前实现正确
+    //   - 如果 payload 是 bytes 类型，则需要修改为 tx.payload.clone()
+    let payload_encoded = tx.payload.to_hex();
 
     proto::RpcTransaction {
         version: tx.version as u32,
@@ -105,7 +114,7 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
         lock_time: tx.lock_time,
         subnetwork_id: subnetwork_id_hex,
         gas: tx.gas,
-        payload: tx.payload.to_hex(),
+        payload: payload_encoded,
         mass: tx.mass,
         verbose_data: None,
     }

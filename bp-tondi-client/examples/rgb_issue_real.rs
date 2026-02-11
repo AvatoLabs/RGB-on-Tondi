@@ -68,25 +68,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. 创建 RGB Genesis
     println!("\n[步骤 2] 创建真实的 RGB Genesis...");
-    
-    // 4.1 从代码内建定义获取 RGB20 CodexId（修正 B：彻底解决 Issuer 文件依赖）
+
     println!("\n[动态获取] 正在从代码库直接生成 RGB20 Codex ID...");
-    
-    // RGB20 标准 CodexId（来自 rgb-interfaces/README.md）
+
     const RGB20_CODEX_ID_STR: &str = "7C15w3W1-L0T~zXw-Aeh5~kV-Zquz729-HXQFKQW-_5lX9O8";
-    // 最新生成的 Issuer CodexId（来自 rgb-issuer）
     const NEW_ISSUER_CODEX_ID_STR: &str = "8wxMejja-eG9vraj-8TuLoFN-lkx8SSS-3asDcZg-ov5OOww";
-    // 之前生成的 Issuer CodexId
     const PREV_ISSUER_CODEX_ID_STR: &str = "YM_BowPP-c94xz~F-vOAQiUD-4Llr83t-p0534bT-tZNKY7s";
     println!("  - 已知的 RGB20 CodexId 字符串: {}", RGB20_CODEX_ID_STR);
     println!("  - 最新生成的 Issuer CodexId 字符串: {}", NEW_ISSUER_CODEX_ID_STR);
     println!("  - 之前生成的 Issuer CodexId 字符串: {}", PREV_ISSUER_CODEX_ID_STR);
-    
-    // 方法：尝试从 rgb-std/rgb-interfaces 标准库获取 CodexId
-    // 注意：虽然 rgb-interfaces 没有直接导出 RGB20 接口，但我们可以尝试从文件加载 Issuer
-    // 如果文件不存在，我们需要找到替代方案
-    
-    // 首先尝试从文件加载 Issuer（如果存在）
+
     let stl_issuer_paths = [
         "../rgb-interfaces/stl/RGB20@0.12.0.issuer",
         "../../rgb-interfaces/stl/RGB20@0.12.0.issuer",
@@ -118,8 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .chain(example_issuer_paths.iter())
         .copied()
         .collect();
-    
-    // 尝试从文件加载 Issuer（尝试所有路径，直到成功）
+
     let issuer_opt = all_issuer_paths.iter()
         .filter(|path| std::path::Path::new(path).exists())
         .find_map(|issuer_path| {
@@ -138,9 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         });
-    
-    // 如果无法从文件加载，尝试从代码获取 CodexId
-    // 注意：Contract::issue 需要完整的 Issuer 对象，所以如果文件不存在，我们仍然需要 Issuer
+
     let (issuer, codex_id) = match issuer_opt {
         Some(issuer) => {
             let codex_id = issuer.codex_id();
@@ -197,9 +185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rgb_txid,
         bp::Vout::from_u32(selected_utxo.outpoint.index),
     );
-    
-    // 创建 CreateParams（使用 CodexId）
-    // 注意：CreateParams 内部会使用 IssuerSpec::Latest(codex_id)
+
     let mut params = CreateParams::new_tondi_testnet(codex_id, "TestToken")
         .with_global_verified(vname!("ticker"), "TEST")
         .with_global_verified(vname!("name"), "Test Token")
@@ -298,19 +284,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         subnetwork_id: [0u8; 20],
         gas: gas_fee,
         payload: VarIntBytes::try_from(annex_data.clone()).unwrap(),
-        // ========================================================================
-        // 修正 2：mass 值计算（避免节点拒绝交易）
-        // ========================================================================
-        // Tondi 节点会对交易的 Mass 进行校验，mass 为 0 可能导致交易被拒绝
-        // 对于带有 payload 的交易，mass 必须大于 0
-        // 这里使用一个合理的预估值：基础 mass + payload 大小 * 权重
-        // 基础 mass: 版本(2) + 输入(约100) + 输出(约50) + 其他字段(约30) = 约 200
-        // Payload 权重: payload 大小 * 10 (Tondi 对 payload 有额外权重)
         mass: {
             let base_mass = 200u64;
             let payload_mass = annex_data.len() as u64 * 10;
             let estimated_mass = base_mass + payload_mass;
-            // 确保 mass 至少为 1（不能为 0）
             estimated_mass.max(1)
         },
     };
@@ -343,11 +320,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tondi_tx = convert_bp_to_tondi_tx(&bp_tx, &[selected_utxo.clone()])?;
     println!("  - ✓ 转换完成\n");
 
-    // ========================================================================
-    // 调试信息：打印完整的 TondiTransaction 内容
-    // ========================================================================
-    // 当遇到 "No response received" 错误时，这有助于诊断节点拒绝的原因
-    // 可以检查 subnetwork_id、payload、inputs、outputs 等字段的实际值
     println!("[调试信息] 完整的 TondiTransaction 结构体内容:\n{:#?}\n", tondi_tx);
 
     // 10. 提交交易
@@ -369,26 +341,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// 如果无法加载 Issuer，使用模拟的 RGB 承诺（仅用于演示）
-#[allow(unused_variables)]
-async fn create_mock_issue(
-    _client: &TondiClient,
-    _selected_utxo: &UtxosByAddressEntry,
-    _keypair: &bp::secp256k1::Keypair,
-    _secp: &Secp256k1<bp::secp256k1::All>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    eprintln!("\n⚠️  使用模拟的 RGB 承诺（仅用于演示）");
-    eprintln!("  实际应用中需要加载真实的 RGB20 Issuer 文件\n");
-    eprintln!("  请确保 RGB20 Issuer 文件存在于以下路径之一：");
-    eprintln!("    - rgb/examples/RGB20-FNA.issuer");
-    eprintln!("    - ../rgb/examples/RGB20-FNA.issuer");
-    eprintln!("    - ../../rgb/examples/RGB20-FNA.issuer\n");
-    
-    // 注意：模拟承诺功能已移除，因为需要完整的交易流程
-    // 请使用真实的 RGB Issuer 文件来发行资产
-    
-    Ok(())
-}
 
 /// Sighash 类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -408,13 +360,7 @@ fn calc_tondi_schnorr_sighash(
     }
 
     let input = &tx.inputs[input_index];
-    
-    // ========================================================================
-    // 重要修正 B：Sighash 上下文字符串必须与 Tondi 核心库完全一致
-    // ========================================================================
-    // 使用 "tondi.schnorr.signing" 作为 Schnorr 签名的上下文
-    // 大小写必须完全匹配，否则计算出的 Sighash 将无法通过节点验证
-    // 参考：Tondi 核心库中的 SchnorrSigningHash::new() 实现
+
     let mut hasher = TondiBlake3::from_context("tondi.schnorr.signing");
 
     // 1. Version
@@ -422,8 +368,6 @@ fn calc_tondi_schnorr_sighash(
 
     // 2. Previous outputs hash
     if hash_type == SighashType::All {
-        // 使用 "tondi.transaction.signing" 作为交易签名的上下文
-        // 大小写必须与 Tondi 核心库完全一致（参考 TransactionSigningHash::new()）
         let mut prev_outs_hasher = TondiBlake3::from_context("tondi.transaction.signing");
         for input in tx.inputs.iter() {
             prev_outs_hasher.update(&input.prev_output.txid.to_byte_array());
@@ -461,11 +405,6 @@ fn calc_tondi_schnorr_sighash(
     hasher.update(&input.prev_output.vout.to_u32().to_le_bytes());
 
     // 6. Script public key
-    // ========================================================================
-    // 修正 3：Sighash 计算中的长度前缀格式确认
-    // ========================================================================
-    // 根据 bp-core/consensus/src/tx.rs 的 txid() 实现，Tondi 使用 u64 作为长度前缀
-    // 这与 Tondi 的 TransactionSigningHash 实现一致
     hasher.update(&(utxo_entry.utxo_entry.script_public_key.version as u16).to_le_bytes());
     let script_bytes = &utxo_entry.utxo_entry.script_public_key.script;
     hasher.update(&(script_bytes.len() as u64).to_le_bytes()); // u64 长度前缀（正确）
@@ -559,14 +498,6 @@ fn convert_bp_to_tondi_tx(
         inputs,
         outputs,
         lock_time: tx.lock_time.to_consensus_u64(),
-        // ========================================================================
-        // 重要修正 A：subnetwork_id 的长度限制（P0 级 Bug 修复）
-        // ========================================================================
-        // Tondi 要求 subnetwork_id 严格为 20 字节（40 位 Hex）
-        // 虽然 TondiTransaction 使用 Bytes32（32字节），但我们必须确保
-        // 在 tondi_tx_to_proto 中只取前 20 字节
-        // 注意：这里仍然填充到 32 字节以匹配 TondiTransaction 的类型定义，
-        // 但 tondi_tx_to_proto 会正确截断到 20 字节
         subnetwork_id: {
             let mut bytes32 = [0u8; 32];
             bytes32[0..20].copy_from_slice(&tx.subnetwork_id);
@@ -574,11 +505,17 @@ fn convert_bp_to_tondi_tx(
         },
         gas: tx.gas,
         payload: tx.payload.to_vec(),
-        mass: tx.mass,
+        mass: {
+            // 如果原始 mass 为 0 或过小，使用保守值
+            if tx.mass == 0 || tx.mass < 2000 {
+                3000u64 // 保守的大值，确保通过节点的最低阈值
+            } else {
+                tx.mass // 如果已经设置了合理的值，则使用原值
+            }
+        },
     })
 }
 
-/// 从助记词生成 BIP39 seed
 fn mnemonic_to_seed(mnemonic: &str, passphrase: &str) -> Result<[u8; 64], Box<dyn std::error::Error>> {
     let salt = format!("mnemonic{}", passphrase);
     let mut seed = [0u8; 64];
