@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let master_fp_bytes: [u8; 4] = master_fp.into();
     let master_fp_hex = hex::encode(&master_fp_bytes);
     println!("  - Master fingerprint: {}", master_fp_hex);
-    println!("  - 预期指纹 (Tondi 钱包): fd0d9f42");
+    println!("  - 预期指纹 (标准 BIP32): 29d0df1c");
     
     println!("  - 私钥导出完成\n");
 

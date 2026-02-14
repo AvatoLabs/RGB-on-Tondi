@@ -35,8 +35,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let master_fp_bytes: [u8; 4] = master_fp.into();
     let master_fp_hex = hex::encode(&master_fp_bytes);
     println!("  - Master fingerprint: {}", master_fp_hex);
-    println!("  - 预期指纹 (Tondi 钱包): fd0d9f42");
-    if master_fp_hex != "fd0d9f42" {
+    println!("  - 预期指纹 (标准 BIP32): 29d0df1c");
+    if master_fp_hex != "29d0df1c" {
         println!("  - 警告：指纹不匹配，可能 passphrase 不同");
     }
     println!();
@@ -366,12 +366,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 6. 构造基础交易 (bp::Tx)
     println!("\n[步骤 3] 构造交易...");
-    let amount_to_bob = 100_000_000u64; // 1亿 sats，避免 storage mass 惩罚
     let miner_fee = 10_000u64; // 矿工费 = 输入总额 - 输出总额（不通过 gas 字段）
-    
-    if selected_utxo.utxo_entry.amount < amount_to_bob + miner_fee {
-        return Err("余额不足".into());
-    }
+    // 动态计算发送金额：优先使用 1 亿 sats（避免 storage mass 惩罚），
+    // 如果余额不够则使用 UTXO 余额的一半
+    let amount_to_bob = if selected_utxo.utxo_entry.amount > 200_000_000 + miner_fee {
+        100_000_000u64 // 1亿 sats
+    } else if selected_utxo.utxo_entry.amount > miner_fee * 3 {
+        (selected_utxo.utxo_entry.amount - miner_fee) / 2 // UTXO 余额的一半
+    } else {
+        return Err("余额不足以支付矿工费".into());
+    };
     
     let change = selected_utxo.utxo_entry.amount - amount_to_bob - miner_fee;
 
