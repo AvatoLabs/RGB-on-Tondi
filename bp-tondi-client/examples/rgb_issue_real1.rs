@@ -19,11 +19,11 @@ use amplify::{Bytes32, ByteArray, confinement::Confined, hex::ToHex};
 use bp::{Tx, TxVer, LockTime, TxIn, TxOut, Outpoint as BpOutpoint, Vout, SigScript, SeqNo, Witness, ScriptPubkey, Txid, VarIntBytes};
 use commit_verify::create_annex_with_commitment;
 use bp::secp256k1::Secp256k1;
-use bpstd::{XprivAccount, HardenedIndex};
+use bpstd::{XprivAccount, HardenedIndex, Keychain, NormalIndex, Idx};
+use commit_verify::TondiBlake3;
 use pbkdf2::pbkdf2_hmac;
 use sha2::{Sha256, Sha512, Digest};
 use blake3;
-// use bp::seals::WTxoSeal; // 通过 transform 方法使用，不需要直接导入
 
 // RGB 相关导入
 use rgb::{Assignment, CodexId, Contract, CreateParams, Issuer, Outpoint as RgbOutpoint};
@@ -41,17 +41,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. 从助记词导出 Alice 的私钥
     println!("[步骤 0] 从助记词导出 Alice 的私钥...");
+    // bp-std 现在已使用标准 "Bitcoin seed" HMAC key 和 RIPEMD160(SHA256) 指纹，与 Tondi 钱包一致
     let seed = mnemonic_to_seed(alice_mnemonic, "")?;
     let alice_account = XprivAccount::with_seed(true, &seed);
-    let receive_path = [
-        HardenedIndex::from(84u16),
-        HardenedIndex::from(1u16),
-        HardenedIndex::from(0u16),
-    ];
-    let alice_account_derived = alice_account.derive(&receive_path);
-    let alice_xpriv = alice_account_derived.xpriv();
-    let keypair = alice_xpriv.to_keypair_bip340();
-    let secp = Secp256k1::new();
+
+    // 验证指纹与 Tondi 钱包一致
+    let master_fp = alice_account.master_fp();
+    let master_fp_bytes: [u8; 4] = master_fp.into();
+    let master_fp_hex = hex::encode(&master_fp_bytes);
+    println!("  - Master fingerprint: {}", master_fp_hex);
+    println!("  - 预期指纹 (Tondi 钱包): fd0d9f42");
+    if master_fp_hex != "fd0d9f42" {
+        println!("  - 警告：指纹不匹配，可能 passphrase 不同");
+    }
     println!("  - 私钥导出完成\n");
 
     // 3. 连接到节点并获取 UTXO
@@ -59,13 +61,77 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = TondiClient::connect(TondiConfig::new(endpoint)).await?;
     let utxos = client.get_utxos_by_address(alice_addr).await?;
     let selected_utxo = utxos.iter()
-        .find(|u| u.utxo_entry.amount > 10000)
-        .ok_or("Alice 余额不足以支付发行和 Gas")?;
+        .find(|u| u.utxo_entry.amount > 110_000_000)
+        .ok_or("Alice 余额不足以支付发行和矿工费")?
+        .clone();
 
     println!("✓ 选中 UTXO: {}:{} (金额: {} sats)",
              selected_utxo.outpoint.transaction_id.to_hex(),
              selected_utxo.outpoint.index,
              selected_utxo.utxo_entry.amount);
+
+    // 查找与 UTXO 公钥匹配的密钥对
+    // Tondi 钱包使用 BIP-44 路径: m/44'/7890'/0'/0/index (coin_type = 7890)
+    println!("\n[步骤 1.5] 查找匹配的密钥对...");
+    let utxo_pubkey_bytes = &selected_utxo.utxo_entry.script_public_key.script[1..33];
+    println!("  - UTXO 公钥 (hex): {}", hex::encode(utxo_pubkey_bytes));
+
+    let mut found_keypair = None;
+    let max_index = 20;
+
+    // 尝试多种派生路径: purpose (44, 84), coin_type (7890, 1, 111111, 0)
+    let coin_types: Vec<u32> = vec![7890, 1, 0, 111111];
+    let purposes: Vec<u16> = vec![44, 84];
+
+    'search: for &purpose in &purposes {
+        for &coin_type_val in &coin_types {
+            let coin_type = if coin_type_val <= u16::MAX as u32 {
+                HardenedIndex::from(coin_type_val as u16)
+            } else {
+                HardenedIndex::try_from_child_number(coin_type_val)
+                    .map_err(|e| format!("Invalid coin_type {}: {}", coin_type_val, e))?
+            };
+            let path = [
+                HardenedIndex::from(purpose),
+                coin_type,
+                HardenedIndex::from(0u16),
+            ];
+            let account = alice_account.derive(&path);
+            let account_xpriv = account.xpriv();
+
+            // 尝试 account 级别
+            let account_keypair = account_xpriv.to_keypair_bip340();
+            let account_pubkey = account_keypair.public_key().x_only_public_key().0.serialize();
+            if account_pubkey.as_slice() == utxo_pubkey_bytes {
+                println!("  - ✓ 找到匹配！路径: m/{}'/{}'/ 0' (account 级别)", purpose, coin_type_val);
+                found_keypair = Some(account_keypair);
+                break 'search;
+            }
+
+            // 尝试地址级别 keychain/index
+            for keychain_val in 0..=1 {
+                let keychain = if keychain_val == 0 { Keychain::OUTER } else { Keychain::INNER };
+                for index_val in 0..max_index {
+                    let index = NormalIndex::from(index_val as u16);
+                    let address_xpriv = account_xpriv.derive_priv([keychain.into(), index]);
+                    let test_keypair = address_xpriv.to_keypair_bip340();
+                    let test_pubkey = test_keypair.public_key().x_only_public_key().0.serialize();
+
+                    if test_pubkey.as_slice() == utxo_pubkey_bytes {
+                        println!("  - ✓ 找到匹配！路径: m/{}'/{}'/ 0'/{}/{}", purpose, coin_type_val, keychain_val, index_val);
+                        found_keypair = Some(test_keypair);
+                        break 'search;
+                    }
+                }
+            }
+        }
+    }
+
+    let (keypair, secp) = if let Some(kp) = found_keypair {
+        (kp, Secp256k1::new())
+    } else {
+        return Err("未找到与 UTXO 公钥匹配的密钥对，请检查助记词".into());
+    };
 
     // 4. 创建 RGB Genesis
     println!("\n[步骤 2] 创建真实的 RGB Genesis...");
@@ -245,14 +311,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 6. 构造交易
     println!("[步骤 4] 构造交易...");
-    let amount_to_issue = 1000u64; // 小额输出用于承载 RGB Seal
-    let gas_fee = 1000u64;
+    let amount_to_issue = 100_000_000u64; // 1亿 sats，避免 KIP-0009 storage_mass 惩罚
+    let miner_fee = 10_000u64; // 矿工费 = 输入总额 - 输出总额（原生子网络不通过 gas 字段）
 
-    if selected_utxo.utxo_entry.amount < amount_to_issue + gas_fee {
+    if selected_utxo.utxo_entry.amount < amount_to_issue + miner_fee {
         return Err("余额不足".into());
     }
 
-    let change = selected_utxo.utxo_entry.amount - amount_to_issue - gas_fee;
+    let change = selected_utxo.utxo_entry.amount - amount_to_issue - miner_fee;
     let alice_script = ScriptPubkey::from_checked(selected_utxo.utxo_entry.script_public_key.script.clone());
 
     let mut bp_tx = Tx {
@@ -263,7 +329,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Vout::from_u32(selected_utxo.outpoint.index),
             ),
             sig_script: SigScript::empty(),
-            sequence: SeqNo::from_consensus_u32(0xFFFFFFFF),
+            sequence: SeqNo::from_consensus_u32(0),
             witness: {
                 let mut witness_items = Vec::new();
                 witness_items.push(Vec::new()); // 占位符签名
@@ -282,27 +348,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         ]).unwrap(),
         lock_time: LockTime::from_consensus_u64(0),
-        subnetwork_id: [0u8; 20],
-        gas: gas_fee,
+        subnetwork_id: [0u8; 20], // 原生子网络
+        gas: 0, // 原生子网络 gas 必须为 0，矿工费 = 输入总额 - 输出总额
         payload: VarIntBytes::try_from(annex_data.clone()).unwrap(),
-        mass: {
-            let base_mass = 200u64;
-            let payload_mass = annex_data.len() as u64 * 10;
-            let estimated_mass = base_mass + payload_mass;
-            estimated_mass.max(1)
-        },
+        mass: 0, // 节点会自动计算 mass
     };
 
     println!("  - 输入: 1 个");
     println!("  - 输出: 2 个 (RGB Seal: {} sats, 找零: {} sats)", amount_to_issue, change);
-    println!("  - Gas: {} sats", gas_fee);
+    println!("  - 矿工费: {} sats (隐含在输入-输出差值中)", miner_fee);
+    println!("  - Gas: {} (原生子网络必须为 0)", bp_tx.gas);
+    println!("  - Mass: {} (节点自动计算)", bp_tx.mass);
 
     // 7. 计算 Tondi Sighash 并签名
     println!("\n[步骤 5] 计算 Sighash 并签名...");
     let sighash = calc_tondi_schnorr_sighash(
         &bp_tx,
         0,
-        selected_utxo,
+        &selected_utxo,
         SighashType::All,
     )?;
     println!("  - Sighash (hex): {}", hex::encode(&sighash));
@@ -520,14 +583,7 @@ fn convert_bp_to_tondi_tx(
         },
         gas: tx.gas,
         payload: tx.payload.to_vec(),
-        mass: {
-            // 如果原始 mass 为 0 或过小，使用保守值
-            if tx.mass == 0 || tx.mass < 2000 {
-                3000u64 // 保守的大值，确保通过节点的最低阈值
-            } else {
-                tx.mass // 如果已经设置了合理的值，则使用原值
-            }
-        },
+        mass: tx.mass, // 节点会忽略此值并自行计算 mass
     })
 }
 

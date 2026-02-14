@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 构造 bp-core 的 Tx 结构体
     // 注意：这是一个示例交易，实际使用时需要有效的 UTXO 和签名
     let bp_tx = Tx {
-        version: TxVer::from_consensus_u16(1),
+        version: TxVer::from_consensus_u16(0),
         inputs: Confined::try_from_iter(vec![
             TxIn {
                 prev_output: Outpoint::new(
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Vout::from_u32(0),
                 ),
                 sig_script: SigScript::empty(), // 占位符，实际需要签名脚本
-                sequence: SeqNo::from_consensus_u32(0xFFFFFFFF),
+                sequence: SeqNo::from_consensus_u32(0),
                 witness: {
                     // 将 Annex 数据放入第一个输入的 witness（最后一个元素）
                     let mut witness_items = Vec::new();
