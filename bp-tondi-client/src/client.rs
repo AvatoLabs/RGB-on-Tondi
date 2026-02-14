@@ -22,6 +22,7 @@ pub mod proto {
 fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
     use crate::types::{TondiTxInput, TondiTxOutput};
     
+    // 旧版 Kaspa/Tondi v1.22.0 proto 格式：扁平字段，无 oneof 包装
     let rpc_inputs: Vec<proto::RpcTransactionInput> = tx
         .inputs
         .iter()
@@ -35,18 +36,12 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
                 } => {
                     proto::RpcTransactionInput {
                         previous_outpoint: Some(proto::RpcOutpoint {
-                            // 移除 0x 前缀（回归 Kaspa 标准）
                             transaction_id: previous_outpoint.transaction_id.to_hex(),
                             index: previous_outpoint.index,
                         }),
-                        input: Some(proto::rpc_transaction_input::Input::Standard(
-                            proto::RpcStandardInput {
-                                // 移除 0x 前缀（回归 Kaspa 标准）
-                                signature_script: signature_script.to_hex(),
-                                sequence: *sequence,
-                                sig_op_count: *sig_op_count as u32,
-                            },
-                        )),
+                        signature_script: signature_script.to_hex(),
+                        sequence: *sequence,
+                        sig_op_count: *sig_op_count as u32,
                         verbose_data: None,
                     }
                 }
@@ -68,15 +63,10 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
                 } => {
                     proto::RpcTransactionOutput {
                         amount: *value,
-                        output: Some(proto::rpc_transaction_output::Output::Standard(
-                            proto::RpcStandardOutput {
-                                script_public_key: Some(proto::RpcScriptPublicKey {
-                                    version: script_public_key.version as u32,
-                                    // 移除 0x 前缀（回归 Kaspa 标准）
-                                    script_public_key: script_public_key.script.to_hex(),
-                                }),
-                            },
-                        )),
+                        script_public_key: Some(proto::RpcScriptPublicKey {
+                            version: script_public_key.version as u32,
+                            script_public_key: script_public_key.script.to_hex(),
+                        }),
                         verbose_data: None,
                     }
                 }
@@ -148,25 +138,19 @@ fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction>
             let txid_bytes: [u8; 32] = txid.try_into()
                 .map_err(|_| Error::RpcCall("Failed to convert txid to array".into()))?;
             
-            match &rpc_input.input {
-                Some(proto::rpc_transaction_input::Input::Standard(standard)) => {
-                    let signature_script = hex::decode(&standard.signature_script)
-                        .map_err(|e| Error::RpcCall(format!("Failed to decode signature_script: {}", e)))?;
-                    
-                    Ok(TondiTxInput::Standard {
-                        previous_outpoint: TondiOutpoint {
-                            transaction_id: Bytes32::from_byte_array(txid_bytes),
-                            index: previous_outpoint.index,
-                        },
-                        signature_script,
-                        sequence: standard.sequence,
-                        sig_op_count: standard.sig_op_count as u8,
-                    })
-                }
-                _ => {
-                    Err(Error::RpcCall("RGB Purist Mode only supports Standard inputs".into()))
-                }
-            }
+            // 旧版 proto 格式：扁平字段
+            let signature_script = hex::decode(&rpc_input.signature_script)
+                .map_err(|e| Error::RpcCall(format!("Failed to decode signature_script: {}", e)))?;
+            
+            Ok(TondiTxInput::Standard {
+                previous_outpoint: TondiOutpoint {
+                    transaction_id: Bytes32::from_byte_array(txid_bytes),
+                    index: previous_outpoint.index,
+                },
+                signature_script,
+                sequence: rpc_input.sequence,
+                sig_op_count: rpc_input.sig_op_count as u8,
+            })
         })
         .collect::<Result<Vec<_>>>()?;
     
@@ -175,28 +159,22 @@ fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction>
         .outputs
         .iter()
         .map(|rpc_output| {
-            match &rpc_output.output {
-                Some(proto::rpc_transaction_output::Output::Standard(standard)) => {
-                    let script_pubkey = standard
-                        .script_public_key
-                        .as_ref()
-                        .ok_or_else(|| Error::RpcCall("Missing script_public_key".into()))?;
-                    
-                    let script = hex::decode(&script_pubkey.script_public_key)
-                        .map_err(|e| Error::RpcCall(format!("Failed to decode script: {}", e)))?;
-                    
-                    Ok(TondiTxOutput::Standard {
-                        value: rpc_output.amount,
-                        script_public_key: ScriptPublicKey {
-                            version: script_pubkey.version as u16,
-                            script,
-                        },
-                    })
-                }
-                _ => {
-                    Err(Error::RpcCall("RGB Purist Mode only supports Standard outputs".into()))
-                }
-            }
+            // 旧版 proto 格式：扁平字段
+            let script_pubkey = rpc_output
+                .script_public_key
+                .as_ref()
+                .ok_or_else(|| Error::RpcCall("Missing script_public_key".into()))?;
+            
+            let script = hex::decode(&script_pubkey.script_public_key)
+                .map_err(|e| Error::RpcCall(format!("Failed to decode script: {}", e)))?;
+            
+            Ok(TondiTxOutput::Standard {
+                value: rpc_output.amount,
+                script_public_key: ScriptPublicKey {
+                    version: script_pubkey.version as u16,
+                    script,
+                },
+            })
         })
         .collect::<Result<Vec<_>>>()?;
     
@@ -478,12 +456,10 @@ impl TondiClient {
             println!("  - Version: {}", rpc_tx.version);
             println!("  - Inputs 数量: {}", rpc_tx.inputs.len());
             if let Some(first_input) = rpc_tx.inputs.first() {
-                if let Some(proto::rpc_transaction_input::Input::Standard(standard)) = &first_input.input {
-                    println!("  - 第一个输入的 signature_script 长度: {} 字符 (hex)", standard.signature_script.len());
-                    println!("  - 第一个输入的 signature_script (hex): {}", standard.signature_script);
-                    println!("  - 第一个输入的 sequence: {}", standard.sequence);
-                    println!("  - 第一个输入的 sig_op_count: {}", standard.sig_op_count);
-                }
+                println!("  - 第一个输入的 signature_script 长度: {} 字符 (hex)", first_input.signature_script.len());
+                println!("  - 第一个输入的 signature_script (hex): {}", first_input.signature_script);
+                println!("  - 第一个输入的 sequence: {}", first_input.sequence);
+                println!("  - 第一个输入的 sig_op_count: {}", first_input.sig_op_count);
             }
             println!("  - Outputs 数量: {}", rpc_tx.outputs.len());
             println!("  - Lock Time: {}", rpc_tx.lock_time);
@@ -520,19 +496,15 @@ impl TondiClient {
                 )),
             };
 
-            // ========================================================================
-            // 优化：使用 mpsc 通道保持 gRPC 流开启，给节点足够时间处理
-            // ========================================================================
-            // 为了让节点有足够时间"思考"和回传响应，使用 mpsc 通道替代 tokio_stream::once
-            // 这样可以保持流开启，不会立即发出结束信号，给节点更多处理时间
+            // 使用 mpsc channel 保持流开启，避免竞态条件
+            // 问题：tokio_stream::once 发送后立即结束流，服务端收到流结束信号后
+            // 会清理连接，但此时 handler 可能还没处理完交易（验证签名、插入 mempool 等）
+            // 解决：用 mpsc channel 保持流开启，收到响应后再 drop sender 结束流
             let (request_tx, request_rx) = tokio::sync::mpsc::channel(1);
-            
-            // 发送请求到通道（使用 expect 因为通道刚创建，不应该失败）
             request_tx.send(tondid_request).await
                 .expect("Failed to send request to channel");
+            let mut request_tx_opt = Some(request_tx);
 
-            // 使用 ReceiverStream 包装接收端，保持流开启
-            // 这样流就不会立即发出结束信号，给节点足够的时间去处理和回传响应
             let response = client
                 .message_stream(tonic::Request::new(
                     tokio_stream::wrappers::ReceiverStream::new(request_rx)
@@ -547,57 +519,49 @@ impl TondiClient {
 
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
-            
-            // 设置超时时间，避免无限等待
+
             let timeout_duration = self.config.timeout.unwrap_or(Duration::from_secs(30));
             let start_time = std::time::Instant::now();
-            
-            // 保持流循环等待响应，给节点足够时间处理
-            // 使用循环 + 超时检查，给节点足够时间"思考"和回传
+
             loop {
-                // 检查总超时
                 if start_time.elapsed() > timeout_duration {
+                    request_tx_opt.take(); // 超时时关闭流
                     return Err(Error::RpcCall(format!(
                         "Request timeout after {:?} for request ID {}",
                         timeout_duration, request_id
                     )));
                 }
-                
-                // 使用带超时的 next()，每次最多等待1秒，然后检查总超时
-                // 这样可以让流保持开启，给节点足够时间处理
-                let tondid_response = match tokio::time::timeout(Duration::from_secs(1), response_stream.next()).await {
+
+                let tondid_response = match tokio::time::timeout(
+                    Duration::from_secs(2), response_stream.next()
+                ).await {
                     Ok(Some(Ok(resp))) => resp,
                     Ok(Some(Err(e))) => {
-                        // 流错误
+                        request_tx_opt.take();
                         return Err(Error::RpcCall(format!(
-                            "Stream closed by node (possibly due to invalid transaction format): {}. \
-                            Check transaction fields (e.g., subnetwork_id must be 20 bytes, not 32 bytes).",
-                            e
+                            "Stream error from node: {}", e
                         )));
                     }
                     Ok(None) => {
-                        // 流结束，但没有收到响应
                         return Err(Error::RpcCall(format!(
                             "Stream ended without response for request ID {}",
                             request_id
                         )));
                     }
                     Err(_) => {
-                        // 1秒超时，继续循环检查总超时（给节点更多时间）
+                        // 2秒超时，继续等待
                         continue;
                     }
                 };
 
-                // ========================================================================
-                // 关键调试代码：打印节点返回的每一个消息
-                // ========================================================================
-                // 不要只检查 ID 为 1 的消息，打印所有响应以便调试
-                println!("[gRPC 原始响应] ID: {}, Payload: {:?}", tondid_response.id, tondid_response.payload);
+                println!("[gRPC 响应] ID: {}, Payload: {:?}", tondid_response.id, tondid_response.payload);
 
                 if tondid_response.id != request_id {
-                    println!("  - 跳过不匹配的响应 ID (期望: {}, 实际: {})", request_id, tondid_response.id);
-                    continue; 
+                    continue;
                 }
+
+                // 收到响应后关闭流
+                request_tx_opt.take();
 
                 if let Some(proto::tondid_response::Payload::SubmitTransactionResponse(
                     submit_response,

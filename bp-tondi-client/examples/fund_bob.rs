@@ -7,14 +7,11 @@ use tondi::{TondiClient, TondiConfig, TondiTransaction, TondiTxInput, TondiTxOut
 use amplify::{Bytes32, ByteArray, confinement::Confined, hex::ToHex};
 use bp::{Tx, TxVer, LockTime, TxIn, TxOut, Outpoint, Vout, SigScript, SeqNo, Witness, ScriptPubkey, Txid, VarIntBytes};
 use bp::secp256k1::Secp256k1;
-use bpstd::{XprivAccount, HardenedIndex, Address, Keychain, NormalIndex, Idx, Xpriv, DerivationIndex};
+use bpstd::{XprivAccount, HardenedIndex, Address, Keychain, NormalIndex, Idx};
 use std::str::FromStr;
 use pbkdf2::pbkdf2_hmac;
 use sha2::{Sha256, Sha512, Digest};
 use blake3;
-use commit_verify::Ripemd160;
-use bp::secp256k1::SecretKey;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Tondi Alice -> Bob 转账测试 ===\n");
@@ -29,94 +26,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let alice_mnemonic = "improve candy either cushion decrease radio junk crouch run horn rapid gravity";
     
     // 从助记词生成 seed (BIP39)
-    // 尝试不同的 passphrase 和 seed string 组合
-    let passphrases = vec!["", "123456"];
-    let mut found_match = false;
-    let mut matched_passphrase = "";
-    let mut use_bitcoin_seed = false;
+    // bp-std 现在已使用标准 "Bitcoin seed" HMAC key 和 RIPEMD160(SHA256) 指纹，与 Tondi 钱包一致
+    let seed = mnemonic_to_seed(alice_mnemonic, "")?;
+    let alice_account = XprivAccount::with_seed(true, &seed);
     
-    for passphrase in &passphrases {
-        println!("  - 尝试 passphrase: \"{}\"", if passphrase.is_empty() { "(空)" } else { passphrase });
-        let seed = mnemonic_to_seed(alice_mnemonic, passphrase)?;
-        
-        // 测试使用 "Tondi seed" 的情况（当前实现）
-        println!("    [使用 \"Tondi seed\"]");
-        let alice_account_tondi = XprivAccount::with_seed(true, &seed);
-        let master_xpriv_tondi = alice_account_tondi.xpriv();
-        
-        // 验证这是 Master Key（depth 应该是 0）
-        println!("      - Master Key depth: {}", master_xpriv_tondi.depth());
-        assert_eq!(master_xpriv_tondi.depth(), 0, "应该是 Master Key (depth=0)");
-        
-        let master_pubkey_tondi = master_xpriv_tondi.to_compr_pk();
-        let master_pubkey_bytes_tondi = master_pubkey_tondi.serialize();
-        
-        // Tondi 使用标准 BIP32 指纹计算：RIPEMD160(SHA256(公钥))
-        // 这是 Master Key (m/) 的指纹
-        let bip32_fp_tondi = calc_bip32_fingerprint(&master_pubkey_bytes_tondi);
-        let bip32_fp_hex_tondi = hex::encode(&bip32_fp_tondi);
-        
-        // 对比：XprivAccount::master_fp() 使用的是 BLAKE3，不是标准 BIP32
-        let stored_master_fp = alice_account_tondi.master_fp();
-        let stored_master_fp_bytes: [u8; 4] = stored_master_fp.into();
-        let stored_master_fp_hex = hex::encode(&stored_master_fp_bytes);
-        
-        println!("      - Master Key 公钥 (hex): {}", hex::encode(&master_pubkey_bytes_tondi));
-        println!("      - Master Key BIP32 指纹 (RIPEMD160(SHA256)): {}", bip32_fp_hex_tondi);
-        println!("      - XprivAccount::master_fp() (BLAKE3): {}", stored_master_fp_hex);
-        
-        // 测试使用 "Bitcoin seed" 的情况（标准 BIP32）
-        println!("    [使用 \"Bitcoin seed\"]");
-        let master_xpriv_bitcoin = create_master_key_with_seed_string(true, &seed, b"Bitcoin seed")?;
-        
-        // 验证这是 Master Key（depth 应该是 0）
-        println!("      - Master Key depth: {}", master_xpriv_bitcoin.depth());
-        assert_eq!(master_xpriv_bitcoin.depth(), 0, "应该是 Master Key (depth=0)");
-        
-        let master_pubkey_bitcoin = master_xpriv_bitcoin.to_compr_pk();
-        let master_pubkey_bytes_bitcoin = master_pubkey_bitcoin.serialize();
-        
-        // 这是 Master Key (m/) 的指纹
-        let bip32_fp_bitcoin = calc_bip32_fingerprint(&master_pubkey_bytes_bitcoin);
-        let bip32_fp_hex_bitcoin = hex::encode(&bip32_fp_bitcoin);
-        
-        println!("      - Master Key 公钥 (hex): {}", hex::encode(&master_pubkey_bytes_bitcoin));
-        println!("      - Master Key BIP32 指纹 (RIPEMD160(SHA256)): {}", bip32_fp_hex_bitcoin);
-        
-        // 检查是否匹配（Tondi 使用标准 BIP32 指纹计算方式）
-        if bip32_fp_hex_bitcoin == "fd0d9f42" {
-            println!("      - ✓✓✓ 找到匹配！使用 \"Bitcoin seed\" + passphrase: \"{}\"", passphrase);
-            found_match = true;
-            matched_passphrase = passphrase;
-            use_bitcoin_seed = true;
-            break;
-        } else if bip32_fp_hex_tondi == "fd0d9f42" {
-            println!("      - ✓✓✓ 找到匹配！使用 \"Tondi seed\" + passphrase: \"{}\"", passphrase);
-            found_match = true;
-            matched_passphrase = passphrase;
-            use_bitcoin_seed = false;
-            break;
-        }
-        println!();
+    // 验证指纹与 Tondi 钱包一致
+    let master_fp = alice_account.master_fp();
+    let master_fp_bytes: [u8; 4] = master_fp.into();
+    let master_fp_hex = hex::encode(&master_fp_bytes);
+    println!("  - Master fingerprint: {}", master_fp_hex);
+    println!("  - 预期指纹 (Tondi 钱包): fd0d9f42");
+    if master_fp_hex != "fd0d9f42" {
+        println!("  - 警告：指纹不匹配，可能 passphrase 不同");
     }
-    
-    if !found_match {
-        println!("  - ✗ 所有组合都未找到匹配的指纹");
-        println!("  - 钱包显示的实际指纹: fd0d9f42");
-        println!("  - 可能的原因：");
-        println!("     1. 助记词不正确");
-        println!("     2. 钱包使用了不同的 passphrase（未测试的）");
-        println!("     3. 钱包使用了不同的主密钥生成方式");
-        return Err("无法找到匹配的指纹配置".into());
-    }
-    
-    // 使用匹配的配置创建账户
-    let seed = mnemonic_to_seed(alice_mnemonic, matched_passphrase)?;
-    let alice_account = if use_bitcoin_seed {
-        create_xpriv_account_with_seed_string(true, &seed, b"Bitcoin seed")?
-    } else {
-        XprivAccount::with_seed(true, &seed)
-    };
     println!();
     
     // 派生到接收地址路径: m/84'/1'/0' (BIP-84 测试网路径)
@@ -444,14 +366,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 6. 构造基础交易 (bp::Tx)
     println!("\n[步骤 3] 构造交易...");
-    let amount_to_bob = 2000u64;
-    let gas_fee = 1000u64;
+    let amount_to_bob = 100_000_000u64; // 1亿 sats，避免 storage mass 惩罚
+    let miner_fee = 10_000u64; // 矿工费 = 输入总额 - 输出总额（不通过 gas 字段）
     
-    if selected_utxo.utxo_entry.amount < amount_to_bob + gas_fee {
+    if selected_utxo.utxo_entry.amount < amount_to_bob + miner_fee {
         return Err("余额不足".into());
     }
     
-    let change = selected_utxo.utxo_entry.amount - amount_to_bob - gas_fee;
+    let change = selected_utxo.utxo_entry.amount - amount_to_bob - miner_fee;
 
     let mut bp_tx = Tx {
         version: TxVer::from_consensus_u16(0),
@@ -461,7 +383,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Vout::from_u32(selected_utxo.outpoint.index),
             ),
             sig_script: SigScript::empty(),
-            sequence: SeqNo::from_consensus_u32(0xFFFFFFFF),
+            sequence: SeqNo::from_consensus_u32(0),
             witness: Witness::new(),
         }]).unwrap(),
         outputs: Confined::try_from_iter(vec![
@@ -476,14 +398,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]).unwrap(),
         lock_time: LockTime::from_consensus_u64(0),
         subnetwork_id: [0u8; 20], // 原生子网络
-        gas: gas_fee,
+        gas: 0, // 原生子网络 gas 必须为 0，矿工费 = 输入总额 - 输出总额
         payload: VarIntBytes::new(),
-        mass: 1000,
+        mass: 0, // 让节点自动计算 mass
     };
 
     println!("  - 输入: 1 个");
     println!("  - 输出: 2 个 (Bob: {} sats, Alice 找零: {} sats)", amount_to_bob, change);
-    println!("  - Gas: {} sats", gas_fee);
+    println!("  - 矿工费: {} sats (隐含在输入-输出差值中)", miner_fee);
 
     // 7. 计算 Tondi Sighash
     println!("\n[步骤 4] 计算 Tondi Sighash...");
@@ -747,47 +669,4 @@ fn mnemonic_to_seed(mnemonic: &str, passphrase: &str) -> Result<[u8; 64], Box<dy
     Ok(seed)
 }
 
-/// 使用自定义 seed string 创建主密钥
-/// 
-/// 允许使用 "Bitcoin seed" 或 "Tondi seed" 等不同的 seed string
-fn create_master_key_with_seed_string(
-    testnet: bool,
-    seed: &[u8],
-    seed_string: &[u8],
-) -> Result<Xpriv, Box<dyn std::error::Error>> {
-    Ok(Xpriv::new_master_with_seed_string(testnet, seed, seed_string))
-}
-
-/// 使用自定义 seed string 创建 XprivAccount
-fn create_xpriv_account_with_seed_string(
-    testnet: bool,
-    seed: &[u8],
-    seed_string: &[u8],
-) -> Result<XprivAccount, Box<dyn std::error::Error>> {
-    let xpriv = create_master_key_with_seed_string(testnet, seed, seed_string)?;
-    Ok(XprivAccount::new_master(xpriv))
-}
-
-/// 计算标准 BIP32 指纹
-/// 
-/// BIP32 指纹计算方式：
-/// 1. SHA256(公钥)
-/// 2. RIPEMD160(SHA256(公钥))
-/// 3. 取前4字节作为指纹
-fn calc_bip32_fingerprint(pubkey: &[u8]) -> [u8; 4] {
-    // 1. SHA256(公钥)
-    let mut hasher = Sha256::new();
-    hasher.update(pubkey);
-    let sha256_hash = hasher.finalize();
-    
-    // 2. RIPEMD160(SHA256(公钥))
-    let mut ripemd = Ripemd160::new();
-    ripemd.update(&sha256_hash);
-    let ripemd_hash = ripemd.finalize();
-    
-    // 3. 取前4字节作为指纹
-    let mut fp = [0u8; 4];
-    fp.copy_from_slice(&ripemd_hash[..4]);
-    fp
-}
 

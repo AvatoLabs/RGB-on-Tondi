@@ -27,7 +27,8 @@ use std::str::FromStr;
 use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
-use commit_verify::{DigestExt, TondiBlake3};
+use commit_verify::Ripemd160;
+use sha2::{Sha256 as Sha256Hash, Digest as Sha256Digest};
 use hmac::{Hmac, Mac};
 use sha2::Sha512;
 
@@ -293,13 +294,13 @@ impl Xpub {
 
     pub fn parent_fp(&self) -> XpubFp { self.meta.parent_fp }
 
-    /// Returns the BLAKE3 hash (truncated to 20 bytes) of the public key (Tondi standard).
+    /// Returns the standard BIP32 identifier: RIPEMD160(SHA256(public_key)).
+    /// (see Tondi/wallet/bip32/src/public_key.rs and wallet/keys/src/derivation/gen1/hd.rs)
     pub fn identifier(&self) -> XpubId {
-        let mut hasher = TondiBlake3::from_tag("tondi.xpub.id");
-        hasher.input_raw(&self.core.public_key.serialize());
-        let hash = hasher.finish();
+        let sha256_hash = Sha256Hash::digest(self.core.public_key.serialize());
+        let ripemd_hash = Ripemd160::digest(sha256_hash);
         let mut id = [0u8; 20];
-        id.copy_from_slice(&hash[..20]);
+        id.copy_from_slice(&ripemd_hash);
         XpubId::from_slice_checked(id)
     }
 
@@ -416,9 +417,10 @@ pub struct Xpriv {
 impl Xpriv {
     // TODO #42: Use dedicated `Seed` type
     pub fn new_master(testnet: bool, seed: &[u8]) -> Xpriv {
-        // Tondi uses "Tondi seed" instead of "Bitcoin seed" for HMAC
+        // Tondi wallet uses standard BIP32 "Bitcoin seed" as HMAC key
+        // (see Tondi/wallet/bip32/src/xprivate_key.rs: BIP39_DOMAIN_SEPARATOR)
         let mut hmac: Hmac<Sha512> =
-            Hmac::new_from_slice(b"Tondi seed").expect("HMAC can take key of any size");
+            Hmac::new_from_slice(b"Bitcoin seed").expect("HMAC can take key of any size");
         hmac.update(seed);
         let hmac_result = hmac.finalize().into_bytes();
 
