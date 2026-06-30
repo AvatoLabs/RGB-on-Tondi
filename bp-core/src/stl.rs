@@ -1,4 +1,4 @@
-// Bitcoin protocol core library.
+// Tondi protocol core library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -27,7 +27,7 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 /// Strict types id for the library providing data types from [`dbc`] and
 /// [`seals`] crates.
 pub const LIB_ID_BPCORE: &str =
-    "stl:nvSE47Z1-CpbRP8D-m2tdzo3-zmE6UE9-kU~HJm~-0pTqlGo#lagoon-concept-trade";
+    "stl:n~wSRAtj-Gw_8Gg6-2FAbE7u-tCYHxgW-6V6~G68-I36qo~E#store-block-graph";
 
 #[allow(clippy::result_large_err)]
 fn _bp_core_stl() -> Result<TypeLib, CompileError> {
@@ -45,7 +45,7 @@ fn _bp_core_stl() -> Result<TypeLib, CompileError> {
 
 /// Generates strict type library providing data types from [`dbc`] and
 /// [`seals`] crates.
-pub fn bp_core_stl() -> TypeLib { _bp_core_stl().expect("invalid strict type BPCore library") }
+pub fn bp_core_stl() -> TypeLib { _bp_core_stl().expect("invalid strict type Tondi core library") }
 
 #[cfg(test)]
 mod test {

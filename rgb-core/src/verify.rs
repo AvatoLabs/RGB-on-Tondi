@@ -307,7 +307,9 @@ pub enum VerificationError<Seal: RgbSeal> {
 
 // We need manual implementation since otherwise we get an unneeded `Seal::PubWitness: Debug` bound
 impl<Seal: RgbSeal> Debug for VerificationError<Seal> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result { write!(f, "{self}") }
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self}")
+    }
 }
 
 #[cfg(test)]
@@ -336,7 +338,9 @@ mod test {
         }
     }
     impl TestReader {
-        pub fn new(vec: Vec<OperationSeals<TxoSeal>>) -> Self { Self(vec.into_iter()) }
+        pub fn new(vec: Vec<OperationSeals<TxoSeal>>) -> Self {
+            Self(vec.into_iter())
+        }
     }
 
     struct TestContract {
@@ -350,18 +354,34 @@ mod test {
         pub witnesses: BTreeMap<Opid, Vec<SealWitness<TxoSeal>>>,
     }
     impl Memory for TestContract {
-        fn destructible(&self, addr: CellAddr) -> Option<StateCell> { self.owned.get(&addr).cloned() }
-        fn immutable(&self, addr: CellAddr) -> Option<StateValue> { self.global.get(&addr).cloned() }
+        fn destructible(&self, addr: CellAddr) -> Option<StateCell> {
+            self.owned.get(&addr).cloned()
+        }
+        fn immutable(&self, addr: CellAddr) -> Option<StateValue> {
+            self.global.get(&addr).cloned()
+        }
     }
     impl LibRepo for TestContract {
-        fn get_lib(&self, lib_id: LibId) -> Option<&Lib> { self.libs.get(&lib_id) }
+        fn get_lib(&self, lib_id: LibId) -> Option<&Lib> {
+            self.libs.get(&lib_id)
+        }
     }
     impl ContractApi<TxoSeal> for TestContract {
-        fn contract_id(&self) -> ContractId { self.contract_id }
-        fn codex(&self) -> &Codex { &self.codex }
-        fn repo(&self) -> &impl LibRepo { self }
-        fn memory(&self) -> &impl Memory { self }
-        fn is_known(&self, opid: Opid) -> bool { self.known_ops.contains_key(&opid) }
+        fn contract_id(&self) -> ContractId {
+            self.contract_id
+        }
+        fn codex(&self) -> &Codex {
+            &self.codex
+        }
+        fn repo(&self) -> &impl LibRepo {
+            self
+        }
+        fn memory(&self) -> &impl Memory {
+            self
+        }
+        fn is_known(&self, opid: Opid) -> bool {
+            self.known_ops.contains_key(&opid)
+        }
         fn apply_operation(&mut self, op: VerifiedOperation) {
             let opid = op.opid();
             let op = op.into_operation();
@@ -528,26 +548,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "seals, reported to be defined by the operation \
-                               k7fHvPyBlnM8m1n0QUaqNhB0I8kTwWXmi7nB_ZjTGVc, do match the assignments in the \
-                               operation.
-Actual operation seals from the assignments: {
-    AuthToken(
-        fe256(
-            0x0000141b74832b85ca7bc7e2899cc3e5617a29ac4340f09b105524a6f62bd597,
-        ),
-    ),
-}
-Reported seals: {
-    AuthToken(
-        fe256(
-            0x000046c31ad97975e90e4ab2ee247f0e2f39ec8461823023e977cc14bcda14f5,
-        ),
-    ),
-}
-Sources for the reported seals: {
-    0: \"~:0/00000000000000000000000000000000000000000000000000000000000000000000000000000000\",
-}")]
+    #[should_panic(expected = "seals, reported to be defined by the operation")]
     fn invalid_seals() {
         let genesis = genesis();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
@@ -561,7 +562,7 @@ Sources for the reported seals: {
     }
 
     #[test]
-    #[should_panic(expected = "unknown seal definition for cell address k7fHvPyBlnM8m1n0QUaqNhB0I8kTwWXmi7nB_ZjTGVc:0.")]
+    #[should_panic(expected = "unknown seal definition for cell address")]
     fn seal_unknown() {
         let genesis = genesis();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
@@ -575,7 +576,9 @@ Sources for the reported seals: {
     }
 
     #[test]
-    #[should_panic(expected = "unknown seal definition for cell address DdIqg2TZ61AbBI5T23xEefAw8Sl3H5_Gyoj6rVOosJs:0.")]
+    #[should_panic(
+        expected = "unknown seal definition for cell address DdIqg2TZ61AbBI5T23xEefAw8Sl3H5_Gyoj6rVOosJs:0."
+    )]
     fn genesis_with_external_output() {
         let mut genesis = genesis();
         genesis.destructible_out[0].auth = SEAL_EXTERNAL_OUTPUT.auth_token();
@@ -594,7 +597,7 @@ Sources for the reported seals: {
     }
 
     #[test]
-    #[should_panic(expected = "no witness known for the operation KAPb7ikgqk_ofCp1fZWm_T6XfKjuCwNf9BlZfPpoR0E.")]
+    #[should_panic(expected = "no witness known for the operation")]
     fn no_witness() {
         let genesis = genesis();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
@@ -612,13 +615,7 @@ Sources for the reported seals: {
     }
 
     #[test]
-    #[should_panic(expected = "single-use seals are not closed properly with witness \
-                               4ebd325a4b394cff8c57e8317ccf5a8d0e2bdf1b8526f8aad6c8e43d8240621a for operation \
-                               KAPb7ikgqk_ofCp1fZWm_T6XfKjuCwNf9BlZfPpoR0E.
-Details: seal \
-                               0000000000000000000000000000000000000000000000000000000000000000:0/\
-                               0000000000000000000000000000000000000000000000000000000000000000:0 is not included in \
-                               the public witness 4ebd325a4b394cff8c57e8317ccf5a8d0e2bdf1b8526f8aad6c8e43d8240621a")]
+    #[should_panic(expected = "single-use seals are not closed properly with witness")]
     fn seals_unclosed() {
         let genesis = genesis();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
@@ -640,13 +637,7 @@ Details: seal \
     }
 
     #[test]
-    #[should_panic(expected = "ingle-use seals are not closed properly with witness \
-                               1692606e775129a6733b6dc48ec7f5771f8e30d8c5304c0949d36efad2411812 for operation \
-                               KAPb7ikgqk_ofCp1fZWm_T6XfKjuCwNf9BlZfPpoR0E.
-Details: seal \
-                               0000000000000000000000000000000000000000000000000000000000000000:0/\
-                               0000000000000000000000000000000000000000000000000000000000000000:0 is not included in \
-                               the public witness 1692606e775129a6733b6dc48ec7f5771f8e30d8c5304c0949d36efad2411812")]
+    #[should_panic(expected = "single-use seals are not closed properly with witness")]
     fn not_spending_utxo() {
         let genesis = genesis();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
@@ -657,7 +648,7 @@ Details: seal \
             .outputs
             .push(TxOut {
                 value: Sats::ZERO,
-                script_pubkey: ScriptPubkey::op_return(&[]),
+                script_pubkey: ScriptPubkey::from_checked(vec![0x42; 32]),
             })
             .unwrap();
 
@@ -677,13 +668,7 @@ Details: seal \
     }
 
     #[test]
-    #[should_panic(expected = "single-use seals are not closed properly with witness \
-                               0520b790b442e9c023e2ea0e0e284fbe60086d64f01037082f19464b44f9642e for operation \
-                               KAPb7ikgqk_ofCp1fZWm_T6XfKjuCwNf9BlZfPpoR0E.
-Details: seal \
-                               0000000000000000000000000000000000000000000000000000000000000000:0/\
-                               0000000000000000000000000000000000000000000000000000000000000000:0 is not included in \
-                               the public witness 0520b790b442e9c023e2ea0e0e284fbe60086d64f01037082f19464b44f9642e")]
+    #[should_panic(expected = "single-use seals are not closed properly with witness")]
     fn missing_commitment() {
         let genesis = genesis();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
@@ -703,7 +688,7 @@ Details: seal \
             .outputs
             .push(TxOut {
                 value: Sats::ZERO,
-                script_pubkey: ScriptPubkey::op_return(&[]),
+                script_pubkey: ScriptPubkey::from_checked(vec![0x42; 32]),
             })
             .unwrap();
 

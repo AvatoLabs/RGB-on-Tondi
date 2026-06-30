@@ -1,85 +1,51 @@
-# RGB wallet & standard libraries for smart contracts on Bitcoin & Lightning
+# RGB Standard Library for Tondi
 
-![Build](https://github.com/RGB-WG/rgb-std/workflows/Build/badge.svg)
-![Tests](https://github.com/RGB-WG/rgb-std/workflows/Tests/badge.svg)
-![Lints](https://github.com/RGB-WG/rgb-std/workflows/Lints/badge.svg)
-[![codecov](https://codecov.io/gh/RGB-WG/rgb-std/branch/master/graph/badge.svg)](https://codecov.io/gh/RGB-WG/rgb-std)
+This crate is the Tondi-native RGB standard library used by RGB-on-Tondi.
 
-[![crates.io](https://img.shields.io/crates/v/rgb-std)](https://crates.io/crates/rgb-std)
-[![Docs](https://docs.rs/rgb-std/badge.svg)](https://docs.rs/rgb-std)
-[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
-[![Apache-2 licensed](https://img.shields.io/crates/l/rgb-std)](./LICENSE)
+The active proof-of-publication path is P2MR-only:
 
-RGB is confidential & scalable client-validated smart contracts for Bitcoin &
-Lightning. To learn more about RGB please check [RGB blueprint][Blueprint] and
-[RGB FAQ][FAQ] websites.
+- chain commitments are Tondi P2MR output roots;
+- RGB consignments, proofs, allocations, and sidecar data stay off-chain;
+- Tondi transaction payloads, signature scripts, and witness data must not carry RGB metadata;
+- wallet workflows use Tondi P2MR funding addresses and Tondi resolvers.
 
-RGB wallet standard library provides non-consensus-critical high-level API for
-RGB applications. It is based on [RGB Core Lib][Core], implementing validation
-and consensus rules for RGB smart contracts.
+## Workflow
 
-The development of the project is supported and managed by [LNP/BP Standards
-Association][Association]. The design of RGB smart contract system and
-implementation of this and underlying consensus libraries was done in 2019-2022
-by [Dr Maxim Orlovsky][Max] basing or earlier ideas of client-side-validation
-and RGB as "assets for bitcoin and LN" by [Peter Todd][Todd] and
-[Giacomo Zucco][Zucco]. Upon the release of RGBv1 the protocol will be immutable
-and this library will accept only bugfixes; i.e. it will be ossified by
-requiring consensus ACK for the new changes across the large set of maintainers.
+The same contract lifecycle is used by fungible assets, NFTs, proof-of-reserves
+contracts, and custom issuers:
 
-The current list of the projects based on the library include:
+1. Import a contract issuer with `rgb import <issuer>`.
+2. Create a P2MR wallet with `rgb create <wallet> <xpub>`.
+3. Fund the wallet using `RGB_WALLET=<wallet> rgb fund`.
+4. Sync and select a Tondi outpoint with `RGB_WALLET=<wallet> rgb seals`.
+5. Issue with `RGB_WALLET=<wallet> rgb issue <params.yaml>`.
+6. Share contract articles with `rgb backup` and `rgb accept --unknown`.
+7. Transfer with `rgb invoice`, `rgb pay`, `rgb accept`, and `rgb finalize`.
 
-* [RGB Node][RGB Node]: standalone & embeddable node for running RGB.
-* [MyCitadel Node][MyCitadel Node]: wallet node providing RGB smart contract
-  functionality integrated with Lightning network, bitcoin blockchain indexers,
-  decentralized data storage and propagation (Storm) and wallet services. It can
-  run as embedded, desktop, server or cloud-based node.
+See the repository root `TONDI_CONTRACT_WORKFLOWS.md`,
+`issue_params_template.yaml`, `test_workflow_simple.sh`, and
+`test_full_workflow.sh` for executable workflow guidance.
 
-## Library
+## Features
 
-The library can be integrated into other rust projects via `Cargo.toml`
-`[dependencies]` section:
+- `tondi`: enables the Tondi P2MR proof-of-publication stack.
+- `serde`: enables serialization support.
+- `fs`: enables filesystem persistence.
+- `async`: enables async synchronization paths.
+- `stl`: emits Strict Type libraries.
 
-```toml
-rgb-std = "0.11.0"
+## Validation
+
+Run:
+
+```bash
+cargo check -p rgb-wallet --features resolver-tondi
+cargo test -p rgb-runtime --features "serde fs resolver-tondi" p2mr_address
+./test_workflow_simple.sh
 ```
 
-For serialization purposes library provides `serde` feature, which is turned off
-by default.
+Live devnet validation is covered by:
 
-### MSRV
-
-Minimum supported rust compiler version (MSRV) is shown in `rust-version` of `Cargo.toml`.
-
-## Contributing
-
-Altcoins and "blockchains" other than Bitcoin blockchain/Bitcoin protocols are
-not supported and not planned to be supported; pull requests targeting them will
-be declined.
-
-## License
-
-See [LICENCE](LICENSE) file.
-
-
-[LNPBPs]: https://github.com/LNP-BP/LNPBPs
-
-[Association]: https://lnp-bp.org
-
-[Blueprint]: https://rgb.network
-
-[FAQ]: https://rgbfaq.com
-
-[Foundation]: https://github.com/LNP-BP/client_side_validation
-
-[BP]: https://github.com/BP-WG/bp-core
-
-[RGB Std]: https://github.com/RGB-WG/rgb-std
-
-[RGB Node]: https://github.com/RGB-WG/rgb-node
-
-[Max]: https://github.com/dr-orlovsky
-
-[Todd]: https://petertodd.org/
-
-[Zucco]: https://giacomozucco.com/
+```bash
+TONDI_DEVNET_RPC=<grpc-endpoint> bash scripts/devnet_p2mr_rgb_verify.sh
+```

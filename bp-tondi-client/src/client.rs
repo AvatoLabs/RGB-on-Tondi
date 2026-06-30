@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 #[cfg(feature = "grpc")]
-use amplify::{ByteArray, Bytes32, hex::ToHex};
+use amplify::{hex::ToHex, ByteArray, Bytes32};
 
 use crate::{
     BalanceByAddressEntry, DagInfo, Error, FeeEstimate, MempoolEntry, NetworkType, Result, ServerInfo, TondiBlock, TondiBlockHash,
@@ -23,7 +23,7 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> Result<proto::RpcTransaction> {
 
     tx.validate_tondi_native_rgb()?;
 
-    // 旧版 Kaspa/Tondi v1.22.0 proto 格式：扁平字段，无 oneof 包装
+    // Tondi v1.22.0 compatible proto format: flat fields without oneof wrappers.
     let rpc_inputs: Vec<proto::RpcTransactionInput> = tx
         .inputs
         .iter()
@@ -58,19 +58,16 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> Result<proto::RpcTransaction> {
         })
         .collect::<Result<Vec<_>>>()?;
 
-    // ========================================================================
-    // 核心修复：子网 ID 和 Payload 的编码逻辑（回归 Kaspa 标准）
-    // ========================================================================
-    // 移除所有 0x 前缀：绝大多数基于 Kaspa 的 gRPC 实现（Tondi 是其分支）
-    // 在处理 string 类型的十六进制字段时，不使用 0x 前缀
+    // Keep subnetwork ID and payload encoding compatible with the Tondi gRPC server.
+    // Hex string fields are sent without a 0x prefix.
     let subnetwork_id_hex = {
         let bytes32 = tx.subnetwork_id.to_byte_array();
         let subnetwork_id_20: [u8; 20] = bytes32[0..20].try_into().expect("Failed to extract 20 bytes from Bytes32");
-        // 始终发送 40 位纯 hex（不带 0x 前缀）
+        // Always send 40 plain hex characters.
         hex::encode(subnetwork_id_20)
     };
 
-    // 空 Payload 必须是空字符串 ""，非空 Payload 发送纯 hex（不带 0x 前缀）
+    // Empty payloads are encoded as an empty string; non-empty payloads use plain hex.
     let payload_encoded = if tx.payload.is_empty() { "".to_string() } else { tx.payload.to_hex() };
 
     Ok(proto::RpcTransaction {
@@ -108,7 +105,7 @@ fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction>
 
             let txid_bytes: [u8; 32] = txid.try_into().map_err(|_| Error::RpcCall("Failed to convert txid to array".into()))?;
 
-            // 旧版 proto 格式：扁平字段
+            // Tondi v1.22.0 compatible flat proto field.
             let signature_script = hex::decode(&rpc_input.signature_script)
                 .map_err(|e| Error::RpcCall(format!("Failed to decode signature_script: {}", e)))?;
 
@@ -129,7 +126,7 @@ fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction>
         .outputs
         .iter()
         .map(|rpc_output| {
-            // 旧版 proto 格式：扁平字段
+            // Tondi v1.22.0 compatible flat proto field.
             let script_pubkey =
                 rpc_output.script_public_key.as_ref().ok_or_else(|| Error::RpcCall("Missing script_public_key".into()))?;
 
@@ -387,10 +384,8 @@ impl TondiClient {
                 payload: Some(proto::tondid_request::Payload::SubmitTransactionRequest(submit_request)),
             };
 
-            // 使用 mpsc channel 保持流开启，避免竞态条件
-            // 问题：tokio_stream::once 发送后立即结束流，服务端收到流结束信号后
-            // 会清理连接，但此时 handler 可能还没处理完交易（验证签名、插入 mempool 等）
-            // 解决：用 mpsc channel 保持流开启，收到响应后再 drop sender 结束流
+            // Keep the bidirectional stream open until the node returns a response.
+            // Closing immediately after sending can race with server-side validation and mempool insertion.
             let (request_tx, request_rx) = tokio::sync::mpsc::channel(1);
             request_tx.send(tondid_request).await.expect("Failed to send request to channel");
             let mut request_tx_opt = Some(request_tx);
@@ -413,7 +408,7 @@ impl TondiClient {
 
             loop {
                 if start_time.elapsed() > timeout_duration {
-                    request_tx_opt.take(); // 超时时关闭流
+                    request_tx_opt.take();
                     return Err(Error::RpcCall(format!("Request timeout after {:?} for request ID {}", timeout_duration, request_id)));
                 }
 
@@ -427,7 +422,6 @@ impl TondiClient {
                         return Err(Error::RpcCall(format!("Stream ended without response for request ID {}", request_id)));
                     }
                     Err(_) => {
-                        // 2秒超时，继续等待
                         continue;
                     }
                 };
@@ -436,7 +430,7 @@ impl TondiClient {
                     continue;
                 }
 
-                // 收到响应后关闭流
+                // Drop the sender after receiving the matching response.
                 request_tx_opt.take();
 
                 if let Some(proto::tondid_response::Payload::SubmitTransactionResponse(submit_response)) = tondid_response.payload {
@@ -474,7 +468,6 @@ impl TondiClient {
             use std::time::{SystemTime, UNIX_EPOCH};
             let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
 
-            // 构造请求
             let tondid_request = proto::TondidRequest {
                 id: request_id,
                 payload: Some(proto::tondid_request::Payload::GetTransactionRequest(proto::GetTransactionRequestMessage {
@@ -482,7 +475,7 @@ impl TondiClient {
                 })),
             };
 
-            // 使用优化过的 mpsc 异步流逻辑，保持流开启
+            // Keep the bidirectional stream open while waiting for the matching response.
             let (request_tx, request_rx) = tokio::sync::mpsc::channel(1);
             request_tx.send(tondid_request).await.expect("Failed to send request to channel");
 
@@ -499,18 +492,14 @@ impl TondiClient {
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
 
-            // 设置超时时间，避免无限等待
             let timeout_duration = self.config.timeout.unwrap_or(Duration::from_secs(30));
             let start_time = std::time::Instant::now();
 
-            // 保持流循环等待响应，给节点足够时间处理
             loop {
-                // 检查总超时
                 if start_time.elapsed() > timeout_duration {
                     return Err(Error::RpcCall(format!("Request timeout after {:?} for request ID {}", timeout_duration, request_id)));
                 }
 
-                // 使用带超时的 next()，每次最多等待1秒，然后检查总超时
                 let tondid_response = match tokio::time::timeout(Duration::from_secs(1), response_stream.next()).await {
                     Ok(Some(Ok(resp))) => resp,
                     Ok(Some(Err(e))) => {
@@ -520,25 +509,20 @@ impl TondiClient {
                         return Err(Error::TransactionNotFound(bp::Txid::from_byte_array(txid.to_byte_array())));
                     }
                     Err(_) => {
-                        // 1秒超时，继续循环检查总超时（给节点更多时间）
                         continue;
                     }
                 };
 
-                // 检查响应 ID 是否匹配
                 if tondid_response.id != request_id {
                     continue;
                 }
 
-                // 处理 GetTransactionResponse
                 if let Some(proto::tondid_response::Payload::GetTransactionResponse(resp)) = tondid_response.payload {
                     if let Some(err) = resp.error {
                         return Err(Error::RpcCall(format!("GetTransaction failed: {}", err.message)));
                     }
 
                     if let Some(rpc_tx) = resp.transaction {
-                        println!("[调试] 收到查询响应，交易版本号: {}", rpc_tx.version);
-                        // 转换 proto::RpcTransaction 到 TondiTransaction
                         return proto_to_tondi_tx(&rpc_tx);
                     } else {
                         return Err(Error::TransactionNotFound(bp::Txid::from_byte_array(txid.to_byte_array())));

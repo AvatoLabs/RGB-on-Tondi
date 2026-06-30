@@ -842,6 +842,7 @@ mod test {
     #![cfg_attr(coverage_nightly, coverage(off))]
 
     use super::*;
+    use crate::VarInt;
 
     #[test]
     fn txid_byteorder() {

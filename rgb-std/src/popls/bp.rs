@@ -22,8 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-//! Implementation of RGB standard library types for Bitcoin protocol, covering Bitcoin and Liquid
-//! proof of publication layer 1.
+//! Implementation of RGB standard library types for Tondi P2MR proof of publication.
 
 use alloc::collections::btree_map::Entry;
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
@@ -58,7 +57,7 @@ use crate::{
     WitnessStatus,
 };
 
-/// Trait abstracting a specific implementation of a bitcoin wallet.
+/// Trait abstracting a specific implementation of a Tondi wallet.
 pub trait WalletProvider {
     type Error: core::error::Error;
 
@@ -216,11 +215,15 @@ impl<T> IntoIterator for OpRequestSet<T> {
     type Item = OpRequest<T>;
     type IntoIter = vec::IntoIter<OpRequest<T>>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<T> OpRequestSet<T> {
-    pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
+    pub fn with(request: OpRequest<T>) -> Self {
+        Self(NonEmptyVec::with(request))
+    }
 }
 
 impl OpRequestSet<Option<DisabledExternalOutput>> {
@@ -340,14 +343,18 @@ impl IntoIterator for PrefabBundle {
     type Item = Prefab;
     type IntoIter = btree_set::IntoIter<Prefab>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<'a> IntoIterator for &'a PrefabBundle {
     type Item = &'a Prefab;
     type IntoIter = btree_set::Iter<'a, Prefab>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
 }
 
 impl PrefabBundle {
@@ -397,9 +404,13 @@ where
         Self { wallet, contracts }
     }
 
-    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) {
+        (self.wallet, self.contracts)
+    }
 
-    pub fn switch_wallet(&mut self, new: W) -> W { mem::replace(&mut self.wallet, new) }
+    pub fn switch_wallet(&mut self, new: W) -> W {
+        mem::replace(&mut self.wallet, new)
+    }
 
     pub fn issue(
         &mut self,
@@ -902,13 +913,6 @@ impl CreateParams<Outpoint> {
     /// Creates new contract creation parameters for Tondi testnet.
     pub fn new_tondi_testnet(codex_id: CodexId, name: impl Into<TypeName>) -> Self {
         Self::new_testnet(codex_id, Consensus::TondiTestnet, name)
-    }
-
-    /// Deprecated: Use `new_tondi_testnet` instead.
-    #[deprecated(note = "Use new_tondi_testnet instead")]
-    #[allow(deprecated)]
-    pub fn new_bitcoin_testnet(codex_id: CodexId, name: impl Into<TypeName>) -> Self {
-        Self::new_testnet(codex_id, Consensus::Bitcoin, name)
     }
 }
 

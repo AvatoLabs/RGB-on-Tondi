@@ -267,7 +267,7 @@ where
     }
 
     pub fn new_unfunded(_deriver: impl Into<StdDescr<K>>, _noise: impl Into<[u8; 32]>) -> Self {
-        panic!("legacy Bitcoin/Taproot RGB descriptors are disabled; use RgbDescr::p2mr_unfunded")
+        panic!("legacy RGB descriptor paths are disabled; use RgbDescr::p2mr_unfunded")
     }
 
     pub fn key_only_unfunded(internal_key: K, noise: impl Into<[u8; 32]>) -> Self {
