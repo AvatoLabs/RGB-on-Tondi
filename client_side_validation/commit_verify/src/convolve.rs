@@ -71,11 +71,7 @@ where
     ///
     /// Errors if the commitment doesn't pass the validation (see
     /// [`ConvolveVerifyError`] variants for the cases when this may happen).
-    fn verify(
-        &self,
-        msg: &Msg,
-        commitment: &Source::Commitment,
-    ) -> Result<(), ConvolveVerifyError>
+    fn verify(&self, msg: &Msg, commitment: &Source::Commitment) -> Result<(), ConvolveVerifyError>
     where
         Self: VerifyEq,
     {
@@ -138,7 +134,7 @@ where
 /// `Verify: (Container', Supplement, Message) -> bool` (see
 /// [`ConvolveCommitProof::verify`]).
 ///
-/// This trait is heavily used in **deterministic bitcoin commitments**.
+/// This trait is heavily used in **deterministic tondi commitments**.
 ///
 /// # Protocol definition
 ///

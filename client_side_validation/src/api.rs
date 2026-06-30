@@ -139,7 +139,8 @@ pub trait ValidationReport {
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Status<R>
-where R: ValidationReport
+where
+    R: ValidationReport,
 {
     /// List of seal resolver reported issues (see [`SealIssue`] trait for
     /// details).
@@ -171,7 +172,8 @@ where R: ValidationReport
 }
 
 impl<R> AddAssign for Status<R>
-where R: ValidationReport
+where
+    R: ValidationReport,
 {
     fn add_assign(&mut self, rhs: Self) {
         self.seal_issues.extend(rhs.seal_issues);
@@ -182,7 +184,8 @@ where R: ValidationReport
 }
 
 impl<R> FromIterator<R::Failure> for Status<R>
-where R: ValidationReport
+where
+    R: ValidationReport,
 {
     fn from_iter<T: IntoIterator<Item = R::Failure>>(iter: T) -> Self {
         Status {
@@ -195,7 +198,8 @@ where R: ValidationReport
 }
 
 impl<R> Status<R>
-where R: ValidationReport
+where
+    R: ValidationReport,
 {
     /// Constructs empty status report
     pub fn new() -> Self {
@@ -271,7 +275,8 @@ where R: ValidationReport
 /// deterministically validate this set giving an external validation function,
 /// that is able to provide validator with
 pub trait ClientSideValidate<'client_data>: ClientData<'client_data>
-where Self::ValidationItem: 'client_data
+where
+    Self::ValidationItem: 'client_data,
 {
     /// Data type for data sub-entries contained withing the current
     /// client-side-validated data item.
@@ -336,7 +341,8 @@ where Self::ValidationItem: 'client_data
 
 /// Marker trait for client-side-validation data at any level of data hierarchy.
 pub trait ClientData<'client_data>
-where Self: 'client_data
+where
+    Self: 'client_data,
 {
     /// Data type that stores validation report configuration for the validation
     /// [`Status`] object.

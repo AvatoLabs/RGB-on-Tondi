@@ -50,7 +50,7 @@ pub enum RgbPsttPrepareError {
     /// multiple transaction outputs are market as DBC commitment hosts (while only one should be).
     MultipleHosts,
 
-    /// transfer doesn't create BTC change output, which is required for RGB change.
+    /// transfer doesn't create the Tondi change output required for RGB change.
     ChangeRequired,
 }
 

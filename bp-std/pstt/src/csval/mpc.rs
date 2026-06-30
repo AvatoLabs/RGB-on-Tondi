@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB wallet library for smart contracts on Tondi & off-chain network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -291,5 +291,7 @@ impl From<&mpc::MerkleBlock> for ValueData {
 }
 
 impl From<Commitment> for ValueData {
-    fn from(value: Commitment) -> Self { ValueData::from(value.to_vec()) }
+    fn from(value: Commitment) -> Self {
+        ValueData::from(value.to_vec())
+    }
 }

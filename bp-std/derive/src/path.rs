@@ -50,32 +50,46 @@ impl<I: IdxBase> From<&'static [I]> for DerivationSeg<I> {
 }
 
 impl<I: IdxBase> From<[I; 2]> for DerivationSeg<I> {
-    fn from(indexes: [I; 2]) -> Self { Self(Confined::from_iter_checked(indexes)) }
+    fn from(indexes: [I; 2]) -> Self {
+        Self(Confined::from_iter_checked(indexes))
+    }
 }
 
 impl<I: IdxBase> From<[I; 3]> for DerivationSeg<I> {
-    fn from(indexes: [I; 3]) -> Self { Self(Confined::from_iter_checked(indexes)) }
+    fn from(indexes: [I; 3]) -> Self {
+        Self(Confined::from_iter_checked(indexes))
+    }
 }
 
 impl<I: IdxBase> From<[I; 4]> for DerivationSeg<I> {
-    fn from(indexes: [I; 4]) -> Self { Self(Confined::from_iter_checked(indexes)) }
+    fn from(indexes: [I; 4]) -> Self {
+        Self(Confined::from_iter_checked(indexes))
+    }
 }
 
 impl<I: IdxBase> DerivationSeg<I> {
-    pub fn new(index: I) -> Self { DerivationSeg(NonEmptyOrdSet::with(index)) }
+    pub fn new(index: I) -> Self {
+        DerivationSeg(NonEmptyOrdSet::with(index))
+    }
 
     pub fn with(iter: impl IntoIterator<Item = I>) -> Result<Self, confinement::Error> {
         Confined::try_from_iter(iter).map(DerivationSeg)
     }
 
     #[inline]
-    pub fn count(&self) -> u8 { self.0.len() as u8 }
+    pub fn count(&self) -> u8 {
+        self.0.len() as u8
+    }
 
     #[inline]
-    pub fn is_distinct(&self, other: &Self) -> bool { self.0.is_disjoint(&other.0) }
+    pub fn is_distinct(&self, other: &Self) -> bool {
+        self.0.is_disjoint(&other.0)
+    }
 
     #[inline]
-    pub fn at(&self, index: u8) -> Option<I> { self.0.iter().nth(index as usize).copied() }
+    pub fn at(&self, index: u8) -> Option<I> {
+        self.0.iter().nth(index as usize).copied()
+    }
 
     #[inline]
     pub fn first(&self) -> I {
@@ -86,13 +100,19 @@ impl<I: IdxBase> DerivationSeg<I> {
     }
 
     #[inline]
-    pub fn into_set(self) -> BTreeSet<I> { self.0.release() }
+    pub fn into_set(self) -> BTreeSet<I> {
+        self.0.release()
+    }
 
     #[inline]
-    pub fn to_set(&self) -> BTreeSet<I> { self.0.to_unconfined() }
+    pub fn to_set(&self) -> BTreeSet<I> {
+        self.0.to_unconfined()
+    }
 
     #[inline]
-    pub fn as_set(&self) -> &BTreeSet<I> { self.0.as_unconfined() }
+    pub fn as_set(&self) -> &BTreeSet<I> {
+        self.0.as_unconfined()
+    }
 }
 
 impl DerivationSeg<NormalIndex> {
@@ -175,15 +195,21 @@ where
 pub struct DerivationPath<I = DerivationIndex>(Vec<I>);
 
 impl<I: Clone, const LEN: usize> From<[I; LEN]> for DerivationPath<I> {
-    fn from(path: [I; LEN]) -> Self { Self(path.to_vec()) }
+    fn from(path: [I; LEN]) -> Self {
+        Self(path.to_vec())
+    }
 }
 
 impl<I: Clone> From<&[I]> for DerivationPath<I> {
-    fn from(path: &[I]) -> Self { Self(path.to_vec()) }
+    fn from(path: &[I]) -> Self {
+        Self(path.to_vec())
+    }
 }
 
 impl<I> AsRef<[I]> for DerivationPath<I> {
-    fn as_ref(&self) -> &[I] { self.0.as_ref() }
+    fn as_ref(&self) -> &[I] {
+        self.0.as_ref()
+    }
 }
 
 impl<I: Display> Display for DerivationPath<I> {
@@ -197,7 +223,8 @@ impl<I: Display> Display for DerivationPath<I> {
 }
 
 impl<I: FromStr> FromStr for DerivationPath<I>
-where IndexParseError: From<<I as FromStr>::Err>
+where
+    IndexParseError: From<<I as FromStr>::Err>,
 {
     type Err = DerivationParseError;
 
@@ -221,25 +248,35 @@ impl<I> IntoIterator for DerivationPath<I> {
     type Item = I;
     type IntoIter = std::vec::IntoIter<I>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<'path, I: Copy> IntoIterator for &'path DerivationPath<I> {
     type Item = I;
     type IntoIter = std::iter::Copied<std::slice::Iter<'path, I>>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.iter().copied() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter().copied()
+    }
 }
 
 impl<I> FromIterator<I> for DerivationPath<I> {
-    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self { Self(iter.into_iter().collect()) }
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
 }
 
 impl<I: Idx> DerivationPath<I> {
     /// Constructs empty derivation path.
-    pub fn new() -> Self { Self(vec![]) }
+    pub fn new() -> Self {
+        Self(vec![])
+    }
 
-    pub fn with_capacity(capacity: usize) -> Self { Self(Vec::with_capacity(capacity)) }
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
 
     pub fn terminal(&self) -> Option<Terminal> {
         let mut iter = self.iter().rev();

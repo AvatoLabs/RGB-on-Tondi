@@ -75,22 +75,32 @@ impl_serde_str_bin_wrapper!(AuthToken, fe256);
 // need `Ord` implementation for pure rust reasons. It must not be used anywhere in the consensus
 // layer.
 impl PartialOrd for AuthToken {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 impl Ord for AuthToken {
-    fn cmp(&self, other: &Self) -> Ordering { self.0.to_u256().cmp(&other.0.to_u256()) }
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.to_u256().cmp(&other.0.to_u256())
+    }
 }
 
 impl From<[u8; 30]> for AuthToken {
-    fn from(value: [u8; 30]) -> Self { Self::from_byte_array(value) }
+    fn from(value: [u8; 30]) -> Self {
+        Self::from_byte_array(value)
+    }
 }
 impl From<Bytes<30>> for AuthToken {
-    fn from(value: Bytes<30>) -> Self { Self::from_byte_array(value.to_byte_array()) }
+    fn from(value: Bytes<30>) -> Self {
+        Self::from_byte_array(value.to_byte_array())
+    }
 }
 
 impl AuthToken {
     /// Get a representation of a authorization token as a 256-bit field element.
-    pub const fn to_fe256(&self) -> fe256 { self.0 }
+    pub const fn to_fe256(&self) -> fe256 {
+        self.0
+    }
 
     /// Construct the token out of 30 bytes of raw data.
     pub fn from_byte_array(bytes: [u8; 30]) -> Self {
@@ -134,15 +144,21 @@ mod _baid64 {
         const PREFIX: bool = true;
         const EMBED_CHECKSUM: bool = true;
         const MNEMONIC: bool = false;
-        fn to_baid64_payload(&self) -> [u8; 30] { self.to_byte_array() }
+        fn to_baid64_payload(&self) -> [u8; 30] {
+            self.to_byte_array()
+        }
     }
     impl FromBaid64Str<30> for AuthToken {}
     impl FromStr for AuthToken {
         type Err = Baid64ParseError;
-        fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Self::from_baid64_str(s)
+        }
     }
     impl Display for AuthToken {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            self.fmt_baid64(f)
+        }
     }
 }
 
@@ -408,6 +424,7 @@ impl StateData {
 mod test {
     #![cfg_attr(coverage_nightly, coverage(off))]
 
+    #[cfg(all(feature = "serde", feature = "baid64"))]
     use strict_encoding::StrictDumb;
 
     #[cfg(feature = "baid64")]

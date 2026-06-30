@@ -45,10 +45,14 @@ impl StrictType for Void {
     const STRICT_LIB_NAME: &'static str = LIB;
 }
 impl StrictEncode for Void {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> { Ok(writer) }
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> {
+        Ok(writer)
+    }
 }
 impl StrictDecode for Void {
-    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> { Ok(Void) }
+    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
+        Ok(Void)
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]

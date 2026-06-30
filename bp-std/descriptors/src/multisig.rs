@@ -85,10 +85,14 @@ impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
-    fn class(&self) -> SpkClass { SpkClass::P2sh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2sh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         match self {
             Self::Wsh(d) => d.keys().collect::<Vec<_>>(),
             Self::Multi(d) => d.keys().collect::<Vec<_>>(),
@@ -98,7 +102,9 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
     }
 
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         match self {
             Self::Wsh(d) => d.vars().collect::<Vec<_>>(),
             Self::Multi(d) => d.vars().collect::<Vec<_>>(),
@@ -191,16 +197,24 @@ pub struct ShMulti<K: DeriveLegacy = XpubDerivable> {
 }
 
 impl<K: DeriveLegacy> ShMulti<K> {
-    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
-    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+    pub fn key_count(&self) -> u8 {
+        self.keys.len() as u8
+    }
+    pub fn threshold(&self) -> u8 {
+        self.threshold.into_u8()
+    }
 }
 
 impl<K: DeriveLegacy> Derive<DerivedScript> for ShMulti<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.keys[0].default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keys[0].keychains()
+    }
 
     fn derive(
         &self,
@@ -216,19 +230,28 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for ShMulti<K> {
 }
 
 impl<K: DeriveLegacy> Descriptor<K> for ShMulti<K>
-where Self: Derive<DerivedScript>
+where
+    Self: Derive<DerivedScript>,
 {
-    fn class(&self) -> SpkClass { SpkClass::P2sh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2sh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.keys.iter()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(|key| key.xpub_spec())
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         legacy_keyset(&self.keys, terminal).collect()
@@ -295,16 +318,24 @@ pub struct ShSortedMulti<K: DeriveLegacy = XpubDerivable> {
 }
 
 impl<K: DeriveLegacy> ShSortedMulti<K> {
-    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
-    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+    pub fn key_count(&self) -> u8 {
+        self.keys.len() as u8
+    }
+    pub fn threshold(&self) -> u8 {
+        self.threshold.into_u8()
+    }
 }
 
 impl<K: DeriveLegacy> Derive<DerivedScript> for ShSortedMulti<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.keys[0].default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keys[0].keychains()
+    }
 
     fn derive(
         &self,
@@ -321,19 +352,28 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for ShSortedMulti<K> {
 }
 
 impl<K: DeriveLegacy> Descriptor<K> for ShSortedMulti<K>
-where Self: Derive<DerivedScript>
+where
+    Self: Derive<DerivedScript>,
 {
-    fn class(&self) -> SpkClass { SpkClass::P2sh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2sh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.keys.iter()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(|key| key.xpub_spec())
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         // BTreeMap here provides us with the key sorting
@@ -395,16 +435,24 @@ pub struct WshMulti<K: DeriveCompr = XpubDerivable> {
 }
 
 impl<K: DeriveCompr> WshMulti<K> {
-    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
-    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+    pub fn key_count(&self) -> u8 {
+        self.keys.len() as u8
+    }
+    pub fn threshold(&self) -> u8 {
+        self.threshold.into_u8()
+    }
 }
 
 impl<K: DeriveCompr> Derive<DerivedScript> for WshMulti<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.keys[0].default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keys[0].keychains()
+    }
 
     fn derive(
         &self,
@@ -420,19 +468,28 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshMulti<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for WshMulti<K>
-where Self: Derive<DerivedScript>
+where
+    Self: Derive<DerivedScript>,
 {
-    fn class(&self) -> SpkClass { SpkClass::P2wsh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2wsh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.keys.iter()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(|key| key.xpub_spec())
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         legacy_keyset(self.keys(), terminal).collect()
@@ -497,16 +554,24 @@ pub struct WshSortedMulti<K: DeriveCompr = XpubDerivable> {
 }
 
 impl<K: DeriveCompr> WshSortedMulti<K> {
-    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
-    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+    pub fn key_count(&self) -> u8 {
+        self.keys.len() as u8
+    }
+    pub fn threshold(&self) -> u8 {
+        self.threshold.into_u8()
+    }
 }
 
 impl<K: DeriveCompr> Derive<DerivedScript> for WshSortedMulti<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.keys[0].default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keys[0].keychains()
+    }
 
     fn derive(
         &self,
@@ -523,19 +588,28 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshSortedMulti<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for WshSortedMulti<K>
-where Self: Derive<DerivedScript>
+where
+    Self: Derive<DerivedScript>,
 {
-    fn class(&self) -> SpkClass { SpkClass::P2wsh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2wsh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.keys.iter()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(|key| key.xpub_spec())
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         // BTreeMap here provides us with the key sorting
@@ -603,7 +677,9 @@ fn derive<'k, T, K: Derive<T> + 'k, I: IntoIterator<Item = &'k K>>(
 }
 
 fn redeem_script<I: IntoIterator<Item = LegacyPk>>(threshold: u4, keys: I) -> RedeemScript
-where I::IntoIter: ExactSizeIterator {
+where
+    I::IntoIter: ExactSizeIterator,
+{
     let keys = keys.into_iter();
     let key_count = keys.len();
 
@@ -619,7 +695,9 @@ where I::IntoIter: ExactSizeIterator {
 }
 
 fn witness_script<I: IntoIterator<Item = CompressedPk>>(threshold: u4, keys: I) -> WitnessScript
-where I::IntoIter: ExactSizeIterator {
+where
+    I::IntoIter: ExactSizeIterator,
+{
     let keys = keys.into_iter();
     let key_count = keys.len();
 

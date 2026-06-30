@@ -41,7 +41,8 @@ const MINE_MAGIC: u64 = u64::from_be_bytes(*b"RGBMINES");
 
 #[derive(Debug)]
 pub struct PileFs<Seal: RgbSeal>
-where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
+where
+    Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>,
 {
     hoard: FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>,
     cache: FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>,
@@ -63,7 +64,9 @@ where
     type Error = io::Error;
 
     fn new(path: Self::Conf) -> Result<Self, io::Error>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         let hoard = FileAoraMap::create_new(&path, "hoard")?;
         let cache = FileAoraMap::create_new(&path, "cache")?;
         let keep = FileAoraMap::create_new(&path, "keep")?;
@@ -84,7 +87,9 @@ where
     }
 
     fn load(path: Self::Conf) -> Result<Self, io::Error>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         let hoard = FileAoraMap::open(&path, "hoard")?;
         let cache = FileAoraMap::open(&path, "cache")?;
         let keep = FileAoraMap::open(&path, "keep")?;
@@ -104,13 +109,21 @@ where
         })
     }
 
-    fn has_witness(&self, wid: Seal::WitnessId) -> bool { self.hoard.contains_key(wid) }
+    fn has_witness(&self, wid: Seal::WitnessId) -> bool {
+        self.hoard.contains_key(wid)
+    }
 
-    fn pub_witness(&self, wid: Seal::WitnessId) -> Seal::Published { self.cache.get_expect(wid) }
+    fn pub_witness(&self, wid: Seal::WitnessId) -> Seal::Published {
+        self.cache.get_expect(wid)
+    }
 
-    fn cli_witness(&self, wid: Seal::WitnessId) -> Seal::Client { self.hoard.get_expect(wid) }
+    fn cli_witness(&self, wid: Seal::WitnessId) -> Seal::Client {
+        self.hoard.get_expect(wid)
+    }
 
-    fn witness_status(&self, wid: Seal::WitnessId) -> WitnessStatus { self.mine.get_expect(wid) }
+    fn witness_status(&self, wid: Seal::WitnessId) -> WitnessStatus {
+        self.mine.get_expect(wid)
+    }
 
     fn witness_ids(&self) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId> {
         self.stand.keys()
@@ -124,7 +137,9 @@ where
         self.stand.get(wid)
     }
 
-    fn seal(&self, addr: CellAddr) -> Option<Seal::Definition> { self.keep.get(addr) }
+    fn seal(&self, addr: CellAddr) -> Option<Seal::Definition> {
+        self.keep.get(addr)
+    }
 
     fn seals(
         &self,
@@ -176,7 +191,9 @@ where
         self.mine.update_only(wid, status);
     }
 
-    fn commit_transaction(&mut self) { self.mine.commit_transaction(); }
+    fn commit_transaction(&mut self) {
+        self.mine.commit_transaction();
+    }
 
     fn witnesses(&self) -> impl Iterator<Item = Witness<Self::Seal>> {
         self.hoard.iter().map(|(wid, client)| {

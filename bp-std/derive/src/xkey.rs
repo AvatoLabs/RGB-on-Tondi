@@ -28,9 +28,9 @@ use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
 use commit_verify::Ripemd160;
-use sha2::{Sha256 as Sha256Hash, Digest as Sha256Digest};
 use hmac::{Hmac, Mac};
 use sha2::Sha512;
+use sha2::{Digest as Sha256Digest, Sha256 as Sha256Hash};
 
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
@@ -44,7 +44,7 @@ pub const TONDI_COIN_TYPE: u32 = 7890;
 /// Tondi testnet coin type (same as mainnet for now, can be changed if needed).
 pub const TONDI_TESTNET_COIN_TYPE: u32 = 7890;
 
-// Extended key version magic bytes (keeping Bitcoin-compatible format for now)
+// Extended key version magic bytes.
 // TODO: Consider registering Tondi-specific xpub/xpriv version bytes
 pub const XPRIV_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xAD, 0xE4];
 pub const XPRIV_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x83, 0x94];
@@ -152,15 +152,21 @@ impl From<OriginParseError> for XkeyParseError {
 pub struct ChainCode(Bytes32);
 
 impl AsRef<[u8]> for ChainCode {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
 }
 
 impl From<[u8; 32]> for ChainCode {
-    fn from(value: [u8; 32]) -> Self { Self(value.into()) }
+    fn from(value: [u8; 32]) -> Self {
+        Self(value.into())
+    }
 }
 
 impl From<ChainCode> for [u8; 32] {
-    fn from(value: ChainCode) -> Self { value.0.into_inner() }
+    fn from(value: ChainCode) -> Self {
+        value.0.into_inner()
+    }
 }
 
 /// Deterministic part of the extended public key.
@@ -183,15 +189,21 @@ pub struct XpubFp(
 );
 
 impl AsRef<[u8]> for XpubFp {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
 }
 
 impl From<XpubFp> for [u8; 4] {
-    fn from(value: XpubFp) -> Self { value.0.into_inner() }
+    fn from(value: XpubFp) -> Self {
+        value.0.into_inner()
+    }
 }
 
 impl XpubFp {
-    pub const fn master() -> Self { Self(Bytes4::zero()) }
+    pub const fn master() -> Self {
+        Self(Bytes4::zero())
+    }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
@@ -205,11 +217,15 @@ pub struct XpubId(
 );
 
 impl AsRef<[u8]> for XpubId {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
 }
 
 impl From<XpubId> for [u8; 20] {
-    fn from(value: XpubId) -> Self { value.0.into_inner() }
+    fn from(value: XpubId) -> Self {
+        value.0.into_inner()
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -286,13 +302,21 @@ impl Xpub {
     }
 
     #[must_use]
-    pub fn is_testnet(&self) -> bool { self.testnet }
+    pub fn is_testnet(&self) -> bool {
+        self.testnet
+    }
 
-    pub fn depth(&self) -> u8 { self.meta.depth }
+    pub fn depth(&self) -> u8 {
+        self.meta.depth
+    }
 
-    pub fn child_number(&self) -> DerivationIndex { self.meta.child_number }
+    pub fn child_number(&self) -> DerivationIndex {
+        self.meta.child_number
+    }
 
-    pub fn parent_fp(&self) -> XpubFp { self.meta.parent_fp }
+    pub fn parent_fp(&self) -> XpubFp {
+        self.meta.parent_fp
+    }
 
     /// Returns the standard BIP32 identifier: RIPEMD160(SHA256(public_key)).
     /// (see Tondi/wallet/bip32/src/public_key.rs and wallet/keys/src/derivation/gen1/hd.rs)
@@ -311,13 +335,19 @@ impl Xpub {
     }
 
     /// Constructs ECDSA public key valid in legacy context (compressed by default).
-    pub fn to_legacy_pk(&self) -> LegacyPk { LegacyPk::compressed(*self.core.public_key) }
+    pub fn to_legacy_pk(&self) -> LegacyPk {
+        LegacyPk::compressed(*self.core.public_key)
+    }
 
     /// Constructs ECDSA public key.
-    pub fn to_compr_pk(&self) -> CompressedPk { self.core.public_key }
+    pub fn to_compr_pk(&self) -> CompressedPk {
+        self.core.public_key
+    }
 
     /// Constructs BIP340 public key matching internal public key representation.
-    pub fn to_xonly_pk(&self) -> XOnlyPk { XOnlyPk::from(self.core.public_key) }
+    pub fn to_xonly_pk(&self) -> XOnlyPk {
+        XOnlyPk::from(self.core.public_key)
+    }
 
     /// Attempts to derive an extended public key from a path.
     ///
@@ -371,7 +401,9 @@ impl Xpub {
         }
     }
 
-    pub fn chain_code(&self) -> ChainCode { self.core.chain_code }
+    pub fn chain_code(&self) -> ChainCode {
+        self.core.chain_code
+    }
 }
 
 impl Display for Xpub {
@@ -417,10 +449,10 @@ pub struct Xpriv {
 impl Xpriv {
     // TODO #42: Use dedicated `Seed` type
     pub fn new_master(testnet: bool, seed: &[u8]) -> Xpriv {
-        // Tondi wallet uses standard BIP32 "Bitcoin seed" as HMAC key
+        // Tondi wallet uses a Tondi-specific BIP32 HMAC key.
         // (see Tondi/wallet/bip32/src/xprivate_key.rs: BIP39_DOMAIN_SEPARATOR)
         let mut hmac: Hmac<Sha512> =
-            Hmac::new_from_slice(b"Bitcoin seed").expect("HMAC can take key of any size");
+            Hmac::new_from_slice(b"Tondi seed").expect("HMAC can take key of any size");
         hmac.update(seed);
         let hmac_result = hmac.finalize().into_bytes();
 
@@ -506,17 +538,29 @@ impl Xpriv {
     }
 
     #[must_use]
-    pub fn is_testnet(&self) -> bool { self.testnet }
+    pub fn is_testnet(&self) -> bool {
+        self.testnet
+    }
 
-    pub fn depth(&self) -> u8 { self.meta.depth }
+    pub fn depth(&self) -> u8 {
+        self.meta.depth
+    }
 
-    pub fn child_number(&self) -> DerivationIndex { self.meta.child_number }
+    pub fn child_number(&self) -> DerivationIndex {
+        self.meta.child_number
+    }
 
-    pub fn parent_fp(&self) -> XpubFp { self.meta.parent_fp }
+    pub fn parent_fp(&self) -> XpubFp {
+        self.meta.parent_fp
+    }
 
-    pub fn fingerprint(self) -> XpubFp { self.to_xpub().fingerprint() }
+    pub fn fingerprint(self) -> XpubFp {
+        self.to_xpub().fingerprint()
+    }
 
-    pub fn identifier(self) -> XpubId { self.to_xpub().identifier() }
+    pub fn identifier(self) -> XpubId {
+        self.to_xpub().identifier()
+    }
 
     pub fn to_xpub(self) -> Xpub {
         Xpub {
@@ -537,7 +581,9 @@ impl Xpriv {
         self.to_private_ecdsa().x_only_public_key(SECP256K1).0.into()
     }
 
-    pub fn to_private_ecdsa(self) -> SecretKey { self.core.private_key }
+    pub fn to_private_ecdsa(self) -> SecretKey {
+        self.core.private_key
+    }
 
     pub fn to_keypair_bip340(self) -> Keypair {
         Keypair::from_seckey_slice(SECP256K1, &self.core.private_key[..])
@@ -599,7 +645,9 @@ impl Xpriv {
         }
     }
 
-    pub fn chain_code(&self) -> ChainCode { self.core.chain_code }
+    pub fn chain_code(&self) -> ChainCode {
+        self.core.chain_code
+    }
 }
 
 impl Display for Xpriv {
@@ -640,11 +688,17 @@ impl XkeyOrigin {
         }
     }
 
-    pub const fn master_fp(&self) -> XpubFp { self.master_fp }
+    pub const fn master_fp(&self) -> XpubFp {
+        self.master_fp
+    }
 
-    pub fn derivation(&self) -> &[HardenedIndex] { self.derivation.as_ref() }
+    pub fn derivation(&self) -> &[HardenedIndex] {
+        self.derivation.as_ref()
+    }
 
-    pub fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.derivation }
+    pub fn as_derivation(&self) -> &DerivationPath<HardenedIndex> {
+        &self.derivation
+    }
 
     pub fn to_derivation(&self) -> DerivationPath {
         self.derivation.iter().copied().map(DerivationIndex::from).collect()
@@ -740,11 +794,17 @@ impl KeyOrigin {
         }
     }
 
-    pub fn as_derivation(&self) -> &DerivationPath { &self.derivation }
+    pub fn as_derivation(&self) -> &DerivationPath {
+        &self.derivation
+    }
 
-    pub fn to_derivation(&self) -> DerivationPath { self.derivation.clone() }
+    pub fn to_derivation(&self) -> DerivationPath {
+        self.derivation.clone()
+    }
 
-    pub fn into_derivation(self) -> DerivationPath { self.derivation }
+    pub fn into_derivation(self) -> DerivationPath {
+        self.derivation
+    }
 
     pub fn to_account_origin(&self) -> XkeyOrigin {
         XkeyOrigin {
@@ -777,22 +837,34 @@ impl XpubAccount {
     }
 
     #[inline]
-    pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
+    pub const fn master_fp(&self) -> XpubFp {
+        self.origin.master_fp
+    }
 
     #[inline]
-    pub fn account_fp(&self) -> XpubFp { self.xpub.fingerprint() }
+    pub fn account_fp(&self) -> XpubFp {
+        self.xpub.fingerprint()
+    }
 
     #[inline]
-    pub fn account_id(&self) -> XpubId { self.xpub.identifier() }
+    pub fn account_id(&self) -> XpubId {
+        self.xpub.identifier()
+    }
 
     #[inline]
-    pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
+    pub fn derivation(&self) -> &[HardenedIndex] {
+        self.origin.derivation.as_ref()
+    }
 
     #[inline]
-    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> {
+        &self.origin.derivation
+    }
 
     #[inline]
-    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
+    pub fn to_derivation(&self) -> DerivationPath {
+        self.origin.to_derivation()
+    }
 }
 
 impl Display for XpubAccount {
@@ -870,22 +942,34 @@ impl XprivAccount {
     }
 
     #[inline]
-    pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
+    pub const fn master_fp(&self) -> XpubFp {
+        self.origin.master_fp
+    }
 
     #[inline]
-    pub fn account_fp(&self) -> XpubFp { self.xpriv.fingerprint() }
+    pub fn account_fp(&self) -> XpubFp {
+        self.xpriv.fingerprint()
+    }
 
     #[inline]
-    pub fn account_id(&self) -> XpubId { self.xpriv.identifier() }
+    pub fn account_id(&self) -> XpubId {
+        self.xpriv.identifier()
+    }
 
     #[inline]
-    pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
+    pub fn derivation(&self) -> &[HardenedIndex] {
+        self.origin.derivation.as_ref()
+    }
 
     #[inline]
-    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> {
+        &self.origin.derivation
+    }
 
     #[inline]
-    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
+    pub fn to_derivation(&self) -> DerivationPath {
+        self.origin.to_derivation()
+    }
 
     #[must_use]
     pub fn derive(&self, path: impl AsRef<[HardenedIndex]>) -> Self {
@@ -984,9 +1068,13 @@ impl XpubDerivable {
         })
     }
 
-    pub fn xpub(&self) -> Xpub { self.spec.xpub }
+    pub fn xpub(&self) -> Xpub {
+        self.spec.xpub
+    }
 
-    pub fn origin(&self) -> &XkeyOrigin { &self.spec.origin }
+    pub fn origin(&self) -> &XkeyOrigin {
+        &self.spec.origin
+    }
 }
 
 impl Display for XpubDerivable {
@@ -1042,7 +1130,9 @@ mod _serde {
 
     impl Serialize for Xpub {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_string())
             } else {
@@ -1053,7 +1143,9 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for Xpub {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             if deserializer.is_human_readable() {
                 let s = String::deserialize(deserializer)?;
                 Xpub::from_str(&s).map_err(|err| {
@@ -1069,14 +1161,18 @@ mod _serde {
 
     impl Serialize for XpubAccount {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             serializer.serialize_str(&self.to_string())
         }
     }
 
     impl<'de> Deserialize<'de> for XpubAccount {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             let s = String::deserialize(deserializer)?;
             XpubAccount::from_str(&s).map_err(|err| {
                 de::Error::custom(format!(
@@ -1088,14 +1184,18 @@ mod _serde {
 
     impl Serialize for XpubDerivable {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             serializer.serialize_str(&self.to_string())
         }
     }
 
     impl<'de> Deserialize<'de> for XpubDerivable {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             let s = String::deserialize(deserializer)?;
             XpubDerivable::from_str(&s).map_err(|err| {
                 de::Error::custom(format!("invalid xpub derivation string representation; {err}"))
@@ -1153,12 +1253,12 @@ mod test {
         let derivation = DerivationPath::from(h![86, 1, 0]);
         let xpriv_account = XprivAccount::with_seed(true, &seed).derive(&derivation);
         let xpub_account = xpriv_account.to_xpub_account();
-        let derivable_other =
-            XpubDerivable::try_custom(xpub_account.xpub, xpub_account.origin.clone(), [
-                Keychain::INNER,
-                Keychain::OUTER,
-            ])
-            .unwrap();
+        let derivable_other = XpubDerivable::try_custom(
+            xpub_account.xpub,
+            xpub_account.origin.clone(),
+            [Keychain::INNER, Keychain::OUTER],
+        )
+        .unwrap();
         let derivable = XpubDerivable::with(xpub_account, &[Keychain::INNER, Keychain::OUTER]);
         assert_eq!(derivable, derivable_other);
         assert_eq!(derivable.spec.origin, xpriv_account.origin);

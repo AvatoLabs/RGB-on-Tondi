@@ -73,7 +73,9 @@ pub struct Issue {
 }
 
 impl PartialEq for Issue {
-    fn eq(&self, other: &Self) -> bool { self.commit_id() == other.commit_id() }
+    fn eq(&self, other: &Self) -> bool {
+        self.commit_id() == other.commit_id()
+    }
 }
 
 impl CommitEncode for Issue {
@@ -93,19 +95,25 @@ impl Issue {
     /// Contract id is a commitment to the contract issue information, which includes contract
     /// metadata, codex, and genesis operation.
     #[inline]
-    pub fn contract_id(&self) -> ContractId { self.commit_id() }
+    pub fn contract_id(&self) -> ContractId {
+        self.commit_id()
+    }
 
     /// Compute codex id.
     ///
     /// Shorthand for [`Self::issue::codex_id()`].
     #[inline]
-    pub fn codex_id(&self) -> CodexId { self.codex.codex_id() }
+    pub fn codex_id(&self) -> CodexId {
+        self.codex.codex_id()
+    }
 
     /// Computes the operation id of the genesis operation.
     ///
     /// Equals to the [`Genesis::opid`] called with [`Self::contract_id`] as an argument.
     #[inline]
-    pub fn genesis_opid(&self) -> Opid { self.genesis.opid(self.contract_id()) }
+    pub fn genesis_opid(&self) -> Opid {
+        self.genesis.opid(self.contract_id())
+    }
 }
 
 /// Consensus (layer 1) which is used by a contract.
@@ -134,14 +142,13 @@ pub enum Consensus {
 
     // Legacy variants kept for backward compatibility with external crates.
     // These should not be used for new Tondi contracts.
-
-    /// Bitcoin PoW consensus (deprecated, kept for external crate compatibility).
+    /// Deprecated proof-of-work chain slot kept for external crate compatibility.
     #[deprecated(note = "Use Tondi consensus instead")]
-    Bitcoin = 0x10,
+    LegacyPow = 0x10,
 
-    /// Liquid federation consensus (deprecated, kept for external crate compatibility).
+    /// Deprecated federated chain slot kept for external crate compatibility.
     #[deprecated(note = "Use Tondi consensus instead")]
-    Liquid = 0x11,
+    LegacyFederation = 0x11,
 }
 
 impl FromStr for Consensus {
@@ -154,9 +161,8 @@ impl FromStr for Consensus {
             "tondi" => Ok(Consensus::Tondi),
             "tondi-testnet" | "tondi_testnet" => Ok(Consensus::TondiTestnet),
             "prime" => Ok(Consensus::Prime),
-            // Legacy support
-            "bitcoin" => Ok(Consensus::Bitcoin),
-            "liquid" => Ok(Consensus::Liquid),
+            "legacy-pow" | "legacy_pow" => Ok(Consensus::LegacyPow),
+            "legacy-federation" | "legacy_federation" => Ok(Consensus::LegacyFederation),
             _ => Err(s.to_owned()),
         }
     }
@@ -223,7 +229,9 @@ pub struct ContractId(
 impl_serde_str_bin_wrapper!(ContractId, Bytes32);
 
 impl From<TondiBlake3> for ContractId {
-    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
+    fn from(hasher: TondiBlake3) -> Self {
+        hasher.finish().into()
+    }
 }
 
 impl CommitmentId for ContractId {
@@ -245,15 +253,21 @@ mod _baid4 {
         const PREFIX: bool = true;
         const EMBED_CHECKSUM: bool = false;
         const MNEMONIC: bool = false;
-        fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
+        fn to_baid64_payload(&self) -> [u8; 32] {
+            self.to_byte_array()
+        }
     }
     impl FromBaid64Str for ContractId {}
     impl FromStr for ContractId {
         type Err = Baid64ParseError;
-        fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Self::from_baid64_str(s)
+        }
     }
     impl Display for ContractId {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            self.fmt_baid64(f)
+        }
     }
 }
 

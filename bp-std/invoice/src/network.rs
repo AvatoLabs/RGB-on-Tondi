@@ -55,7 +55,9 @@ pub enum Network {
 impl Network {
     /// Detects whether the network is a kind of test network (testnet, simnet,
     /// devnet).
-    pub fn is_testnet(self) -> bool { self != Self::Mainnet }
+    pub fn is_testnet(self) -> bool {
+        self != Self::Mainnet
+    }
 
     /// Returns the genesis block hash for the network.
     pub const fn genesis_hash(self) -> BlockHash {
@@ -89,7 +91,9 @@ impl TryFrom<BlockHash> for Network {
     fn try_from(hash: BlockHash) -> Result<Self, Self::Error> {
         match hash {
             BlockHash::GENESIS_TONDI_MAINNET => Ok(Network::Mainnet),
-            BlockHash::GENESIS_TONDI_TESTNET | BlockHash::GENESIS_TONDI_TESTNET_11 => Ok(Network::Testnet),
+            BlockHash::GENESIS_TONDI_TESTNET | BlockHash::GENESIS_TONDI_TESTNET_11 => {
+                Ok(Network::Testnet)
+            }
             BlockHash::GENESIS_TONDI_SIMNET => Ok(Network::Simnet),
             BlockHash::GENESIS_TONDI_DEVNET => Ok(Network::Devnet),
             _ => Err(UnknownGenesisBlock(hash)),

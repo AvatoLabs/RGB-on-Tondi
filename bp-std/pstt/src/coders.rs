@@ -187,11 +187,14 @@ pub trait Encode {
 }
 
 impl<T: Encode> Encode for &T {
-    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> { (*self).encode(writer) }
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        (*self).encode(writer)
+    }
 }
 
 pub trait Decode
-where Self: Sized
+where
+    Self: Sized,
 {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError>;
     fn deserialize(bytes: impl AsRef<[u8]>) -> Result<Self, PsttError> {
@@ -679,8 +682,12 @@ macro_rules! pstt_code_using_consensus {
 
 struct WriteWrap<'a>(&'a mut dyn Write);
 impl Write for WriteWrap<'_> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> { self.0.write(buf) }
-    fn flush(&mut self) -> io::Result<()> { self.0.flush() }
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
 }
 
 macro_rules! pstt_encode_from_consensus {
@@ -997,9 +1004,13 @@ impl<A: Decode, B: Decode> Decode for (A, B) {
 }
 
 impl Encode for () {
-    fn encode(&self, _writer: &mut dyn Write) -> Result<usize, IoError> { Ok(0) }
+    fn encode(&self, _writer: &mut dyn Write) -> Result<usize, IoError> {
+        Ok(0)
+    }
 }
 
 impl Decode for () {
-    fn decode(_reader: &mut impl Read) -> Result<Self, DecodeError> { Ok(()) }
+    fn decode(_reader: &mut impl Read) -> Result<Self, DecodeError> {
+        Ok(())
+    }
 }

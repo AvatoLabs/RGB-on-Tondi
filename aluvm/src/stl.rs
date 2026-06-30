@@ -35,10 +35,13 @@ pub const LIB_ID_ALUVM: &str =
 
 #[allow(clippy::result_large_err)]
 fn _aluvm_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_ALUVM), [
-        strict_types::stl::std_stl().to_dependency_types(),
-        strict_types::stl::strict_types_stl().to_dependency_types(),
-    ])
+    LibBuilder::with(
+        libname!(LIB_NAME_ALUVM),
+        [
+            strict_types::stl::std_stl().to_dependency_types(),
+            strict_types::stl::strict_types_stl().to_dependency_types(),
+        ],
+    )
     .transpile::<LibSite>()
     .transpile::<Lib>()
     .transpile::<CoreConfig>()
@@ -46,7 +49,9 @@ fn _aluvm_stl() -> Result<TypeLib, CompileError> {
 }
 
 /// Generates strict type lib-old providing data types from this crate.
-pub fn aluvm_stl() -> TypeLib { _aluvm_stl().expect("invalid strict type AluVM lib-old") }
+pub fn aluvm_stl() -> TypeLib {
+    _aluvm_stl().expect("invalid strict type AluVM lib-old")
+}
 
 #[cfg(test)]
 mod test {

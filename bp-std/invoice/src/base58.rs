@@ -90,7 +90,9 @@ pub fn decode_check(data: &str) -> Result<Vec<u8>, Error> {
 }
 
 /// Encodes `data` as a base58 string (see also `base58::encode_check()`).
-pub fn encode(data: &[u8]) -> String { encode_iter(data.iter().cloned()) }
+pub fn encode(data: &[u8]) -> String {
+    encode_iter(data.iter().cloned())
+}
 
 /// Encodes `data` as a base58 string including the checksum.
 ///
@@ -114,7 +116,9 @@ pub fn encode_check_to_fmt(fmt: &mut fmt::Formatter, data: &[u8]) -> fmt::Result
 }
 
 fn encode_iter<I>(data: I) -> String
-where I: Iterator<Item = u8> + Clone {
+where
+    I: Iterator<Item = u8> + Clone,
+{
     let mut ret = String::new();
     format_iter(&mut ret, data).expect("writing into string shouldn't fail");
     ret

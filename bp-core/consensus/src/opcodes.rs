@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -385,9 +385,9 @@ pub const OP_HASH256: u8 = 0xaa;
 /// Ignore this and everything preceding when deciding what to sign when
 /// signature-checking.
 pub const OP_CODESEPARATOR: u8 = 0xab;
-/// <https://en.bitcoin.it/wiki/OP_CHECKSIG> pushing 1/0 for success/failure.
+/// <https://en.tondi.it/wiki/OP_CHECKSIG> pushing 1/0 for success/failure.
 pub const OP_CHECKSIG: u8 = 0xac;
-/// <https://en.bitcoin.it/wiki/OP_CHECKSIG> returning success/failure.
+/// <https://en.tondi.it/wiki/OP_CHECKSIG> returning success/failure.
 pub const OP_CHECKSIGVERIFY: u8 = 0xad;
 /// Pop N, N pubkeys, M, M signatures, a dummy (due to bug in reference code),
 /// and verify that all M signatures are valid. Push 1 for 'all valid', 0
@@ -397,9 +397,9 @@ pub const OP_CHECKMULTISIG: u8 = 0xae;
 pub const OP_CHECKMULTISIGVERIFY: u8 = 0xaf;
 /// Does nothing.
 pub const OP_NOP1: u8 = 0xb0;
-/// <https://github.com/bitcoin/bips/blob/master/bip-0065.mediawiki>
+/// <https://github.com/tondi/bips/blob/master/bip-0065.mediawiki>
 pub const OP_CLTV: u8 = 0xb1;
-/// <https://github.com/bitcoin/bips/blob/master/bip-0112.mediawiki>
+/// <https://github.com/tondi/bips/blob/master/bip-0112.mediawiki>
 pub const OP_CSV: u8 = 0xb2;
 /// Does nothing.
 pub const OP_NOP4: u8 = 0xb3;
@@ -1115,10 +1115,10 @@ pub enum OpCode {
     #[display("OP_CODESEPARATOR")]
     CodeSeparator = OP_CODESEPARATOR,
 
-    /// <https://en.bitcoin.it/wiki/OP_CHECKSIG> pushing 1/0 for success/failure.
+    /// <https://en.tondi.it/wiki/OP_CHECKSIG> pushing 1/0 for success/failure.
     #[display("OP_CHECKSIG")]
     CheckSig = OP_CHECKSIG,
-    /// <https://en.bitcoin.it/wiki/OP_CHECKSIG> returning success/failure.
+    /// <https://en.tondi.it/wiki/OP_CHECKSIG> returning success/failure.
     #[display("OP_CHECKSIGVERIFY")]
     CheckSigVerify = OP_CHECKSIGVERIFY,
     /// Pop N, N pubkeys, M, M signatures, a dummy (due to bug in reference code),
@@ -1133,10 +1133,10 @@ pub enum OpCode {
     /// Does nothing.
     #[display("OP_NOP1")]
     Nop1 = OP_NOP1,
-    /// <https://github.com/bitcoin/bips/blob/master/bip-0065.mediawiki>
+    /// <https://github.com/tondi/bips/blob/master/bip-0065.mediawiki>
     #[display("OP_CLTV")]
     Cltv = OP_CLTV,
-    /// <https://github.com/bitcoin/bips/blob/master/bip-0112.mediawiki>
+    /// <https://github.com/tondi/bips/blob/master/bip-0112.mediawiki>
     #[display("OP_CSV")]
     Csv = OP_CSV,
     /// Does nothing.

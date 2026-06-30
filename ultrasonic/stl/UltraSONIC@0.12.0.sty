@@ -1,5 +1,5 @@
 {-
-  Id: stl:BOTMlgPh-hfgchcg-6JOjpdM-GicZTSt-UVHP7gA-ub505gM#korea-helena-moral
+  Id: stl:otovXd5j-Gcwzd3y-NKdMUuW-dQNAwFS-5qzO12F-yK_evjY#druid-mozart-puzzle
   Name: UltraSONIC
   Version: 0.12.0
   Description: Transactional execution layer with capability-based memory access for zk-AluVM
@@ -13,40 +13,40 @@
 @context
 typelib UltraSONIC
 
-import FiniteField#report-canal-convert
-  use Fe256#palace-mixer-visual
+import StrictTypes#claudia-bambino-organic
+  use TypeName#passive-perfume-julius
 
-import Std#delete-roman-hair
-  use AsciiPrintable#ultra-sunset-format
-  use Bool#oxygen-complex-duet
-  use AlphaNumLodash#percent-bingo-caesar
-  use AlphaCapsLodash#duet-hammer-labor
+import AluVM#event-parking-papa
+  use LibSite#famous-prelude-magnet
+  use LibId#forward-garbo-telex
+  use CoreConfig#salon-sabrina-polka
 
-import AluVM#reward-accent-swim
-  use LibId#germany-culture-olivia
-  use CoreConfig#ventura-ibiza-special
-  use LibSite#polo-macro-elite
+import FiniteField#congo-wedding-pioneer
+  use Fe256#farmer-forest-ammonia
 
-import CommitVerify#biology-news-adam
-  use ReservedBytes1#origin-roger-relax
-  use ReservedBytes2#florida-libra-circus
-  use ReservedBytes6#joker-peru-brave
-  use ReservedBytes4#young-goblin-academy
+import CommitVerify#clark-blonde-karma
+  use ReservedBytes4#marina-libra-gopher
+  use ReservedBytes1#marco-balsa-meaning
+  use ReservedBytes6#quick-karl-numeric
+  use ReservedBytes2#button-micro-fast
 
-import StrictTypes#henry-heart-survive
-  use TypeName#edgar-carol-mystery
+import Std#sister-triton-cricket
+  use Bool#mustang-caravan-jester
+  use AlphaNumLodash#marina-urban-omega
+  use AlphaCapsLodash#acrobat-magic-consul
+  use AsciiPrintable#valid-house-fame
 
 
-@mnemonic(western-america-patrol)
+@mnemonic(trumpet-queen-queen)
 data AuthToken         : FiniteField.Fe256
 
-@mnemonic(tahiti-tobacco-grid)
+@mnemonic(data-polka-barbara)
 data CellAddr          : opid Opid, pos U16
 
-@mnemonic(famous-karma-igor)
+@mnemonic(correct-flipper-alex)
 data CellLock          : aux StateValue, script AluVM.LibSite?
 
-@mnemonic(british-chicago-cabinet)
+@mnemonic(clock-juice-hilton)
 data Codex             : version CommitVerify.ReservedBytes1
                        , name [Unicode ^ ..0xff]
                        , developer Identity
@@ -57,17 +57,18 @@ data Codex             : version CommitVerify.ReservedBytes1
                        , inputConfig AluVM.CoreConfig
                        , verifiers {U16 -> ^ ..0xff AluVM.LibSite}
 
-@mnemonic(cargo-season-impact)
+@mnemonic(madrid-analyze-dynamic)
 data CodexId           : [Byte ^ 32]
 
-@mnemonic(nissan-congo-clark)
-data Consensus         : none | bitcoin#16 | liquid | prime#32
+@mnemonic(trust-crack-radius)
+data Consensus         : none | legacyPow#16 | legacyFederation | prime#32
+                       | tondi#48 | tondiTestnet
 
 
-@mnemonic(uniform-welcome-papa)
+@mnemonic(shelter-alert-serpent)
 data ContractId        : [Byte ^ 32]
 
-@mnemonic(future-vortex-secret)
+@mnemonic(water-paprika-academy)
 data ContractMeta      : testnet Std.Bool
                        , consensus Consensus
                        , timestamp I64
@@ -75,11 +76,11 @@ data ContractMeta      : testnet Std.Bool
                        , name ContractName
                        , issuer Identity
 
-@mnemonic(value-reform-lesson)
+@mnemonic(rainbow-evita-slalom)
 data ContractName      : unnamed ()
                        | named StrictTypes.TypeName
 
-@mnemonic(apollo-system-cabinet)
+@mnemonic(pamela-similar-alex)
 data Genesis           : version CommitVerify.ReservedBytes1
                        , codexId CodexId
                        , callId U16
@@ -90,19 +91,19 @@ data Genesis           : version CommitVerify.ReservedBytes1
                        , destructibleOut [StateCell]
                        , immutableOut [StateData]
 
-@mnemonic(smart-pioneer-nominal)
+@mnemonic(vacuum-baby-domain)
 data Identity          : Std.AsciiPrintable, [Std.AsciiPrintable ^ ..0xfff]
 
-@mnemonic(region-gilbert-drama)
+@mnemonic(decade-copy-joker)
 data Input             : addr CellAddr, witness StateValue
 
-@mnemonic(field-angel-escape)
+@mnemonic(visa-novel-famous)
 data Issue             : version CommitVerify.ReservedBytes1
                        , meta ContractMeta
                        , codex Codex
                        , genesis Genesis
 
-@mnemonic(balance-sonata-unit)
+@mnemonic(section-paper-eddie)
 data Operation         : version CommitVerify.ReservedBytes1
                        , contractId ContractId
                        , callId U16
@@ -113,21 +114,21 @@ data Operation         : version CommitVerify.ReservedBytes1
                        , destructibleOut [StateCell]
                        , immutableOut [StateData]
 
-@mnemonic(storm-dragon-brain)
+@mnemonic(grid-baron-tornado)
 data Opid              : [Byte ^ 32]
 
-@mnemonic(lima-anvil-karate)
+@mnemonic(axiom-join-aroma)
 data RawData           : [Byte]
 
-@mnemonic(critic-chicken-verona)
+@mnemonic(village-spirit-laser)
 data StateCell         : data StateValue
                        , auth AuthToken
                        , lock CellLock?
 
-@mnemonic(siren-organic-double)
+@mnemonic(thermos-pablo-data)
 data StateData         : value StateValue, raw RawData?
 
-@mnemonic(kiwi-million-ford)
+@mnemonic(open-salsa-sonata)
 data StateValue        : none ()
                        | single first FiniteField.Fe256
                        | double (first FiniteField.Fe256, second FiniteField.Fe256)

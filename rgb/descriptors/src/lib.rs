@@ -42,10 +42,10 @@ use core::iter;
 use amplify::{ByteArray, Bytes32, Wrapper, WrapperMut};
 use bp::seals::WTxoSeal;
 use bpstd::{
-    CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet, DeriveXOnly,
-    DerivedScript, Descriptor, KeyOrigin, Keychain, LegacyKeySig, LegacyPk, NormalIndex,
-    RedeemScript, ScriptPubkey, SigScript, SpkClass, StdDescr, TapDerivation, TapLeafHash,
-    TapScript, TaprootKeySig, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
+    CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet,
+    DeriveXOnly, DerivedScript, Descriptor, KeyOrigin, Keychain, LegacyKeySig, LegacyPk,
+    NormalIndex, RedeemScript, ScriptPubkey, SigScript, SpkClass, StdDescr, TapDerivation,
+    TapLeafHash, TapScript, TaprootKeySig, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
     XpubDerivable,
 };
 use indexmap::IndexMap;

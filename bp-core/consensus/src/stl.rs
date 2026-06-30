@@ -24,10 +24,10 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use crate::{
     Bip340Sig, Block, ByteStr, CompressedPk, ControlBlock, FutureLeafVer, InternalPk, LeafScript,
-    LegacyPk, LegacySig, LockHeight, LockTimestamp, OpCode, Outpoint, OutputPk, PubkeyHash, RedeemScript,
-    ScriptHash, TapCode, TapLeafHash, TapNodeHash, TapScript, TimeLockInterval, TondiOutpoint, TondiTxid,
-    Tx, Txid, UncompressedPk, VBytes, VarInt, Vout, WPubkeyHash, WScriptHash, WeightUnits, WitnessProgram,
-    WitnessScript, WitnessVer, Wtxid, LIB_NAME_TONDI,
+    LegacyPk, LegacySig, LockHeight, LockTimestamp, OpCode, Outpoint, OutputPk, PubkeyHash,
+    RedeemScript, ScriptHash, TapCode, TapLeafHash, TapNodeHash, TapScript, TimeLockInterval,
+    TondiOutpoint, TondiTxid, Tx, Txid, UncompressedPk, VBytes, VarInt, Vout, WPubkeyHash,
+    WScriptHash, WeightUnits, WitnessProgram, WitnessScript, WitnessVer, Wtxid, LIB_NAME_TONDI,
 };
 
 pub const LIB_ID_BP_TX: &str =
@@ -42,48 +42,46 @@ fn _bp_tx_stl() -> Result<TypeLib, CompileError> {
 
 #[allow(clippy::result_large_err)]
 fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_TONDI), [
-        strict_types::stl::std_stl().to_dependency_types()
-    ])
-    .transpile::<LegacySig>()
-    .transpile::<Bip340Sig>()
-    .transpile::<OpCode>()
-    .transpile::<PubkeyHash>()
-    .transpile::<WPubkeyHash>()
-    .transpile::<ScriptHash>()
-    .transpile::<WScriptHash>()
-    .transpile::<WitnessScript>()
-    .transpile::<RedeemScript>()
-    .transpile::<Wtxid>()
-    .transpile::<WitnessProgram>()
-    .transpile::<WitnessVer>()
-    .transpile::<CompressedPk>()
-    .transpile::<UncompressedPk>()
-    .transpile::<LegacyPk>()
-    .transpile::<InternalPk>()
-    .transpile::<OutputPk>()
-    .transpile::<TapNodeHash>()
-    .transpile::<TapLeafHash>()
-    .transpile::<FutureLeafVer>()
-    .transpile::<LeafScript>()
-    .transpile::<TapCode>()
-    .transpile::<TapScript>()
-    .transpile::<ControlBlock>()
-    .transpile::<Block>()
-    .transpile::<TimeLockInterval>()
-    .transpile::<LockTimestamp>()
-    .transpile::<LockHeight>()
-    .transpile::<Tx>()
-    .transpile::<VarInt>()
-    .transpile::<ByteStr>()
-    .transpile::<WeightUnits>()
-    .transpile::<VBytes>()
-    .transpile::<Vout>()
-    .transpile::<Txid>()
-    .transpile::<TondiTxid>()
-    .transpile::<Outpoint>()
-    .transpile::<TondiOutpoint>()
-    .compile()
+    LibBuilder::with(libname!(LIB_NAME_TONDI), [strict_types::stl::std_stl().to_dependency_types()])
+        .transpile::<LegacySig>()
+        .transpile::<Bip340Sig>()
+        .transpile::<OpCode>()
+        .transpile::<PubkeyHash>()
+        .transpile::<WPubkeyHash>()
+        .transpile::<ScriptHash>()
+        .transpile::<WScriptHash>()
+        .transpile::<WitnessScript>()
+        .transpile::<RedeemScript>()
+        .transpile::<Wtxid>()
+        .transpile::<WitnessProgram>()
+        .transpile::<WitnessVer>()
+        .transpile::<CompressedPk>()
+        .transpile::<UncompressedPk>()
+        .transpile::<LegacyPk>()
+        .transpile::<InternalPk>()
+        .transpile::<OutputPk>()
+        .transpile::<TapNodeHash>()
+        .transpile::<TapLeafHash>()
+        .transpile::<FutureLeafVer>()
+        .transpile::<LeafScript>()
+        .transpile::<TapCode>()
+        .transpile::<TapScript>()
+        .transpile::<ControlBlock>()
+        .transpile::<Block>()
+        .transpile::<TimeLockInterval>()
+        .transpile::<LockTimestamp>()
+        .transpile::<LockHeight>()
+        .transpile::<Tx>()
+        .transpile::<VarInt>()
+        .transpile::<ByteStr>()
+        .transpile::<WeightUnits>()
+        .transpile::<VBytes>()
+        .transpile::<Vout>()
+        .transpile::<Txid>()
+        .transpile::<TondiTxid>()
+        .transpile::<Outpoint>()
+        .transpile::<TondiOutpoint>()
+        .compile()
 }
 
 pub fn bp_tx_stl() -> TypeLib {

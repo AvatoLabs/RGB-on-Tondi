@@ -41,23 +41,23 @@ impl<T, A> CallRequest<T, A> {
     }
 
     #[deprecated(note = "Use tondi_mainnet instead")]
-    pub fn bitcoin_mainnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
-        Self::new(scope, Consensus::Bitcoin, false, auth, data)
+    pub fn legacy_pow_mainnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
+        Self::new(scope, Consensus::LegacyPow, false, auth, data)
     }
 
     #[deprecated(note = "Use tondi_testnet instead")]
-    pub fn bitcoin_testnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
-        Self::new(scope, Consensus::Bitcoin, true, auth, data)
+    pub fn legacy_pow_testnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
+        Self::new(scope, Consensus::LegacyPow, true, auth, data)
     }
 
     #[deprecated(note = "Use tondi_mainnet instead")]
-    pub fn liquid_mainnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
-        Self::new(scope, Consensus::Liquid, false, auth, data)
+    pub fn legacy_federation_mainnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
+        Self::new(scope, Consensus::LegacyFederation, false, auth, data)
     }
 
     #[deprecated(note = "Use tondi_testnet instead")]
-    pub fn liquid_testnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
-        Self::new(scope, Consensus::Liquid, true, auth, data)
+    pub fn legacy_federation_testnet(scope: T, auth: A, data: Option<StrictVal>) -> Self {
+        Self::new(scope, Consensus::LegacyFederation, true, auth, data)
     }
 
     pub fn new(scope: T, consensus: Consensus, testnet: bool, auth: A, data: Option<StrictVal>) -> Self {

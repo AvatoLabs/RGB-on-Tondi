@@ -31,7 +31,9 @@ fn parse_roundtrip(s: &str) {
 
 /// Case: PSTT with one P2PKH input. Outputs are empty.
 #[test]
-fn pkh_outputless() { parse_roundtrip(include_str!("valid.v0/pkh_outputless.pstt")); }
+fn pkh_outputless() {
+    parse_roundtrip(include_str!("valid.v0/pkh_outputless.pstt"));
+}
 
 /// Case: PSTT with one P2PKH input and one P2SH-P2WPKH input. First input is signed and finalized.
 /// Outputs are empty.
@@ -43,35 +45,51 @@ fn pkh_sh_wpkh_outputless() {
 /// Case: PSTT with one P2PKH input which has a non-final scriptSig and has a sighash type
 /// specified. Outputs are empty.
 #[test]
-fn pkh_signed() { parse_roundtrip(include_str!("valid.v0/pkh_signed.pstt")); }
+fn pkh_signed() {
+    parse_roundtrip(include_str!("valid.v0/pkh_signed.pstt"));
+}
 
 /// Case: PSTT with one P2PKH input and one P2SH-P2WPKH input both with non-final scriptSigs.
 /// P2SH-P2WPKH input's redeemScript is available. Outputs filled.
 #[test]
-fn pkh_sh_wpkh() { parse_roundtrip(include_str!("valid.v0/pkh_sh_wpkh.pstt")); }
+fn pkh_sh_wpkh() {
+    parse_roundtrip(include_str!("valid.v0/pkh_sh_wpkh.pstt"));
+}
 
 /// Case: PSTT with one P2SH-P2WSH input of a 2-of-2 multisig, redeemScript, witnessScript, and
 /// keypaths are available. Contains one signature.
 #[test]
-fn sh_wsh() { parse_roundtrip(include_str!("valid.v0/sh_wsh.pstt")); }
+fn sh_wsh() {
+    parse_roundtrip(include_str!("valid.v0/sh_wsh.pstt"));
+}
 
 /// Case: PSTT with one P2WSH input of a 2-of-2 multisig. witnessScript, keypaths, and global xpubs
 /// are available. Contains no signatures. Outputs filled.
 #[test]
-fn wsh() { parse_roundtrip(include_str!("valid.v0/wsh.pstt")); }
+fn wsh() {
+    parse_roundtrip(include_str!("valid.v0/wsh.pstt"));
+}
 
 /// Case: PSTT with unknown types in the inputs.
 #[test]
-fn unknown_keys() { parse_roundtrip(include_str!("valid.v0/unknown_keys.pstt")); }
+fn unknown_keys() {
+    parse_roundtrip(include_str!("valid.v0/unknown_keys.pstt"));
+}
 
 /// Case: PSTT with `PSTT_GLOBAL_XPUB`.
 #[test]
-fn xpubs() { parse_roundtrip(include_str!("valid.v0/xpubs.pstt")); }
+fn xpubs() {
+    parse_roundtrip(include_str!("valid.v0/xpubs.pstt"));
+}
 
 /// Case: PSTT with global unsigned tx that has 0 inputs and 0 outputs
 #[test]
-fn no_inputs_outputs() { parse_roundtrip(include_str!("valid.v0/no_inputs_outputs.pstt")); }
+fn no_inputs_outputs() {
+    parse_roundtrip(include_str!("valid.v0/no_inputs_outputs.pstt"));
+}
 
 /// Case: PSTT with 0 inputs
 #[test]
-fn no_inputs() { parse_roundtrip(include_str!("valid.v0/no_inputs.pstt")); }
+fn no_inputs() {
+    parse_roundtrip(include_str!("valid.v0/no_inputs.pstt"));
+}

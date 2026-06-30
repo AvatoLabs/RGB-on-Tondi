@@ -162,13 +162,10 @@ fn enum_associated() -> common::Result {
         Five {},
     }
 
-    assert_eq!(Assoc::ALL_VARIANTS, &[
-        (0, "one"),
-        (1, "two"),
-        (2, "three"),
-        (3, "four"),
-        (4, "five")
-    ]);
+    assert_eq!(
+        Assoc::ALL_VARIANTS,
+        &[(0, "one"), (1, "two"), (2, "three"), (3, "four"), (4, "five")]
+    );
 
     Ok(())
 }
@@ -196,13 +193,10 @@ fn enum_custom_tags() -> common::Result {
 
     impl StrictSerialize for Assoc {}
 
-    assert_eq!(Assoc::ALL_VARIANTS, &[
-        (0, "one"),
-        (2, "two"),
-        (3, "three"),
-        (4, "four"),
-        (5, "five")
-    ]);
+    assert_eq!(
+        Assoc::ALL_VARIANTS,
+        &[(0, "one"), (2, "two"), (3, "three"), (4, "four"), (5, "five")]
+    );
 
     let assoc = Assoc::Two(0, 1, 2);
     assert_eq!(assoc.to_strict_serialized::<256>().unwrap().as_slice(), &[2, 0, 1, 0, 2, 0, 0, 0]);

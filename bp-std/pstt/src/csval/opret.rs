@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB wallet library for smart contracts on Tondi & off-chain network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,7 +23,7 @@
 //! commitments.
 //!
 //! NB: Wallets supporting opret commitments must do that through the use of
-//! deterministic bitcoin commitments crate (`bp-dpc`) in order to ensure
+//! deterministic tondi commitments crate (`bp-dpc`) in order to ensure
 //! that multiple protocols can put commitment inside the same transaction
 //! without collisions between them.
 //!
@@ -214,5 +214,7 @@ impl Output {
 }
 
 impl From<&OpretProof> for ValueData {
-    fn from(_: &OpretProof) -> Self { ValueData::default() }
+    fn from(_: &OpretProof) -> Self {
+        ValueData::default()
+    }
 }

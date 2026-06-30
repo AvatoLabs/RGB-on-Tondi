@@ -93,7 +93,9 @@ impl PsttVer {
         })
     }
 
-    pub const fn to_standard_u32(&self) -> u32 { *self as u32 }
+    pub const fn to_standard_u32(&self) -> u32 {
+        *self as u32
+    }
 
     pub const fn max() -> Self {
         // this is a special syntax construct to get compiler error each time we add a new version

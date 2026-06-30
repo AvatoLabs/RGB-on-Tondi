@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -32,20 +32,30 @@ pub struct VBytes(u32);
 
 impl Add for VBytes {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { Self(self.0 + rhs.0) }
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
 }
 
 impl AddAssign for VBytes {
-    fn add_assign(&mut self, rhs: Self) { self.0.add_assign(rhs.0) }
+    fn add_assign(&mut self, rhs: Self) {
+        self.0.add_assign(rhs.0)
+    }
 }
 
 impl Sum for VBytes {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self { Self(iter.map(Self::into_u32).sum()) }
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        Self(iter.map(Self::into_u32).sum())
+    }
 }
 
 impl VBytes {
-    pub fn to_u32(&self) -> u32 { self.0 }
-    pub fn into_u32(self) -> u32 { self.0 }
+    pub fn to_u32(&self) -> u32 {
+        self.0
+    }
+    pub fn into_u32(self) -> u32 {
+        self.0
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
@@ -56,33 +66,51 @@ pub struct WeightUnits(u32);
 
 impl Add for WeightUnits {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { Self(self.0 + rhs.0) }
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
 }
 
 impl AddAssign for WeightUnits {
-    fn add_assign(&mut self, rhs: Self) { self.0.add_assign(rhs.0) }
+    fn add_assign(&mut self, rhs: Self) {
+        self.0.add_assign(rhs.0)
+    }
 }
 
 impl Sum for WeightUnits {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self { Self(iter.map(Self::into_u32).sum()) }
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        Self(iter.map(Self::into_u32).sum())
+    }
 }
 
 impl From<WeightUnits> for VBytes {
-    fn from(wu: WeightUnits) -> Self { Self((wu.0 as f32 / 4.0).ceil() as u32) }
+    fn from(wu: WeightUnits) -> Self {
+        Self((wu.0 as f32 / 4.0).ceil() as u32)
+    }
 }
 
 impl WeightUnits {
-    pub fn no_discount(bytes: usize) -> Self { WeightUnits(bytes as u32 * 4) }
-    pub fn witness_discount(bytes: usize) -> Self { WeightUnits(bytes as u32) }
-    pub fn to_u32(&self) -> u32 { self.0 }
-    pub fn into_u32(self) -> u32 { self.0 }
+    pub fn no_discount(bytes: usize) -> Self {
+        WeightUnits(bytes as u32 * 4)
+    }
+    pub fn witness_discount(bytes: usize) -> Self {
+        WeightUnits(bytes as u32)
+    }
+    pub fn to_u32(&self) -> u32 {
+        self.0
+    }
+    pub fn into_u32(self) -> u32 {
+        self.0
+    }
 }
 
 pub trait Weight {
     fn weight_units(&self) -> WeightUnits;
 
     #[inline]
-    fn vbytes(&self) -> VBytes { VBytes::from(self.weight_units()) }
+    fn vbytes(&self) -> VBytes {
+        VBytes::from(self.weight_units())
+    }
 }
 
 impl Weight for Tx {

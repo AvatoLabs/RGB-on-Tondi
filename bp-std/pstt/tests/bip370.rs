@@ -30,32 +30,52 @@ fn parse_roundtrip(s: &str) {
 }
 
 #[test]
-fn base() { parse_roundtrip(include_str!("valid.v2/base.pstt")); }
+fn base() {
+    parse_roundtrip(include_str!("valid.v2/base.pstt"));
+}
 
 #[test]
-fn updated() { parse_roundtrip(include_str!("valid.v2/updated.pstt")); }
+fn updated() {
+    parse_roundtrip(include_str!("valid.v2/updated.pstt"));
+}
 
 #[test]
-fn nseq() { parse_roundtrip(include_str!("valid.v2/nseq.pstt")); }
+fn nseq() {
+    parse_roundtrip(include_str!("valid.v2/nseq.pstt"));
+}
 
 #[test]
-fn locks() { parse_roundtrip(include_str!("valid.v2/locks.pstt")); }
+fn locks() {
+    parse_roundtrip(include_str!("valid.v2/locks.pstt"));
+}
 
 #[test]
-fn in_modifiable() { parse_roundtrip(include_str!("valid.v2/in_modifiable.pstt")); }
+fn in_modifiable() {
+    parse_roundtrip(include_str!("valid.v2/in_modifiable.pstt"));
+}
 
 #[test]
-fn out_modifiable() { parse_roundtrip(include_str!("valid.v2/out_modifiable.pstt")); }
+fn out_modifiable() {
+    parse_roundtrip(include_str!("valid.v2/out_modifiable.pstt"));
+}
 
 #[test]
-fn sighash_single() { parse_roundtrip(include_str!("valid.v2/sighash_single.pstt")); }
+fn sighash_single() {
+    parse_roundtrip(include_str!("valid.v2/sighash_single.pstt"));
+}
 
 #[test]
-fn undefined_flag() { parse_roundtrip(include_str!("valid.v2/undefined_flag.pstt")); }
+fn undefined_flag() {
+    parse_roundtrip(include_str!("valid.v2/undefined_flag.pstt"));
+}
 
 #[test]
-fn all_modifiable() { parse_roundtrip(include_str!("valid.v2/all_modifiable.pstt")); }
+fn all_modifiable() {
+    parse_roundtrip(include_str!("valid.v2/all_modifiable.pstt"));
+}
 
 /// Case: 1 input, 2 output updated PSTTv2, with all PSTTv2 fields
 #[test]
-fn all() { parse_roundtrip(include_str!("valid.v2/all.pstt")); }
+fn all() {
+    parse_roundtrip(include_str!("valid.v2/all.pstt"));
+}

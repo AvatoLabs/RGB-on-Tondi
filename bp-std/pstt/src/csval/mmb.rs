@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB wallet library for smart contracts on Tondi & off-chain network
 //
 // SPDX-License-Identifier: Apache-2.0
 //

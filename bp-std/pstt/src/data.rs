@@ -28,8 +28,8 @@ use derive::{
     Bip340Sig, ByteStr, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk, LegacySig,
     LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptCode, ScriptPubkey,
     SeqNo, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx,
-    VarIntBytes,
-    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
+    TxIn, TxOut, TxVer, Txid, VarIntArray, VarIntBytes, Vout, Witness, WitnessScript, XOnlyPk,
+    XkeyOrigin, Xpub,
 };
 use descriptors::{Descriptor, LegacyKeySig, TaprootKeySig};
 use indexmap::IndexMap;
@@ -71,7 +71,9 @@ impl Prevout {
         }
     }
 
-    pub fn outpoint(&self) -> Outpoint { Outpoint::new(self.txid, self.vout) }
+    pub fn outpoint(&self) -> Outpoint {
+        Outpoint::new(self.txid, self.vout)
+    }
 }
 
 /// Structure representing data on unsigned transaction the way it is stored in PSTTv1 global key.
@@ -100,7 +102,9 @@ pub struct UnsignedTx {
 
 impl From<Tx> for UnsignedTx {
     #[inline]
-    fn from(tx: Tx) -> UnsignedTx { UnsignedTx::with_sigs_removed(tx) }
+    fn from(tx: Tx) -> UnsignedTx {
+        UnsignedTx::with_sigs_removed(tx)
+    }
 }
 
 impl From<UnsignedTx> for Tx {
@@ -113,10 +117,10 @@ impl From<UnsignedTx> for Tx {
             ),
             outputs: unsigned_tx.outputs,
             lock_time: unsigned_tx.lock_time,
-            subnetwork_id: [0u8; 20], // Default subnetwork ID
-            gas: 0, // Default gas
+            subnetwork_id: [0u8; 20],    // Default subnetwork ID
+            gas: 0,                      // Default gas
             payload: VarIntBytes::new(), // Default empty payload
-            mass: 0, // Default mass
+            mass: 0,                     // Default mass
         }
     }
 }
@@ -134,7 +138,9 @@ impl UnsignedTx {
         }
     }
 
-    pub fn txid(&self) -> Txid { Tx::from(self.clone()).txid() }
+    pub fn txid(&self) -> Txid {
+        Tx::from(self.clone()).txid()
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -151,7 +157,9 @@ pub struct UnsignedTxIn {
 
 impl From<TxIn> for UnsignedTxIn {
     #[inline]
-    fn from(txin: TxIn) -> UnsignedTxIn { UnsignedTxIn::with_sigs_removed(txin) }
+    fn from(txin: TxIn) -> UnsignedTxIn {
+        UnsignedTxIn::with_sigs_removed(txin)
+    }
 }
 
 impl From<UnsignedTxIn> for TxIn {
@@ -217,7 +225,9 @@ pub struct Pstt {
 }
 
 impl Default for Pstt {
-    fn default() -> Self { Pstt::create(PsttVer::V2) }
+    fn default() -> Self {
+        Pstt::create(PsttVer::V2)
+    }
 }
 
 impl Pstt {
@@ -237,7 +247,7 @@ impl Pstt {
     }
 
     /// Sets the payload for this PSTT.
-    /// 
+    ///
     /// # Errors
     /// Returns error if the version doesn't support payload (V0).
     pub fn set_payload(&mut self, payload: impl Into<ByteStr>) -> Result<(), PayloadError> {
@@ -292,25 +302,41 @@ impl Pstt {
         }
     }
 
-    pub fn txid(&self) -> Txid { self.to_unsigned_tx().txid() }
+    pub fn txid(&self) -> Txid {
+        self.to_unsigned_tx().txid()
+    }
 
-    pub fn input(&self, index: usize) -> Option<&Input> { self.inputs.get(index) }
+    pub fn input(&self, index: usize) -> Option<&Input> {
+        self.inputs.get(index)
+    }
 
-    pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> { self.inputs.get_mut(index) }
+    pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> {
+        self.inputs.get_mut(index)
+    }
 
-    pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
+    pub fn inputs(&self) -> impl Iterator<Item = &Input> {
+        self.inputs.iter()
+    }
 
-    pub fn inputs_mut(&mut self) -> impl Iterator<Item = &mut Input> { self.inputs.iter_mut() }
+    pub fn inputs_mut(&mut self) -> impl Iterator<Item = &mut Input> {
+        self.inputs.iter_mut()
+    }
 
-    pub fn output(&self, index: usize) -> Option<&Output> { self.outputs.get(index) }
+    pub fn output(&self, index: usize) -> Option<&Output> {
+        self.outputs.get(index)
+    }
 
     pub fn output_mut(&mut self, index: usize) -> Option<&mut Output> {
         self.outputs.get_mut(index)
     }
 
-    pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
+    pub fn outputs(&self) -> impl Iterator<Item = &Output> {
+        self.outputs.iter()
+    }
 
-    pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> { self.outputs.iter_mut() }
+    pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> {
+        self.outputs.iter_mut()
+    }
 
     pub fn lock_time(&self) -> LockTime {
         // TODO #45: Compute correct LockTime
@@ -318,15 +344,23 @@ impl Pstt {
     }
 
     #[inline]
-    pub fn input_sum(&self) -> Sats { self.inputs().map(Input::value).sum() }
+    pub fn input_sum(&self) -> Sats {
+        self.inputs().map(Input::value).sum()
+    }
 
     #[inline]
-    pub fn output_sum(&self) -> Sats { self.outputs().map(Output::value).sum() }
+    pub fn output_sum(&self) -> Sats {
+        self.outputs().map(Output::value).sum()
+    }
 
     #[inline]
-    pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
+    pub fn fee(&self) -> Option<Sats> {
+        self.input_sum().checked_sub(self.output_sum())
+    }
 
-    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XkeyOrigin)> { self.xpubs.iter() }
+    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XkeyOrigin)> {
+        self.xpubs.iter()
+    }
 
     pub fn is_modifiable(&self) -> bool {
         self.tx_modifiable.as_ref().map(ModifiableFlags::is_modifiable).unwrap_or_default()
@@ -526,7 +560,9 @@ impl Pstt {
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
     }
 
-    pub fn is_finalized(&self) -> bool { self.inputs.iter().all(Input::is_finalized) }
+    pub fn is_finalized(&self) -> bool {
+        self.inputs.iter().all(Input::is_finalized)
+    }
 
     pub fn finalize<D: Descriptor<K, V>, K, V>(&mut self, descriptor: &D) -> usize {
         self.inputs.iter_mut().map(|input| input.finalize(descriptor) as usize).sum()
@@ -544,10 +580,10 @@ impl Pstt {
             inputs: VarIntArray::from_iter_checked(self.inputs.iter().map(Input::to_signed_txin)),
             outputs: VarIntArray::from_iter_checked(self.outputs.iter().map(Output::to_txout)),
             lock_time: self.lock_time(),
-            subnetwork_id: [0u8; 20], // Default subnetwork ID
-            gas: 0, // Default gas
+            subnetwork_id: [0u8; 20],    // Default subnetwork ID
+            gas: 0,                      // Default gas
             payload: VarIntBytes::new(), // Default empty payload
-            mass: 0, // Default mass
+            mass: 0,                     // Default mass
         })
     }
 }
@@ -586,15 +622,21 @@ mod display_from_str {
             Pstt::deserialize(data).map_err(PsttParseError::from)
         }
 
-        pub fn to_base64(&self) -> String { self.to_base64_ver(self.version) }
+        pub fn to_base64(&self) -> String {
+            self.to_base64_ver(self.version)
+        }
 
         pub fn to_base64_ver(&self, version: PsttVer) -> String {
             BASE64_STANDARD.encode(self.serialize(version))
         }
 
-        pub fn to_base16(&self) -> String { self.to_base16_ver(self.version) }
+        pub fn to_base16(&self) -> String {
+            self.to_base16_ver(self.version)
+        }
 
-        pub fn to_base16_ver(&self, version: PsttVer) -> String { self.serialize(version).to_hex() }
+        pub fn to_base16_ver(&self, version: PsttVer) -> String {
+            self.serialize(version).to_hex()
+        }
     }
 
     /// FromStr implementation parses both Base64 and Hex (Base16) encodings.
@@ -843,7 +885,7 @@ impl Input {
         } else {
             Witness::default()
         };
-        
+
         TxIn {
             prev_output: self.previous_outpoint,
             // TODO #45: Figure out default SeqNo
@@ -882,10 +924,14 @@ impl Input {
     }
 
     #[inline]
-    pub fn value(&self) -> Sats { self.prev_txout().value }
+    pub fn value(&self) -> Sats {
+        self.prev_txout().value
+    }
 
     #[inline]
-    pub fn index(&self) -> usize { self.index }
+    pub fn index(&self) -> usize {
+        self.index
+    }
 
     /// Computes script code, used in SegWit v0 signing algorithm (BIP143).
     ///
@@ -920,7 +966,9 @@ impl Input {
     }
 
     #[must_use]
-    pub fn is_bip340(&self) -> bool { self.tap_internal_key.is_some() }
+    pub fn is_bip340(&self) -> bool {
+        self.tap_internal_key.is_some()
+    }
 
     #[must_use]
     pub fn is_finalized(&self) -> bool {
@@ -1023,7 +1071,7 @@ pub struct Output {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) index: usize,
 
-    /// The output's amount in satoshis.
+    /// The output's amount in base units.
     pub amount: Sats,
 
     /// The script for this output, also known as the scriptPubKey.
@@ -1091,7 +1139,9 @@ impl Output {
         output
     }
 
-    pub fn from_txout((index, txout): (usize, TxOut)) -> Self { Output::with_txout(txout, index) }
+    pub fn from_txout((index, txout): (usize, TxOut)) -> Self {
+        Output::with_txout(txout, index)
+    }
 
     pub fn to_txout(&self) -> TxOut {
         TxOut {
@@ -1101,13 +1151,19 @@ impl Output {
     }
 
     #[inline]
-    pub fn value(&self) -> Sats { self.amount }
+    pub fn value(&self) -> Sats {
+        self.amount
+    }
 
     #[inline]
-    pub fn index(&self) -> usize { self.index }
+    pub fn index(&self) -> usize {
+        self.index
+    }
 
     #[inline]
-    pub fn vout(&self) -> Vout { Vout::from_u32(self.index as u32) }
+    pub fn vout(&self) -> Vout {
+        Vout::from_u32(self.index as u32)
+    }
 
     pub fn terminal_derivation(&self) -> Option<Terminal> {
         if self.bip32_derivation.is_empty() && self.tap_bip32_derivation.is_empty() {

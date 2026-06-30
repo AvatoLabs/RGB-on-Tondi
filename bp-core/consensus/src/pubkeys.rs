@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -61,12 +61,16 @@ pub enum InvalidPubkey<const LEN: usize> {
 pub struct CompressedPk(PublicKey);
 
 impl CompressedPk {
-    fn dumb() -> Self { Self(PublicKey::from_slice(&[2u8; 33]).unwrap()) }
+    fn dumb() -> Self {
+        Self(PublicKey::from_slice(&[2u8; 33]).unwrap())
+    }
 
     pub fn from_byte_array(data: [u8; 33]) -> Result<Self, InvalidPubkey<33>> {
         PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey::Specified(data.into()))
     }
-    pub fn to_byte_array(&self) -> [u8; 33] { self.0.serialize() }
+    pub fn to_byte_array(&self) -> [u8; 33] {
+        self.0.serialize()
+    }
 
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, InvalidPubkey<33>> {
         Ok(CompressedPk(PublicKey::from_slice(bytes.as_ref())?))
@@ -110,12 +114,16 @@ impl FromStr for CompressedPk {
 pub struct UncompressedPk(PublicKey);
 
 impl UncompressedPk {
-    fn dumb() -> Self { Self(PublicKey::from_slice(&[2u8; 33]).unwrap()) }
+    fn dumb() -> Self {
+        Self(PublicKey::from_slice(&[2u8; 33]).unwrap())
+    }
 
     pub fn from_byte_array(data: [u8; 65]) -> Result<Self, InvalidPubkey<65>> {
         PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey::Specified(data.into()))
     }
-    pub fn to_byte_array(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
+    pub fn to_byte_array(&self) -> [u8; 65] {
+        self.0.serialize_uncompressed()
+    }
 }
 
 impl StrictEncode for UncompressedPk {
@@ -159,19 +167,27 @@ pub struct LegacyPk {
 }
 
 impl From<PublicKey> for LegacyPk {
-    fn from(pk: PublicKey) -> Self { LegacyPk::compressed(pk) }
+    fn from(pk: PublicKey) -> Self {
+        LegacyPk::compressed(pk)
+    }
 }
 
 impl From<CompressedPk> for LegacyPk {
-    fn from(pk: CompressedPk) -> Self { LegacyPk::compressed(pk.0) }
+    fn from(pk: CompressedPk) -> Self {
+        LegacyPk::compressed(pk.0)
+    }
 }
 
 impl From<UncompressedPk> for LegacyPk {
-    fn from(pk: UncompressedPk) -> Self { LegacyPk::uncompressed(pk.0) }
+    fn from(pk: UncompressedPk) -> Self {
+        LegacyPk::uncompressed(pk.0)
+    }
 }
 
 impl LegacyPk {
-    fn dumb() -> Self { Self::compressed(PublicKey::from_slice(&[2u8; 33]).unwrap()) }
+    fn dumb() -> Self {
+        Self::compressed(PublicKey::from_slice(&[2u8; 33]).unwrap())
+    }
 
     pub const fn compressed(pubkey: PublicKey) -> Self {
         LegacyPk {

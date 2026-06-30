@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Tondi protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
@@ -107,7 +107,7 @@ impl SighashType {
     /// non-standard values of `n`. While verifying signatures, the user
     /// should retain the `n` and use it compute the signature hash message.
     pub fn from_consensus_u32(n: u32) -> SighashType {
-        // In Bitcoin Core, the SignatureHash function will mask the (int32) value with
+        // In Tondi Core, the SignatureHash function will mask the (int32) value with
         // 0x1f to (apparently) deactivate ACP when checking for SINGLE and NONE bits.
         // We however want to be matching also against on ACP-masked ALL, SINGLE, and
         // NONE. So here we re-activate ACP.
@@ -137,7 +137,7 @@ impl SighashType {
     /// If `n` is a non-standard sighash value.
     pub fn from_standard_u32(n: u32) -> Result<SighashType, NonStandardValue<u32>> {
         let (flag, anyone_can_pay) = match n {
-            // Standard sighashes, see https://github.com/bitcoin/bitcoin/blob/b805dbb0b9c90dadef0424e5b3bf86ac308e103e/src/script/interpreter.cpp#L189-L198
+            // Standard sighashes, see https://github.com/tondi/tondi/blob/b805dbb0b9c90dadef0424e5b3bf86ac308e103e/src/script/interpreter.cpp#L189-L198
             0x01 => (SighashFlag::All, false),
             0x02 => (SighashFlag::None, false),
             0x03 => (SighashFlag::Single, false),
@@ -157,14 +157,18 @@ impl SighashType {
     /// The returned value is guaranteed to be a valid according to standardness
     /// rules.
     #[inline]
-    pub const fn into_consensus_u32(self) -> u32 { self.into_consensus_u8() as u32 }
+    pub const fn into_consensus_u32(self) -> u32 {
+        self.into_consensus_u8() as u32
+    }
 
     /// Converts [`SighashType`] to a `u32` sighash flag.
     ///
     /// The returned value is guaranteed to be a valid according to standardness
     /// rules.
     #[inline]
-    pub const fn to_consensus_u32(&self) -> u32 { self.into_consensus_u32() }
+    pub const fn to_consensus_u32(&self) -> u32 {
+        self.into_consensus_u32()
+    }
 
     pub const fn into_consensus_u8(self) -> u8 {
         let flag = self.flag as u8;
@@ -201,11 +205,15 @@ pub struct Sighash(
 );
 
 impl From<Sighash> for [u8; 32] {
-    fn from(value: Sighash) -> Self { value.0.into_inner() }
+    fn from(value: Sighash) -> Self {
+        value.0.into_inner()
+    }
 }
 
 impl From<Sighash> for secp256k1::Message {
-    fn from(sighash: Sighash) -> Self { secp256k1::Message::from_digest(sighash.to_byte_array()) }
+    fn from(sighash: Sighash) -> Self {
+        secp256k1::Message::from_digest(sighash.to_byte_array())
+    }
 }
 
 impl Sighash {
@@ -229,7 +237,9 @@ impl Sighash {
 pub struct ScriptCode(ScriptBytes);
 
 impl ScriptCode {
-    pub fn with_p2sh_wpkh(script_pubkey: &ScriptPubkey) -> Self { Self::with_p2wpkh(script_pubkey) }
+    pub fn with_p2sh_wpkh(script_pubkey: &ScriptPubkey) -> Self {
+        Self::with_p2wpkh(script_pubkey)
+    }
 
     pub fn with_p2wpkh(script_pubkey: &ScriptPubkey) -> Self {
         let mut pubkey_hash = [0u8; 20];
@@ -248,7 +258,9 @@ impl ScriptCode {
     }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
+    pub fn as_script_bytes(&self) -> &ScriptBytes {
+        &self.0
+    }
 }
 
 /// An ECDSA signature-related error.
@@ -285,7 +297,7 @@ pub struct LegacySig {
 }
 
 impl LegacySig {
-    /// Constructs an ECDSA bitcoin signature for [`SighashType::All`].
+    /// Constructs an ECDSA tondi signature for [`SighashType::All`].
     pub fn sighash_all(sig: ecdsa::Signature) -> LegacySig {
         LegacySig {
             sig,
@@ -326,7 +338,7 @@ pub struct Bip340Sig {
 }
 
 impl Bip340Sig {
-    /// Constructs an ECDSA bitcoin signature for [`SighashType::All`].
+    /// Constructs an ECDSA tondi signature for [`SighashType::All`].
     pub fn sighash_default(sig: schnorr::Signature) -> Self {
         Bip340Sig {
             sig,

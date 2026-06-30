@@ -91,15 +91,11 @@ pub use timelocks::{
     TimelockParseError, LOCKTIME_THRESHOLD, SEQ_NO_CSV_DISABLE_MASK, SEQ_NO_CSV_TYPE_MASK,
 };
 pub use tx::{
-    BlockDataParseError, Outpoint, OutpointParseError, Sats, Tx, TxIn, TxOut, TxVer, Txid,
-    TondiTxid, TondiOutpoint, Vout,
+    BlockDataParseError, Outpoint, OutpointParseError, Sats, TondiOutpoint, TondiTxid, Tx, TxIn,
+    TxOut, TxVer, Txid, Vout,
 };
 pub use util::NonStandardValue;
 pub use weights::{VBytes, Weight, WeightUnits};
 
 /// Tondi consensus library name for strict encoding.
 pub const LIB_NAME_TONDI: &str = "Tondi";
-
-/// Bitcoin library name (deprecated, kept for backward compatibility).
-#[deprecated(note = "Use LIB_NAME_TONDI instead")]
-pub const LIB_NAME_BITCOIN: &str = LIB_NAME_TONDI;

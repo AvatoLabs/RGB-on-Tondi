@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,7 +22,7 @@
 use std::fmt::{Debug, Display};
 
 /// the provided value {value} for {matter} is non-standard; while it is
-/// accepted by the bitcoin consensus rules, the software prohibits from using
+/// accepted by the tondi consensus rules, the software prohibits from using
 /// it.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
@@ -32,5 +32,7 @@ pub struct NonStandardValue<T: Debug + Display> {
 }
 
 impl<T: Debug + Display> NonStandardValue<T> {
-    pub const fn with(value: T, matter: &'static str) -> Self { NonStandardValue { value, matter } }
+    pub const fn with(value: T, matter: &'static str) -> Self {
+        NonStandardValue { value, matter }
+    }
 }

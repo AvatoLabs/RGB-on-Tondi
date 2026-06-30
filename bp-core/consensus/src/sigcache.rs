@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Tondi protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
@@ -66,7 +66,9 @@ pub enum SighashError {
 }
 
 impl From<IoError> for SighashError {
-    fn from(_: IoError) -> Self { unreachable!("in-memory I/O doesn't error in Rust") }
+    fn from(_: IoError) -> Self {
+        unreachable!("in-memory I/O doesn't error in Rust")
+    }
 }
 
 /// Efficiently calculates signature hash message for legacy, segwit and taproot

@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB wallet library for smart contracts on Tondi & off-chain network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,7 +23,7 @@
 //! (or tapret) commitments.
 //!
 //! NB: Wallets supporting tapret commitments must do that through the use of
-//! deterministic bitcoin commitments crate (`bp-dpc`) in order to ensure
+//! deterministic tondi commitments crate (`bp-dpc`) in order to ensure
 //! that multiple protocols can put commitment inside the same transaction
 //! without collisions between them.
 //!
@@ -247,7 +247,9 @@ impl Output {
     /// become a standard and non-custom key, PSTTs with invalid key values
     /// will error at deserialization and this function will return `false`
     /// only in cases when the output does not have `PSTT_OUT_TAPRET_PROOF`.
-    pub fn has_tapret_proof(&self) -> bool { self.tapret_proof().is_some() }
+    pub fn has_tapret_proof(&self) -> bool {
+        self.tapret_proof().is_some()
+    }
 
     /// Returns valid tapret commitment proof from the [`PSTT_OUT_TAPRET_PROOF`]
     /// key, if present. If the commitment is absent or invalid, returns `None`.

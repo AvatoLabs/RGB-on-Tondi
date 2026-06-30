@@ -92,7 +92,9 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
         })
     }
 
-    pub fn dir(&self) -> &Path { self.dir.as_path() }
+    pub fn dir(&self) -> &Path {
+        self.dir.as_path()
+    }
 
     fn get_contract_dir(&self, contract_id: ContractId) -> Option<PathBuf> {
         let subdir = self.contracts.get(&contract_id)?;
@@ -126,23 +128,37 @@ where
     type Pile = PileFs<Seal>;
     type Error = io::Error;
 
-    fn consensus(&self) -> Consensus { self.consensus }
+    fn consensus(&self) -> Consensus {
+        self.consensus
+    }
 
-    fn is_testnet(&self) -> bool { self.testnet }
+    fn is_testnet(&self) -> bool {
+        self.testnet
+    }
 
-    fn issuers_count(&self) -> usize { self.issuers.len() }
+    fn issuers_count(&self) -> usize {
+        self.issuers.len()
+    }
 
-    fn contracts_count(&self) -> usize { self.contracts.len() }
+    fn contracts_count(&self) -> usize {
+        self.contracts.len()
+    }
 
-    fn has_issuer(&self, codex_id: CodexId) -> bool { self.issuers.contains_key(&codex_id) }
+    fn has_issuer(&self, codex_id: CodexId) -> bool {
+        self.issuers.contains_key(&codex_id)
+    }
 
     fn has_contract(&self, contract_id: ContractId) -> bool {
         self.contracts.contains_key(&contract_id)
     }
 
-    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.issuers.keys().copied() }
+    fn codex_ids(&self) -> impl Iterator<Item = CodexId> {
+        self.issuers.keys().copied()
+    }
 
-    fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
+    fn contract_ids(&self) -> impl Iterator<Item = ContractId> {
+        self.contracts.keys().copied()
+    }
 
     fn issuer(&self, codex_id: CodexId) -> Option<Issuer> {
         let name = self.issuers.get(&codex_id)?;

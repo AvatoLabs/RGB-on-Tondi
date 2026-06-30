@@ -1,4 +1,4 @@
-// Bitcoin protocol core library.
+// Tondi protocol core library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -37,9 +37,9 @@
 
 //! Core module defines core strict interfaces from informational LNPBP
 //! standards specifying secure and robust practices for function calls
-//! used in main bitcoin protocols:
+//! used in Tondi-native protocol workflows:
 //! - consensus-level primitives;
-//! - deterministic bitcoin commitments;
+//! - deterministic transaction commitments;
 //! - single-use-seals.
 //!
 //! The goal of this module is to maximally reduce the probability of errors and

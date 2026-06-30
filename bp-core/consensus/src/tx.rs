@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Tondi protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
@@ -32,11 +32,13 @@ use amplify::{ByteArray, Bytes32StrRev, Wrapper};
 use commit_verify::{DigestExt, TondiBlake3};
 
 use crate::{
-    ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime,
-    ScriptPubkey, SeqNo, SigScript, VarIntArray, VarIntBytes, Witness, Wtxid, LIB_NAME_TONDI,
+    ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LockTime, ScriptPubkey, SeqNo,
+    SigScript, VarIntArray, VarIntBytes, Witness, Wtxid, LIB_NAME_TONDI,
 };
 
-use strict_encoding::{StrictDecode, StrictEncode, TypedRead, TypedWrite, DecodeError, ReadRaw, WriteRaw};
+use strict_encoding::{
+    DecodeError, ReadRaw, StrictDecode, StrictEncode, TypedRead, TypedWrite, WriteRaw,
+};
 
 #[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
 #[wrapper(AsSlice)]
@@ -52,20 +54,26 @@ pub struct Txid(
 );
 
 impl From<Txid> for [u8; 32] {
-    fn from(txid: Txid) -> Self { txid.to_byte_array() }
+    fn from(txid: Txid) -> Self {
+        txid.to_byte_array()
+    }
 }
 
 impl Txid {
     #[inline]
-    pub const fn coinbase() -> Self { Self(Bytes32StrRev::zero()) }
+    pub const fn coinbase() -> Self {
+        Self(Bytes32StrRev::zero())
+    }
     #[inline]
-    pub fn is_coinbase(&self) -> bool { self.to_byte_array() == [0u8; 32] }
+    pub fn is_coinbase(&self) -> bool {
+        self.to_byte_array() == [0u8; 32]
+    }
 }
 
 /// Tondi transaction ID using BLAKE3 hash algorithm.
 ///
 /// This type represents a transaction ID computed using BLAKE3 with domain separation,
-/// as opposed to Bitcoin's double SHA256. It is designed to be compatible with RGB's
+/// as opposed to Tondi's double SHA256. It is designed to be compatible with RGB's
 /// `WitnessId` trait requirements.
 ///
 /// # RGB Compatibility
@@ -85,7 +93,9 @@ pub struct TondiTxid(
 );
 
 impl From<TondiTxid> for [u8; 32] {
-    fn from(txid: TondiTxid) -> Self { txid.to_byte_array() }
+    fn from(txid: TondiTxid) -> Self {
+        txid.to_byte_array()
+    }
 }
 
 impl TondiTxid {
@@ -97,20 +107,26 @@ impl TondiTxid {
 
     /// Converts the TondiTxid to a byte array.
     #[inline]
-    pub fn to_byte_array(self) -> [u8; 32] { self.0.to_byte_array() }
+    pub fn to_byte_array(self) -> [u8; 32] {
+        self.0.to_byte_array()
+    }
 
     /// Returns the coinbase transaction ID (all zeros).
     #[inline]
-    pub const fn coinbase() -> Self { Self(Bytes32StrRev::zero()) }
+    pub const fn coinbase() -> Self {
+        Self(Bytes32StrRev::zero())
+    }
 
     /// Checks if this is a coinbase transaction ID.
     #[inline]
-    pub fn is_coinbase(&self) -> bool { self.to_byte_array() == [0u8; 32] }
+    pub fn is_coinbase(&self) -> bool {
+        self.to_byte_array() == [0u8; 32]
+    }
 }
 
 /// Conversion from `Txid` to `TondiTxid`.
 ///
-/// This allows interoperability between Bitcoin-compatible `Txid` and Tondi-specific `TondiTxid`.
+/// This allows interoperability between Tondi-compatible `Txid` and Tondi-specific `TondiTxid`.
 impl From<Txid> for TondiTxid {
     fn from(txid: Txid) -> Self {
         TondiTxid::from_byte_array(txid.to_byte_array())
@@ -119,7 +135,7 @@ impl From<Txid> for TondiTxid {
 
 /// Conversion from `TondiTxid` to `Txid`.
 ///
-/// This allows interoperability between Tondi-specific `TondiTxid` and Bitcoin-compatible `Txid`.
+/// This allows interoperability between Tondi-specific `TondiTxid` and Tondi-compatible `Txid`.
 impl From<TondiTxid> for Txid {
     fn from(txid: TondiTxid) -> Self {
         Txid::from_byte_array(txid.to_byte_array())
@@ -135,22 +151,34 @@ impl From<TondiTxid> for Txid {
 pub struct Vout(u32);
 
 impl Vout {
-    pub const fn from_u32(u: u32) -> Self { Vout(u) }
+    pub const fn from_u32(u: u32) -> Self {
+        Vout(u)
+    }
     #[inline]
-    pub const fn into_u32(self) -> u32 { self.0 }
+    pub const fn into_u32(self) -> u32 {
+        self.0
+    }
     #[inline]
-    pub const fn into_usize(self) -> usize { self.0 as usize }
+    pub const fn into_usize(self) -> usize {
+        self.0 as usize
+    }
     #[inline]
-    pub const fn to_u32(&self) -> u32 { self.0 }
+    pub const fn to_u32(&self) -> u32 {
+        self.0
+    }
     #[inline]
-    pub const fn to_usize(&self) -> usize { self.0 as usize }
+    pub const fn to_usize(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl FromStr for Vout {
     type Err = ParseIntError;
 
     #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> { s.parse().map(Self) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map(Self)
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -180,24 +208,30 @@ impl Outpoint {
     }
 
     #[inline]
-    pub fn vout_u32(self) -> u32 { self.vout.into_u32() }
+    pub fn vout_u32(self) -> u32 {
+        self.vout.into_u32()
+    }
 
     #[inline]
-    pub fn vout_usize(self) -> usize { self.vout.into_usize() }
+    pub fn vout_usize(self) -> usize {
+        self.vout.into_usize()
+    }
 
     #[inline]
-    pub fn is_coinbase(&self) -> bool { self.txid.is_coinbase() && self.vout.into_u32() == 0 }
+    pub fn is_coinbase(&self) -> bool {
+        self.txid.is_coinbase() && self.vout.into_u32() == 0
+    }
 }
 
 /// Tondi outpoint using TondiTxid.
 ///
 /// This type represents a transaction output point using Tondi's BLAKE3-based transaction ID,
-/// as opposed to Bitcoin's double SHA256. The serialization format is identical to `Outpoint`:
+/// as opposed to Tondi's double SHA256. The serialization format is identical to `Outpoint`:
 /// 32 bytes for txid followed by 4 bytes for vout.
 ///
 /// # Serialization Format
 ///
-/// The serialization format is identical to Bitcoin's Outpoint:
+/// The serialization format is identical to Tondi's Outpoint:
 /// - 32 bytes: Transaction ID (TondiTxid)
 /// - 4 bytes: Output index (Vout, little-endian u32)
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -230,20 +264,26 @@ impl TondiOutpoint {
 
     /// Returns the vout as u32.
     #[inline]
-    pub fn vout_u32(self) -> u32 { self.vout.into_u32() }
+    pub fn vout_u32(self) -> u32 {
+        self.vout.into_u32()
+    }
 
     /// Returns the vout as usize.
     #[inline]
-    pub fn vout_usize(self) -> usize { self.vout.into_usize() }
+    pub fn vout_usize(self) -> usize {
+        self.vout.into_usize()
+    }
 
     /// Checks if this is a coinbase outpoint.
     #[inline]
-    pub fn is_coinbase(&self) -> bool { self.txid.is_coinbase() && self.vout.into_u32() == 0 }
+    pub fn is_coinbase(&self) -> bool {
+        self.txid.is_coinbase() && self.vout.into_u32() == 0
+    }
 }
 
 /// Conversion from `Outpoint` to `TondiOutpoint`.
 ///
-/// This allows interoperability between Bitcoin-compatible `Outpoint` and Tondi-specific `TondiOutpoint`.
+/// This allows interoperability between Tondi-compatible `Outpoint` and Tondi-specific `TondiOutpoint`.
 impl From<Outpoint> for TondiOutpoint {
     fn from(outpoint: Outpoint) -> Self {
         TondiOutpoint {
@@ -255,7 +295,7 @@ impl From<Outpoint> for TondiOutpoint {
 
 /// Conversion from `TondiOutpoint` to `Outpoint`.
 ///
-/// This allows interoperability between Tondi-specific `TondiOutpoint` and Bitcoin-compatible `Outpoint`.
+/// This allows interoperability between Tondi-specific `TondiOutpoint` and Tondi-compatible `Outpoint`.
 impl From<TondiOutpoint> for Outpoint {
     fn from(outpoint: TondiOutpoint) -> Self {
         Outpoint {
@@ -302,7 +342,9 @@ mod _serde_outpoint {
 
     impl Serialize for Outpoint {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_string())
             } else {
@@ -316,7 +358,9 @@ mod _serde_outpoint {
 
     impl<'de> Deserialize<'de> for Outpoint {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             use serde::de::Error;
             if deserializer.is_human_readable() {
                 String::deserialize(deserializer).and_then(|string| {
@@ -334,7 +378,9 @@ mod _serde_outpoint {
                     }
 
                     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                    where A: SeqAccess<'de> {
+                    where
+                        A: SeqAccess<'de>,
+                    {
                         let mut outpoint = Outpoint::coinbase();
                         outpoint.txid =
                             seq.next_element()?.ok_or_else(|| Error::invalid_length(0, &self))?;
@@ -380,47 +426,61 @@ pub struct Sats(
 impl Sats {
     pub const ZERO: Self = Sats(0);
     #[allow(clippy::inconsistent_digit_grouping)]
-    pub const BTC: Self = Sats(1_000_000_00);
+    pub const TONDI_COIN: Self = Sats(1_000_000_00);
     pub const MAX: Self = Sats(u64::MAX);
 
-    pub const fn from_btc(btc: u32) -> Self { Self(btc as u64 * Self::BTC.0) }
-    pub fn from_sats(sats: impl Into<u64>) -> Self { Self(sats.into()) }
+    pub const fn from_tondi(coins: u32) -> Self {
+        Self(coins as u64 * Self::TONDI_COIN.0)
+    }
+    pub fn from_sats(sats: impl Into<u64>) -> Self {
+        Self(sats.into())
+    }
 
-    pub const fn is_zero(&self) -> bool { self.0 == 0 }
-    pub const fn is_non_zero(&self) -> bool { self.0 != 0 }
+    pub const fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+    pub const fn is_non_zero(&self) -> bool {
+        self.0 != 0
+    }
 
-    pub const fn btc_round(&self) -> u64 {
+    pub const fn coin_round(&self) -> u64 {
         if self.0 == 0 {
             return 0;
         }
-        let inc = 2 * self.sats_rem() / Self::BTC.0;
-        self.0 / Self::BTC.0 + inc
+        let inc = 2 * self.sats_rem() / Self::TONDI_COIN.0;
+        self.0 / Self::TONDI_COIN.0 + inc
     }
 
-    pub const fn btc_ceil(&self) -> u64 {
+    pub const fn coin_ceil(&self) -> u64 {
         if self.0 == 0 {
             return 0;
         }
         let inc = if self.sats_rem() > 0 { 1 } else { 0 };
-        self.0 / Self::BTC.0 + inc
+        self.0 / Self::TONDI_COIN.0 + inc
     }
 
-    pub const fn btc_floor(&self) -> u64 {
+    pub const fn coin_floor(&self) -> u64 {
         if self.0 == 0 {
             return 0;
         }
-        self.0 / Self::BTC.0
+        self.0 / Self::TONDI_COIN.0
     }
 
-    pub const fn sats(&self) -> u64 { self.0 }
+    pub const fn sats(&self) -> u64 {
+        self.0
+    }
 
     pub fn sats_i64(&self) -> i64 {
-        i64::try_from(self.0).expect("amount of sats exceeds total bitcoin supply")
+        i64::try_from(self.0).expect("amount exceeds supported signed range")
     }
 
-    pub const fn sats_rem(&self) -> u64 { self.0 % Self::BTC.0 }
+    pub const fn sats_rem(&self) -> u64 {
+        self.0 % Self::TONDI_COIN.0
+    }
 
-    pub const fn btc_sats(&self) -> (u64, u64) { (self.btc_floor(), self.sats_rem()) }
+    pub const fn coin_sats(&self) -> (u64, u64) {
+        (self.coin_floor(), self.sats_rem())
+    }
 
     #[must_use]
     pub fn checked_add(&self, other: impl Into<Self>) -> Option<Self> {
@@ -462,7 +522,9 @@ impl Sats {
 }
 
 impl PartialEq<u64> for Sats {
-    fn eq(&self, other: &u64) -> bool { self.0.eq(other) }
+    fn eq(&self, other: &u64) -> bool {
+        self.0.eq(other)
+    }
 }
 
 impl Sum for Sats {
@@ -479,16 +541,22 @@ impl Sum<u64> for Sats {
 
 impl Div<usize> for Sats {
     type Output = Sats;
-    fn div(self, rhs: usize) -> Self::Output { Sats(self.0 / rhs as u64) }
+    fn div(self, rhs: usize) -> Self::Output {
+        Sats(self.0 / rhs as u64)
+    }
 }
 
 impl Rem<usize> for Sats {
     type Output = Sats;
-    fn rem(self, rhs: usize) -> Self::Output { Sats(self.0 % rhs as u64) }
+    fn rem(self, rhs: usize) -> Self::Output {
+        Sats(self.0 % rhs as u64)
+    }
 }
 
 impl Display for Sats {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
@@ -513,7 +581,7 @@ impl TxOut {
 ///
 /// # Critical: Type Compatibility
 ///
-/// Tondi uses `u16` (2 bytes) for transaction version, not `i32` (4 bytes) like Bitcoin.
+/// Tondi uses `u16` (2 bytes) for transaction version, not `i32` (4 bytes) like Tondi.
 /// This type MUST match Tondi's native `Transaction.version` field exactly to ensure
 /// correct Txid calculation.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -523,7 +591,9 @@ impl TxOut {
 pub struct TxVer(u16);
 
 impl Default for TxVer {
-    fn default() -> Self { TxVer(1) }
+    fn default() -> Self {
+        TxVer(1)
+    }
 }
 
 impl TxVer {
@@ -534,36 +604,48 @@ impl TxVer {
 
     /// Create from u16 (Tondi's native format)
     #[inline]
-    pub const fn from_consensus_u16(ver: u16) -> Self { TxVer(ver) }
+    pub const fn from_consensus_u16(ver: u16) -> Self {
+        TxVer(ver)
+    }
 
     /// Create from u16 (alias for from_consensus_u16)
     #[inline]
-    pub const fn from_u16(ver: u16) -> Self { TxVer(ver) }
+    pub const fn from_u16(ver: u16) -> Self {
+        TxVer(ver)
+    }
 
     /// Convert to u16 (Tondi's native format)
     #[inline]
-    pub const fn to_consensus_u16(&self) -> u16 { self.0 }
+    pub const fn to_consensus_u16(&self) -> u16 {
+        self.0
+    }
 
     /// Convert to u16 (alias for to_consensus_u16)
     #[inline]
-    pub const fn to_u16(&self) -> u16 { self.0 }
+    pub const fn to_u16(&self) -> u16 {
+        self.0
+    }
 
     /// Legacy method: Convert from i32 (for backward compatibility)
-    /// 
+    ///
     /// # Warning
     /// This may truncate values > u16::MAX. Use `from_u16` for new code.
     #[inline]
-    pub const fn from_consensus_i32(ver: i32) -> Self { 
-        TxVer(ver as u16) 
+    pub const fn from_consensus_i32(ver: i32) -> Self {
+        TxVer(ver as u16)
     }
 
     /// Legacy method: Convert to i32 (for backward compatibility)
     #[inline]
-    pub const fn to_consensus_i32(&self) -> i32 { self.0 as i32 }
+    pub const fn to_consensus_i32(&self) -> i32 {
+        self.0 as i32
+    }
 
     /// Check if version is standard (for Tondi, this is always true for valid u16)
     #[inline]
-    pub const fn is_standard(self) -> bool { true }
+    pub const fn is_standard(self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -657,21 +739,28 @@ impl StrictDecode for Tx {
             const MAX_TX_SIZE: usize = 1_000_000;
             let data = raw_reader.read_raw::<MAX_TX_SIZE>(MAX_TX_SIZE)?;
             // Deserialize using consensus decoding (Tondi format)
-            Tx::consensus_deserialize(data)
-                .map_err(|e| DecodeError::DataIntegrityError(format!("Consensus decode error: {}", e)))
+            Tx::consensus_deserialize(data).map_err(|e| {
+                DecodeError::DataIntegrityError(format!("Consensus decode error: {}", e))
+            })
         }
     }
 }
 
 impl Tx {
     #[inline]
-    pub fn inputs(&self) -> slice::Iter<'_, TxIn> { self.inputs.iter() }
+    pub fn inputs(&self) -> slice::Iter<'_, TxIn> {
+        self.inputs.iter()
+    }
 
     #[inline]
-    pub fn outputs(&self) -> slice::Iter<'_, TxOut> { self.outputs.iter() }
+    pub fn outputs(&self) -> slice::Iter<'_, TxOut> {
+        self.outputs.iter()
+    }
 
     #[inline]
-    pub fn is_segwit(&self) -> bool { self.inputs().any(|txin| !txin.witness.is_empty()) }
+    pub fn is_segwit(&self) -> bool {
+        self.inputs().any(|txin| !txin.witness.is_empty())
+    }
 
     #[inline]
     pub fn to_unsigned_tx(&self) -> Tx {
@@ -687,13 +776,15 @@ impl Tx {
     ///
     /// This gives a way to identify a transaction that is "the same" as
     /// another in the sense of having same inputs and outputs.
-    pub fn ntxid(&self) -> [u8; 32] { self.to_unsigned_tx().txid().to_byte_array() }
+    pub fn ntxid(&self) -> [u8; 32] {
+        self.to_unsigned_tx().txid().to_byte_array()
+    }
 
     /// Computes the [`Txid`].
     ///
     /// For Tondi L1: Uses BLAKE3 with Prefix Mode (b"TransactionID" prefix).
     /// The hash is computed as `blake3("TransactionID" + tx_data)` to match Tondi's native implementation.
-    /// For Bitcoin compatibility: Uses double SHA256.
+    /// For Tondi compatibility: Uses double SHA256.
     ///
     /// Hashes the transaction **excluding** the segwit data (i.e. the marker,
     /// flag bytes, and the witness fields themselves). For non-segwit
@@ -731,7 +822,7 @@ impl Tx {
 
             // 3c. Sequence: u64
             hasher.update(&(input.sequence.to_consensus_u32() as u64).to_le_bytes());
-            
+
             // Note: SigOpCount is NOT included in hash calculation
         }
 
@@ -745,7 +836,7 @@ impl Tx {
             // 4b. ScriptPublicKey
             // Tondi hash format: Version(u16) + ScriptLength(u64) + ScriptBytes
             hasher.update(&0u16.to_le_bytes()); // Version 0 for standard scripts
-            
+
             let script_bytes = output.script_pubkey.as_slice();
             hasher.update(&(script_bytes.len() as u64).to_le_bytes()); // u64 length
             hasher.update(script_bytes);
@@ -755,7 +846,7 @@ impl Tx {
         hasher.update(&self.lock_time.to_consensus_u64().to_le_bytes());
 
         // 6. Subnetwork ID (20 bytes)
-        hasher.update(&self.subnetwork_id); 
+        hasher.update(&self.subnetwork_id);
 
         // 7. Gas: u64
         hasher.update(&self.gas.to_le_bytes());
@@ -768,13 +859,13 @@ impl Tx {
 
         // Get the raw hash result
         let raw_hash = hasher.finish();
-        
+
         // ⚠️ CRITICAL: Bytes32StrRev reverses byte order when converting from byte array
         // So we need to reverse the hash bytes before passing to Txid::from_byte_array()
         // This ensures that after Bytes32StrRev reverses it again, we get the correct order
         let mut reversed_hash = raw_hash;
         reversed_hash.reverse();
-        
+
         Txid::from_byte_array(reversed_hash)
     }
 
@@ -809,11 +900,11 @@ impl Tx {
         Wtxid::from_byte_array(hasher.finish())
     }
 
-    /// Computes the Bitcoin-compatible transaction ID using double SHA256.
+    /// Computes a legacy double-SHA256 transaction ID.
     ///
-    /// For cross-chain operations or Bitcoin compatibility.
-    #[cfg(feature = "bitcoin-compat")]
-    pub fn bitcoin_txid(&self) -> Txid {
+    /// This is excluded from normal Tondi builds and exists only for migration fixtures.
+    #[cfg(feature = "legacy-sha256-compat")]
+    pub fn legacy_sha256_txid(&self) -> Txid {
         let mut enc = Sha256::default();
         self.version.consensus_encode(&mut enc).expect("engines don't error");
         self.inputs.consensus_encode(&mut enc).expect("engines don't error");
@@ -824,11 +915,11 @@ impl Tx {
         Txid::from_byte_array(double.finish())
     }
 
-    /// Computes the Bitcoin-compatible witness transaction ID using double SHA256.
+    /// Computes a legacy double-SHA256 witness transaction ID.
     ///
-    /// For cross-chain operations or Bitcoin compatibility.
-    #[cfg(feature = "bitcoin-compat")]
-    pub fn bitcoin_wtxid(&self) -> Wtxid {
+    /// This is excluded from normal Tondi builds and exists only for migration fixtures.
+    #[cfg(feature = "legacy-sha256-compat")]
+    pub fn legacy_sha256_wtxid(&self) -> Wtxid {
         let mut enc = Sha256::default();
         self.consensus_encode(&mut enc).expect("engines don't error");
         let mut double = Sha256::default();
@@ -859,37 +950,37 @@ mod test {
     #[test]
     fn sats() {
         assert_eq!(Sats(0).0, 0);
-        assert_eq!(Sats(0).btc_round(), 0);
-        assert_eq!(Sats(0).btc_ceil(), 0);
-        assert_eq!(Sats(0).btc_floor(), 0);
+        assert_eq!(Sats(0).coin_round(), 0);
+        assert_eq!(Sats(0).coin_ceil(), 0);
+        assert_eq!(Sats(0).coin_floor(), 0);
         assert_eq!(Sats(0).sats(), 0);
         assert_eq!(Sats(0).sats_rem(), 0);
 
         assert_eq!(Sats(1000).0, 1000);
-        assert_eq!(Sats(1000).btc_round(), 0);
-        assert_eq!(Sats(1000).btc_ceil(), 1);
-        assert_eq!(Sats(1000).btc_floor(), 0);
+        assert_eq!(Sats(1000).coin_round(), 0);
+        assert_eq!(Sats(1000).coin_ceil(), 1);
+        assert_eq!(Sats(1000).coin_floor(), 0);
         assert_eq!(Sats(1000).sats(), 1000);
         assert_eq!(Sats(1000).sats_rem(), 1000);
 
-        assert_eq!(Sats(49_999_999).btc_round(), 0);
-        assert_eq!(Sats(49_999_999).btc_ceil(), 1);
-        assert_eq!(Sats(49_999_999).btc_floor(), 0);
+        assert_eq!(Sats(49_999_999).coin_round(), 0);
+        assert_eq!(Sats(49_999_999).coin_ceil(), 1);
+        assert_eq!(Sats(49_999_999).coin_floor(), 0);
         assert_eq!(Sats(50_000_000).0, 50_000_000);
-        assert_eq!(Sats(50_000_000).btc_round(), 1);
-        assert_eq!(Sats(50_000_000).btc_ceil(), 1);
-        assert_eq!(Sats(50_000_000).btc_floor(), 0);
+        assert_eq!(Sats(50_000_000).coin_round(), 1);
+        assert_eq!(Sats(50_000_000).coin_ceil(), 1);
+        assert_eq!(Sats(50_000_000).coin_floor(), 0);
         assert_eq!(Sats(50_000_000).sats(), 50_000_000);
         assert_eq!(Sats(50_000_000).sats_rem(), 50_000_000);
 
-        assert_eq!(Sats(99_999_999).btc_round(), 1);
-        assert_eq!(Sats(99_999_999).btc_ceil(), 1);
-        assert_eq!(Sats(99_999_999).btc_floor(), 0);
-        assert_eq!(Sats(100_000_000), Sats::from_btc(1));
+        assert_eq!(Sats(99_999_999).coin_round(), 1);
+        assert_eq!(Sats(99_999_999).coin_ceil(), 1);
+        assert_eq!(Sats(99_999_999).coin_floor(), 0);
+        assert_eq!(Sats(100_000_000), Sats::from_tondi(1));
         assert_eq!(Sats(100_000_000).0, 100_000_000);
-        assert_eq!(Sats(100_000_000).btc_round(), 1);
-        assert_eq!(Sats(100_000_000).btc_ceil(), 1);
-        assert_eq!(Sats(100_000_000).btc_floor(), 1);
+        assert_eq!(Sats(100_000_000).coin_round(), 1);
+        assert_eq!(Sats(100_000_000).coin_ceil(), 1);
+        assert_eq!(Sats(100_000_000).coin_floor(), 1);
         assert_eq!(Sats(100_000_000).sats(), 100_000_000);
         assert_eq!(Sats(100_000_000).sats_rem(), 0);
         assert_eq!(Sats(100_000_001).sats(), 100_000_001);
@@ -917,7 +1008,7 @@ mod test {
         // so I'll leave them in.
         assert_eq!(realtx.version, TxVer::V1);
         assert_eq!(realtx.inputs.len(), 1);
-        // In particular this one is easy to get backward -- in bitcoin hashes are
+        // In particular this one is easy to get backward -- in tondi hashes are
         // encoded as little-endian 256-bit numbers rather than as data strings.
         assert_eq!(
             format!("{:x}", realtx.inputs[0].prev_output.txid),
@@ -990,7 +1081,7 @@ mod test {
         let tondi_txid = TondiTxid::from_byte_array(txid_bytes);
         let vout = Vout::from_u32(5);
         let tondi_outpoint = TondiOutpoint::new(tondi_txid, vout);
-        
+
         assert_eq!(tondi_outpoint.txid, tondi_txid);
         assert_eq!(tondi_outpoint.vout, vout);
         assert_eq!(tondi_outpoint.vout_u32(), 5);
@@ -1023,13 +1114,13 @@ mod test {
         // Version: 1
         // LockTime: 0
         // Payload Hex: 502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        
+
         // Payload: 502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         // This is 35 bytes: 0x50 (Annex marker) + 0x20 (TLV type) + 0x20 (length) + 32 bytes of data
         let payload_hex = "502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let payload_bytes = Vec::<u8>::from_hex(payload_hex).expect("Invalid payload hex");
         let payload = VarIntBytes::try_from(payload_bytes).expect("Invalid payload length");
-        
+
         // Create a minimal transaction matching the golden vector
         // NOTE: We need the COMPLETE transaction Hex from Tondi to properly test.
         // For now, we're testing with a manually constructed transaction.
@@ -1043,55 +1134,55 @@ mod test {
             payload,
             mass: 0, // Default mass
         };
-        
+
         // Debug: Print the serialized transaction bytes for comparison
         use crate::ConsensusEncode;
         let mut serialized = Vec::new();
         tx.consensus_encode(&mut serialized).unwrap();
         println!("Serialized transaction ({} bytes): {}", serialized.len(), serialized.to_hex());
-        
+
         // Debug: Print what we're hashing
         use commit_verify::TondiBlake3;
         let mut debug_hasher = TondiBlake3::for_transaction();
         debug_hasher.update(&tx.version.to_consensus_u16().to_le_bytes());
         println!("Version bytes: {:02x?}", tx.version.to_consensus_u16().to_le_bytes());
-        
+
         let mut inputs_buf = Vec::new();
         tx.inputs.consensus_encode(&mut inputs_buf).unwrap();
         debug_hasher.update(&inputs_buf);
         println!("Inputs bytes: {}", inputs_buf.to_hex());
-        
+
         let mut outputs_buf = Vec::new();
         tx.outputs.consensus_encode(&mut outputs_buf).unwrap();
         debug_hasher.update(&outputs_buf);
         println!("Outputs bytes: {}", outputs_buf.to_hex());
-        
+
         let lock_time_bytes = tx.lock_time.to_consensus_u64().to_le_bytes();
         debug_hasher.update(&lock_time_bytes);
         println!("LockTime bytes: {:02x?}", lock_time_bytes);
-        
+
         debug_hasher.update(&tx.subnetwork_id);
         println!("Subnetwork ID bytes: {:02x?}", tx.subnetwork_id);
-        
+
         let gas_bytes = tx.gas.to_le_bytes();
         debug_hasher.update(&gas_bytes);
         println!("Gas bytes: {:02x?}", gas_bytes);
-        
+
         let mut payload_len_buf = Vec::new();
         VarInt::with(tx.payload.len()).consensus_encode(&mut payload_len_buf).unwrap();
         debug_hasher.update(&payload_len_buf);
         println!("Payload length VarInt: {}", payload_len_buf.to_hex());
         debug_hasher.update(&tx.payload);
         println!("Payload bytes: {}", tx.payload.to_hex());
-        
+
         // Calculate Txid
         let calculated_txid = tx.txid();
         let expected_txid_hex = "43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
         let expected_txid = Txid::from_hex(expected_txid_hex).expect("Invalid expected txid hex");
-        
+
         println!("Calculated Txid: {}", calculated_txid.to_hex());
         println!("Expected Txid:  {}", expected_txid_hex);
-        
+
         // Verify the Txid matches
         assert_eq!(
             calculated_txid,
@@ -1100,7 +1191,7 @@ mod test {
             calculated_txid.to_hex(),
             expected_txid_hex
         );
-        
+
         // Also verify using tondi_txid() method
         let tondi_txid = tx.tondi_txid();
         assert_eq!(
@@ -1125,19 +1216,19 @@ mod test {
         // Note: The hex string may include the expected Txid at the end (64 hex chars = 32 bytes)
         // We'll try to parse it, and if it fails, we'll remove the last 64 characters
         let tx_hex = "0100010000000000000000000000000000000000000000000000000000000001000000000000000000000002000000c0de0000000000000000010100000000e803000000000000000001000000ac00000000000000000000000000000000000000000000000000000000000000000000000023000000502020aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000000000000000043efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
-        
+
         println!("=== Parsing Tondi Transaction ===");
         println!("Full Tx Hex ({} bytes): {}", tx_hex.len() / 2, tx_hex);
-        
+
         // Step 1: Deserialize the transaction
-        // ⚠️ WARNING: If this fails, bp-core's StrictEncode (Bitcoin-like format) 
+        // ⚠️ WARNING: If this fails, bp-core's StrictEncode (Tondi-like format)
         // may not be compatible with Tondi's Borsh format
-        
+
         // The hex string might include the expected Txid at the end (64 hex chars = 32 bytes)
         // Try parsing the full hex first, if it fails, try removing the last 64 chars
         let expected_txid_hex = "43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
         let mut tx_bytes = Vec::<u8>::from_hex(tx_hex).expect("Invalid transaction hex");
-        
+
         // Try to deserialize - if it fails and hex ends with expected Txid, try without it
         let tx = match Tx::consensus_deserialize(tx_bytes.clone()) {
             Ok(tx) => {
@@ -1153,7 +1244,9 @@ mod test {
                     println!("Adjusted transaction bytes length: {} bytes", tx_bytes.len());
                     match Tx::consensus_deserialize(tx_bytes) {
                         Ok(tx) => {
-                            println!("✅ Transaction deserialized successfully after removing Txid!");
+                            println!(
+                                "✅ Transaction deserialized successfully after removing Txid!"
+                            );
                             tx
                         }
                         Err(e2) => {
@@ -1165,19 +1258,28 @@ mod test {
                 }
             }
         };
-        
+
         // Print transaction details
         println!("   Version: {} (u16)", tx.version.to_consensus_u16());
         println!("   Inputs: {}", tx.inputs.len());
         for (i, input) in tx.inputs.iter().enumerate() {
-            println!("     Input {}: txid={}, vout={}, sig_script_len={}, sequence={}", 
-                i, input.prev_output.txid.to_hex(), input.prev_output.vout.to_u32(),
-                input.sig_script.len(), input.sequence.to_consensus_u32());
+            println!(
+                "     Input {}: txid={}, vout={}, sig_script_len={}, sequence={}",
+                i,
+                input.prev_output.txid.to_hex(),
+                input.prev_output.vout.to_u32(),
+                input.sig_script.len(),
+                input.sequence.to_consensus_u32()
+            );
         }
         println!("   Outputs: {}", tx.outputs.len());
         for (i, output) in tx.outputs.iter().enumerate() {
-            println!("     Output {}: value={}, script_len={}", 
-                i, output.value.sats(), output.script_pubkey.len());
+            println!(
+                "     Output {}: value={}, script_len={}",
+                i,
+                output.value.sats(),
+                output.script_pubkey.len()
+            );
         }
         println!("   LockTime: {} (u64)", tx.lock_time.to_consensus_u64());
         println!("   Subnetwork ID: {:02x?}", tx.subnetwork_id);
@@ -1185,7 +1287,7 @@ mod test {
         println!("   Payload length: {} bytes", tx.payload.len());
         println!("   Payload hex: {}", tx.payload.to_hex());
         println!("   Mass: {}", tx.mass);
-        
+
         // Step 2: Calculate and verify Txid
         // Debug: Print raw hash bytes before creating Txid
         let mut debug_hasher = TondiBlake3::for_transaction();
@@ -1211,20 +1313,20 @@ mod test {
         debug_hasher.update(&(tx.payload.len() as u64).to_le_bytes());
         debug_hasher.update(&tx.payload);
         let raw_hash = debug_hasher.finish();
-        
+
         println!("\n=== Txid Verification ===");
         println!("Raw hash bytes: {:02x?}", raw_hash);
         println!("Raw hash hex: {}", raw_hash.to_hex());
-        
+
         let calculated_txid = tx.txid();
         let expected_txid_hex = "43efcab621aa7378257a214a095d4bf2e1c79b98cabab16ae241e341f118175c";
         let expected_txid = Txid::from_hex(expected_txid_hex).expect("Invalid expected txid hex");
-        
+
         println!("Calculated Txid: {}", calculated_txid.to_hex());
         println!("Expected Txid:   {}", expected_txid_hex);
         println!("Expected Txid bytes: {:02x?}", expected_txid.to_byte_array());
         println!("Calculated Txid bytes: {:02x?}", calculated_txid.to_byte_array());
-        
+
         // Verify the Txid matches
         assert_eq!(
             calculated_txid,
@@ -1233,9 +1335,9 @@ mod test {
             calculated_txid.to_hex(),
             expected_txid_hex
         );
-        
+
         println!("✅ Txid matches! All P0 bugs are fixed!");
-        
+
         // Also verify using tondi_txid() method
         let tondi_txid = tx.tondi_txid();
         assert_eq!(
@@ -1253,12 +1355,12 @@ mod test {
         let txid = Txid::from_byte_array(txid_bytes);
         let vout = Vout::from_u32(3);
         let outpoint = Outpoint::new(txid, vout);
-        
+
         // Convert to TondiOutpoint
         let tondi_outpoint: TondiOutpoint = outpoint.into();
         assert_eq!(tondi_outpoint.txid.to_byte_array(), txid_bytes);
         assert_eq!(tondi_outpoint.vout, vout);
-        
+
         // Convert back to Outpoint
         let outpoint_back: Outpoint = tondi_outpoint.into();
         assert_eq!(outpoint_back.txid.to_byte_array(), txid_bytes);
@@ -1269,33 +1371,35 @@ mod test {
     fn tondi_outpoint_serialization_format() {
         // Test that TondiOutpoint serialization format matches Outpoint
         use crate::coding::{ConsensusDecode, ConsensusEncode};
-        
+
         let txid_bytes = [0xCDu8; 32];
         let txid = Txid::from_byte_array(txid_bytes);
         let tondi_txid = TondiTxid::from_byte_array(txid_bytes);
         let vout = Vout::from_u32(7);
-        
+
         let outpoint = Outpoint::new(txid, vout);
         let tondi_outpoint = TondiOutpoint::new(tondi_txid, vout);
-        
+
         // Serialize both
         let outpoint_bytes = outpoint.consensus_serialize();
         let tondi_outpoint_bytes = tondi_outpoint.consensus_serialize();
-        
+
         // Both should have the same format: 32 bytes txid + 4 bytes vout = 36 bytes
         assert_eq!(outpoint_bytes.len(), 36);
         assert_eq!(tondi_outpoint_bytes.len(), 36);
-        
+
         // The format should be identical (same txid bytes + same vout)
         assert_eq!(outpoint_bytes, tondi_outpoint_bytes);
-        
+
         // Deserialize TondiOutpoint from Outpoint bytes (should work due to same format)
-        let deserialized: TondiOutpoint = TondiOutpoint::consensus_deserialize(outpoint_bytes.clone()).unwrap();
+        let deserialized: TondiOutpoint =
+            TondiOutpoint::consensus_deserialize(outpoint_bytes.clone()).unwrap();
         assert_eq!(deserialized.txid.to_byte_array(), txid_bytes);
         assert_eq!(deserialized.vout, vout);
-        
+
         // Deserialize Outpoint from TondiOutpoint bytes (should work due to same format)
-        let deserialized_outpoint: Outpoint = Outpoint::consensus_deserialize(tondi_outpoint_bytes.clone()).unwrap();
+        let deserialized_outpoint: Outpoint =
+            Outpoint::consensus_deserialize(tondi_outpoint_bytes.clone()).unwrap();
         assert_eq!(deserialized_outpoint.txid.to_byte_array(), txid_bytes);
         assert_eq!(deserialized_outpoint.vout, vout);
     }
@@ -1319,7 +1423,7 @@ mod test {
         // so I'll leave them in.
         assert_eq!(realtx.version, TxVer::V2);
         assert_eq!(realtx.inputs.len(), 1);
-        // In particular this one is easy to get backward -- in bitcoin hashes are
+        // In particular this one is easy to get backward -- in tondi hashes are
         // encoded as little-endian 256-bit numbers rather than as data strings.
         assert_eq!(
             format!("{:x}", realtx.inputs[0].prev_output.txid),

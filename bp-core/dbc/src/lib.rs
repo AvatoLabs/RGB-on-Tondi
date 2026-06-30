@@ -1,4 +1,4 @@
-// Deterministic bitcoin commitments library.
+// Deterministic tondi commitments library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -36,10 +36,10 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! Deterministic bitcoin commitments library.
+//! Deterministic tondi commitments library.
 //!
-//! Deterministic bitcoin commitments are part of the client-side-validation.
-//! They allow to embed commitment to extra-transaction data into a bitcoin
+//! Deterministic tondi commitments are part of the client-side-validation.
+//! They allow to embed commitment to extra-transaction data into a tondi
 //! transaction in a provable way, such that it can always be proven that a
 //! given transaction contains one and only one commitment of a specific type
 //! for a given commitment protocol.

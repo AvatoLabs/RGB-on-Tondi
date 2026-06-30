@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Based on Bitcoin protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Based on Tondi protocol library by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Adapted for Tondi by AvatoLabs
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
@@ -52,7 +52,7 @@ impl BlockHash {
         0x95b4f173_205078e2,
         0x83c029b5_c0a3ed23,
     ]);
-    
+
     /// Tondi testnet (Frontier) genesis block hash
     /// Hash: 76080d71779c5da22d2127843c7d656ec00fb0d12b4d2a79cd2ff75665bf7d67
     pub const GENESIS_TONDI_TESTNET: BlockHash = BlockHash::from_u64_be_array([
@@ -61,7 +61,7 @@ impl BlockHash {
         0xc00fb0d1_2b4d2a79,
         0xcd2ff756_65bf7d67,
     ]);
-    
+
     /// Tondi simnet genesis block hash
     /// Hash: 507e187e838115cada6f2c6d59145b85659a8fc700b1b375768cf569a1525d12
     pub const GENESIS_TONDI_SIMNET: BlockHash = BlockHash::from_u64_be_array([
@@ -70,7 +70,7 @@ impl BlockHash {
         0x659a8fc7_00b1b375,
         0x768cf569_a1525d12,
     ]);
-    
+
     /// Tondi devnet genesis block hash
     /// Hash: 53218a310490f0f36670baab6ef9b9257196879a959b54639521cf2ca3bbd481
     pub const GENESIS_TONDI_DEVNET: BlockHash = BlockHash::from_u64_be_array([
@@ -79,7 +79,7 @@ impl BlockHash {
         0x7196879a_959b5463,
         0x9521cf2c_a3bbd481,
     ]);
-    
+
     /// Tondi testnet-11 genesis block hash
     /// Hash: 439fb3e6edbdd5c41244126b59e144e6c996520d92d2e5446b57c27979eb1463
     pub const GENESIS_TONDI_TESTNET_11: BlockHash = BlockHash::from_u64_be_array([
@@ -88,8 +88,8 @@ impl BlockHash {
         0xc996520d_92d2e544,
         0x6b57c279_79eb1463,
     ]);
-    
-    // Bitcoin genesis block hashes (deprecated, kept for backward compatibility)
+
+    // Tondi genesis block hashes (deprecated, kept for backward compatibility)
     #[deprecated(note = "Use GENESIS_TONDI_MAINNET for Tondi")]
     pub const GENESIS_MAINNET: BlockHash = BlockHash::from_u64_be_array([
         0x00000000_0019d668,
@@ -224,7 +224,6 @@ impl BlockHeader {
         self.consensus_encode(&mut hasher).expect("engines don't error");
         BlockHash::from_byte_array(hasher.finish())
     }
-
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Display)]
@@ -253,7 +252,9 @@ impl FromStr for Block {
 }
 
 impl Block {
-    pub fn block_hash(&self) -> BlockHash { self.header.block_hash() }
+    pub fn block_hash(&self) -> BlockHash {
+        self.header.block_hash()
+    }
 }
 
 #[cfg(test)]
@@ -288,7 +289,7 @@ mod test {
     }
 
     #[test]
-    #[allow(deprecated)] // These tests verify Bitcoin genesis hashes for backward compatibility
+    #[allow(deprecated)] // These tests verify Tondi genesis hashes for backward compatibility
     fn genesis_hashes() {
         assert_eq!(
             &BlockHash::GENESIS_MAINNET.to_string(),

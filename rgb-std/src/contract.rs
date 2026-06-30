@@ -70,7 +70,9 @@ pub enum EitherSeal<Seal> {
 
 impl<Seal> EitherSeal<Seal> {
     pub fn auth_token(&self) -> AuthToken
-    where Seal: RgbSealDef {
+    where
+        Seal: RgbSealDef,
+    {
         match self {
             EitherSeal::Alt(seal) => seal.auth_token(),
             EitherSeal::Token(auth) => *auth,
@@ -78,7 +80,9 @@ impl<Seal> EitherSeal<Seal> {
     }
 
     pub fn to_explicit(&self) -> Option<Seal>
-    where Seal: Clone {
+    where
+        Seal: Clone,
+    {
         match self {
             EitherSeal::Alt(seal) => Some(seal.clone()),
             EitherSeal::Token(_) => None,
@@ -98,7 +102,9 @@ pub struct Assignment<Seal> {
 }
 
 impl<Seal> Assignment<Seal> {
-    pub fn new(seal: Seal, data: impl Into<StrictVal>) -> Self { Self { seal, data: data.into() } }
+    pub fn new(seal: Seal, data: impl Into<StrictVal>) -> Self {
+        Self { seal, data: data.into() }
+    }
 }
 
 impl<Seal> Assignment<EitherSeal<Seal>> {
@@ -128,7 +134,7 @@ pub struct OwnedState<Seal> {
     /// Status of the state: the maximal confirmation depth for the whole history of operations
     /// leading to this status, since genesis.
     ///
-    /// If any operation has known multiple witnesses (related to RBF'ed transactions or lightning
+    /// If any operation has known multiple witnesses (related to RBF'ed transactions or off-chain
     /// channels), the best confirmation is used for that specific operation (i.e., the deepest
     /// mined).
     ///
@@ -433,9 +439,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Some(SealWitness::new(published, client))
     }
 
-    pub fn contract_id(&self) -> ContractId { self.contract_id }
+    pub fn contract_id(&self) -> ContractId {
+        self.contract_id
+    }
 
-    pub fn articles(&self) -> &Articles { self.ledger.articles() }
+    pub fn articles(&self) -> &Articles {
+        self.ledger.articles()
+    }
 
     /// # Nota bene
     ///
@@ -539,7 +549,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         ContractState { immutable, owned, aggregated: state.aggregated }
     }
 
-    pub fn full_state(&self) -> &EffectiveState { self.ledger.state() }
+    pub fn full_state(&self) -> &EffectiveState {
+        self.ledger.state()
+    }
 
     /// Synchronize the status of all witnesses and single-use seal definitions.
     ///
@@ -874,15 +886,25 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
 }
 
 impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
-    fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
+    fn contract_id(&self) -> ContractId {
+        self.ledger.contract_id()
+    }
 
-    fn codex(&self) -> &Codex { self.ledger.articles().codex() }
+    fn codex(&self) -> &Codex {
+        self.ledger.articles().codex()
+    }
 
-    fn repo(&self) -> &impl LibRepo { self.ledger.articles() }
+    fn repo(&self) -> &impl LibRepo {
+        self.ledger.articles()
+    }
 
-    fn memory(&self) -> &impl Memory { &self.ledger.state().raw }
+    fn memory(&self) -> &impl Memory {
+        &self.ledger.state().raw
+    }
 
-    fn is_known(&self, opid: Opid) -> bool { self.ledger.is_valid(opid) }
+    fn is_known(&self, opid: Opid) -> bool {
+        self.ledger.is_valid(opid)
+    }
 
     fn apply_operation(&mut self, op: VerifiedOperation) {
         self.ledger.apply(op).expect("unable to apply operation");

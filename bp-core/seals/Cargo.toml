@@ -1,8 +1,8 @@
 [package]
 name = "bp-seals"
 version = "0.12.0"
-description = "Bitcoin protocol single-use-seals library"
-keywords = ["lnp-bp", "bitcoin", "blockchain", "smart-contracts", "single-use-seals"]
+description = "Tondi protocol single-use-seals library"
+keywords = ["lnp-bp", "tondi", "blockchain", "smart-contracts", "single-use-seals"]
 categories = ["cryptography", "encoding"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 repository = "https://github.com/BP-WG/bp-core"

@@ -30,8 +30,7 @@ echo "Step 2: Creating a test wallet..."
 DESCRIPTOR="xpub6C...your-descriptor-here"  # Replace with actual descriptor
 WALLET_NAME="test-wallet"
 
-# Uncomment when you have a real descriptor:
-# cargo run --bin rgb -- --data-dir "$DATA_DIR" --network "$NETWORK" create --wpkh "$WALLET_NAME" "$DESCRIPTOR"
+# Create the wallet with the current descriptor flow once you have a real descriptor.
 echo "⚠️  Wallet creation skipped (requires real descriptor)"
 echo ""
 
@@ -72,7 +71,6 @@ echo "  2. Fund the wallet with Tondi testnet coins"
 echo "  3. Issue a contract using: rgb issue --wallet <name> <params.yaml>"
 echo "  4. Create and sign a PSTT"
 echo "  5. Finalize and broadcast: rgb finalize --broadcast <pstt>"
-
 
 
 

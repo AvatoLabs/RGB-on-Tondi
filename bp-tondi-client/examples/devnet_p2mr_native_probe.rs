@@ -6,7 +6,7 @@
 //! Set `TONDI_DEVNET_ALLOW_UNSYNCED=1` only for an isolated local devnet node.
 
 use amplify::Bytes32;
-use tondi::{NetworkType, ScriptPublicKey, TONDI_P2MR_SCRIPT_VERSION, TondiClient, TondiConfig, TondiTransaction, TondiTxOutput};
+use tondi::{NetworkType, ScriptPublicKey, TondiClient, TondiConfig, TondiTransaction, TondiTxOutput, TONDI_P2MR_SCRIPT_VERSION};
 
 fn native_p2mr_probe_tx() -> TondiTransaction {
     TondiTransaction {

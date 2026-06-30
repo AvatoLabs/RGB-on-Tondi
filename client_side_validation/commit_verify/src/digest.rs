@@ -45,7 +45,9 @@ pub trait DigestExt<const BYTE_LEN: usize = 32> {
 
     /// Digest raw byte slice returning self.
     fn with_raw(mut self, data: &[u8]) -> Self
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         self.input_raw(data);
         self
     }
@@ -55,7 +57,9 @@ pub trait DigestExt<const BYTE_LEN: usize = 32> {
     ///
     /// Returns self.
     fn with_len<const MAX: usize>(mut self, data: &[u8]) -> Self
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         self.input_with_len::<MAX>(data);
         self
     }
@@ -162,10 +166,10 @@ impl TondiBlake3 {
         // Use Prefix Mode to match Tondi's native implementation
         // 1. Create a regular hasher (not KDF)
         let mut hasher = blake3::Hasher::new();
-        
+
         // 2. Write the prefix first (matching Tondi's Vec<u8> prefix behavior)
         hasher.update(b"TransactionID");
-        
+
         Self { hasher }
     }
 
@@ -349,7 +353,7 @@ impl Digest for TondiBlake3 {
     fn update(&mut self, data: impl AsRef<[u8]>) {
         self.hasher.update(data.as_ref());
     }
-    
+
     fn finalize(self) -> [u8; 32] {
         self.hasher.finalize().into()
     }

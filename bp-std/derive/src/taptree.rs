@@ -79,7 +79,9 @@ impl<L> TapTreeBuilder<L> {
         }
     }
 
-    pub fn is_finalized(&self) -> bool { self.finalized }
+    pub fn is_finalized(&self) -> bool {
+        self.finalized
+    }
 
     pub fn with_leaf(mut self, leaf: LeafInfo<L>) -> Result<Self, FinalizedTree> {
         self.push_leaf(leaf)?;
@@ -114,21 +116,27 @@ pub struct TapTree<L = LeafScript>(Vec<LeafInfo<L>>);
 
 impl<L> Deref for TapTree<L> {
     type Target = Vec<LeafInfo<L>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl<L> IntoIterator for TapTree<L> {
     type Item = LeafInfo<L>;
     type IntoIter = vec::IntoIter<LeafInfo<L>>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<'a, L> IntoIterator for &'a TapTree<L> {
     type Item = &'a LeafInfo<L>;
     type IntoIter = slice::Iter<'a, LeafInfo<L>>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
 }
 
 impl TapTree {
@@ -161,7 +169,9 @@ impl<L> TapTree<L> {
         builder.finish()
     }
 
-    pub fn into_vec(self) -> Vec<LeafInfo<L>> { self.0 }
+    pub fn into_vec(self) -> Vec<LeafInfo<L>> {
+        self.0
+    }
 
     pub fn map<M>(self, f: impl Fn(L) -> M) -> TapTree<M> {
         TapTree(
@@ -245,7 +255,9 @@ impl ControlBlockFactory {
     }
 
     #[inline]
-    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining_leaves }
+    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> {
+        self.remaining_leaves
+    }
 }
 
 impl Iterator for ControlBlockFactory {

@@ -34,9 +34,9 @@ use bech32::u5;
 
 use crate::base58;
 
-/// Mainnet (bitcoin) pubkey address prefix.
+/// Legacy mainnet pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
-/// Mainnet (bitcoin) script address prefix.
+/// Legacy mainnet script address prefix.
 pub const SCRIPT_ADDRESS_PREFIX_MAIN: u8 = 5; // 0x05
 /// Test (tesnet, signet, regtest) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_TEST: u8 = 111; // 0x6f
@@ -125,13 +125,19 @@ impl Address {
     }
 
     /// Returns script corresponding to the given address.
-    pub fn script_pubkey(self) -> ScriptPubkey { self.payload.script_pubkey() }
+    pub fn script_pubkey(self) -> ScriptPubkey {
+        self.payload.script_pubkey()
+    }
 
     /// Returns if the address is testnet-, signet- or regtest-specific.
-    pub fn is_testnet(self) -> bool { self.network != AddressNetwork::Mainnet }
+    pub fn is_testnet(self) -> bool {
+        self.network != AddressNetwork::Mainnet
+    }
 
     /// Detects address type.
-    pub fn address_type(self) -> AddressType { self.payload.address_type() }
+    pub fn address_type(self) -> AddressType {
+        self.payload.address_type()
+    }
 }
 
 impl Display for Address {
@@ -239,11 +245,11 @@ impl FromStr for Address {
                             payload: Vec<bech32::u5>,
                             variant: bech32::Variant|
          -> Result<Self, Self::Err> {
-            // Parse network from HRP (supports both Bitcoin and Tondi)
+            // Parse network from HRP.
             let hri_lower = hri.to_lowercase();
             let network = AddressNetwork::from_bech32_hrp(&hri_lower)
                 .ok_or_else(|| AddressParseError::UnrecognizableFormat(s.to_owned()))?;
-            
+
             let (v, p5) = payload.split_at(1);
             let wv = v[0].to_u8();
             let version = WitnessVer::from_version_no(wv).map_err(|err| {
@@ -251,28 +257,28 @@ impl FromStr for Address {
                 AddressParseError::InvalidWitnessVersion(wv)
             })?;
             let program: Vec<u8> = bech32::FromBase32::from_base32(p5)?;
-            
+
             let payload = match (version, variant, network.is_tondi()) {
-                // Bitcoin: SegWit v0 - P2WPKH
+                // Legacy witness v0 - P2WPKH
                 (WitnessVer::V0, bech32::Variant::Bech32, false) if program.len() == 20 => {
                     let mut hash = [0u8; 20];
                     hash.copy_from_slice(&program);
                     AddressPayload::Wpkh(hash.into())
                 }
-                // Bitcoin: SegWit v0 - P2WSH
+                // Legacy witness v0 - P2WSH
                 (WitnessVer::V0, bech32::Variant::Bech32, false) if program.len() == 32 => {
                     let mut hash = [0u8; 32];
                     hash.copy_from_slice(&program);
                     AddressPayload::Wsh(hash.into())
                 }
-                // Bitcoin: SegWit v1 - P2TR (Taproot)
+                // Legacy witness v1 - P2TR
                 (WitnessVer::V1, bech32::Variant::Bech32m, false) if program.len() == 32 => {
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&program);
                     let pk = OutputPk::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
-                // Tondi: v1 - P2TR (Taproot with BLAKE3)
+                // Tondi: v1 - P2TR with BLAKE3
                 (WitnessVer::V1, bech32::Variant::Bech32m, true) if program.len() == 32 => {
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&program);
@@ -347,7 +353,7 @@ pub enum AddressPayload {
     #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x11))]
     Wsh(WScriptHash),
 
-    /// P2TR payload (Bitcoin Taproot / Tondi Taproot with BLAKE3).
+    /// P2TR payload.
     #[from]
     #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x20))]
     Tr(OutputPk),
@@ -431,7 +437,9 @@ impl AddressPayload {
 }
 
 impl From<AddressPayload> for ScriptPubkey {
-    fn from(ap: AddressPayload) -> Self { ap.script_pubkey() }
+    fn from(ap: AddressPayload) -> Self {
+        ap.script_pubkey()
+    }
 }
 
 /// Address type
@@ -453,7 +461,7 @@ pub enum AddressType {
     #[display("P2WSH")]
     P2wsh,
 
-    /// Pay-to-taproot (Bitcoin v1 / Tondi v1)
+    /// Pay-to-v1 key path.
     #[display("P2TR")]
     P2tr,
 
@@ -486,8 +494,8 @@ impl AddressType {
         matches!(self, AddressType::P2cr | AddressType::P2crv)
     }
 
-    /// Returns whether this is a Bitcoin address type.
-    pub fn is_bitcoin(self) -> bool {
+    /// Returns whether this is a legacy address type.
+    pub fn is_legacy(self) -> bool {
         matches!(
             self,
             AddressType::P2pkh
@@ -517,16 +525,16 @@ impl FromStr for AddressType {
     }
 }
 
-/// Bitcoin/Tondi network used by the address
+/// Network used by the address.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum AddressNetwork {
-    /// Bitcoin mainnet
+    /// Legacy mainnet.
     Mainnet,
 
-    /// Bitcoin testnet and signet
+    /// Legacy public test network.
     Testnet,
 
-    /// Bitcoin regtest networks
+    /// Legacy local test network.
     Regtest,
 
     /// Tondi mainnet
@@ -557,15 +565,15 @@ impl AddressNetwork {
         )
     }
 
-    /// Detects whether this is a Bitcoin network.
-    pub fn is_bitcoin(self) -> bool {
+    /// Detects whether this is a legacy network.
+    pub fn is_legacy(self) -> bool {
         matches!(self, Self::Mainnet | Self::Testnet | Self::Regtest)
     }
 
     /// Returns the bech32/bech32m human-readable part for this network.
     pub fn bech32_hrp(self) -> &'static str {
         match self {
-            // Bitcoin networks
+            // Legacy networks
             AddressNetwork::Mainnet => "bc",
             AddressNetwork::Testnet => "tb",
             AddressNetwork::Regtest => "bcrt",
@@ -580,7 +588,7 @@ impl AddressNetwork {
     /// Parse network from bech32 HRP string.
     pub fn from_bech32_hrp(hrp: &str) -> Option<Self> {
         match hrp {
-            // Bitcoin networks
+            // Legacy networks
             "bc" => Some(Self::Mainnet),
             "tb" => Some(Self::Testnet),
             "bcrt" => Some(Self::Regtest),
@@ -602,14 +610,18 @@ mod _serde {
 
     impl Serialize for Address {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             serializer.serialize_str(&self.to_string())
         }
     }
 
     impl<'de> Deserialize<'de> for Address {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             let s = String::deserialize(deserializer)?;
             Address::from_str(&s).map_err(|err| {
                 de::Error::custom(format!(

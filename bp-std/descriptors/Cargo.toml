@@ -1,8 +1,8 @@
 [package]
 name = "descriptors"
 version = "0.12.0-rc.3"
-description = "Bitcoin descriptors library (part of Bitcoin Protocol stack)"
-keywords = ["bitcoin", "wallet", "descriptors", "pstt", "taproot"]
+description = "Tondi descriptors library (part of Tondi Protocol stack)"
+keywords = ["tondi", "wallet", "descriptors", "pstt", "p2mr"]
 categories = ["cryptography::cryptocurrencies"]
 readme = "../README.md"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]

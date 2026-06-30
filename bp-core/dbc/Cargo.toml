@@ -1,8 +1,8 @@
 [package]
 name = "bp-dbc"
 version = "0.12.0"
-description = "Deterministic bitcoin commitments library"
-keywords = ["lnp-bp", "bitcoin", "blockchain", "smart-contracts", "single-use-seals"]
+description = "Deterministic tondi commitments library"
+keywords = ["lnp-bp", "tondi", "blockchain", "smart-contracts", "single-use-seals"]
 categories = ["cryptography", "encoding"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 repository = "https://github.com/BP-WG/bp-core"

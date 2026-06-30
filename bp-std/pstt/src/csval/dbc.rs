@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB wallet library for smart contracts on Tondi & off-chain network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -36,7 +36,7 @@ pub enum DbcPsttError {
     /// DBC commitment is already present.
     AlreadyPresent,
 
-    /// transaction outputs are marked as modifiable, thus deterministic bitcoin commitment can't
+    /// transaction outputs are marked as modifiable, thus deterministic tondi commitment can't
     /// be created.
     TxOutputsModifiable,
 

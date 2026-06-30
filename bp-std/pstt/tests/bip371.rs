@@ -31,27 +31,39 @@ fn parse_roundtrip(s: &str) {
 
 /// Case: PSTT with one P2TR key only input with internal key and its derivation path
 #[test]
-fn keyonly_in() { parse_roundtrip(include_str!("valid.tr/keyonly_in.pstt")); }
+fn keyonly_in() {
+    parse_roundtrip(include_str!("valid.tr/keyonly_in.pstt"));
+}
 
 /// Case: PSTT with one P2TR key only input with internal key, its derivation path, and signature
 #[test]
-fn keyonly_out() { parse_roundtrip(include_str!("valid.tr/keyonly_out.pstt")); }
+fn keyonly_out() {
+    parse_roundtrip(include_str!("valid.tr/keyonly_out.pstt"));
+}
 
 /// Case: PSTT with one P2TR key only output with internal key and its derivation path
 #[test]
-fn keyonly_signed() { parse_roundtrip(include_str!("valid.tr/keyonly_signed.pstt")); }
+fn keyonly_signed() {
+    parse_roundtrip(include_str!("valid.tr/keyonly_signed.pstt"));
+}
 
 /// Case: PSTT with one P2TR script path only input with dummy internal key, scripts, derivation
 /// paths for keys in the scripts, and merkle root
 #[test]
-fn script_in() { parse_roundtrip(include_str!("valid.tr/script_in.pstt")); }
+fn script_in() {
+    parse_roundtrip(include_str!("valid.tr/script_in.pstt"));
+}
 
 /// Case: PSTT with one P2TR script path only output with dummy internal key, taproot tree, and
 /// script key derivation paths
 #[test]
-fn script_out() { parse_roundtrip(include_str!("valid.tr/script_out.pstt")); }
+fn script_out() {
+    parse_roundtrip(include_str!("valid.tr/script_out.pstt"));
+}
 
 /// Case: PSTT with one P2TR script path only input with dummy internal key, scripts, script key
 /// derivation paths, merkle root, and script path signatures
 #[test]
-fn script_signed() { parse_roundtrip(include_str!("valid.tr/script_signed.pstt")); }
+fn script_signed() {
+    parse_roundtrip(include_str!("valid.tr/script_signed.pstt"));
+}

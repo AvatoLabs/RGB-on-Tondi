@@ -1,4 +1,4 @@
-// Bitcoin protocol single-use-seals library.
+// Tondi protocol single-use-seals library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,14 +19,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Bitcoin single-use-seals defined by a transaction output and closed by
+//! Tondi single-use-seals defined by a transaction output and closed by
 //! spending that output ("TxOut seals").
 
 use core::error::Error;
 use core::fmt::Debug;
 
 use amplify::{ByteArray, Bytes, Bytes32};
-use bc::{secp256k1, CompressedPk, Outpoint, ScriptPubkey, TapLeafHash, TapScript, Tx, Txid, XOnlyPk};
+use bc::{
+    secp256k1, CompressedPk, Outpoint, ScriptPubkey, TapLeafHash, TapScript, Tx, Txid, XOnlyPk,
+};
 use commit_verify::{
     CommitId, ConvolveVerifyError, DigestExt, EmbedVerifyError, ReservedBytes, TondiBlake3,
 };
@@ -66,10 +68,15 @@ pub struct TondiP2mrProof {
 
 impl TondiP2mrProof {
     /// Construct a proof from the untweaked compressed public key.
-    pub fn new(original_pubkey: CompressedPk) -> Self { Self { original_pubkey } }
+    pub fn new(original_pubkey: CompressedPk) -> Self {
+        Self { original_pubkey }
+    }
 
     /// Computes the RGB tweak used by Tondi PSTT RGB outputs.
-    pub fn rgb_tweak(&self, commitment: mpc::Commitment) -> Result<secp256k1::Scalar, TondiP2mrError> {
+    pub fn rgb_tweak(
+        &self,
+        commitment: mpc::Commitment,
+    ) -> Result<secp256k1::Scalar, TondiP2mrError> {
         let mut hasher = TondiBlake3::new();
         hasher.input_raw(RGB_COMMITMENT_DOMAIN);
         hasher.input_raw(&self.original_pubkey.to_byte_array());
@@ -85,7 +92,8 @@ impl TondiP2mrProof {
             .add_exp_tweak(secp256k1::SECP256K1, &self.rgb_tweak(commitment)?)
             .map_err(|_| TondiP2mrError::InvalidTweak)?;
         let (xonly, _) = tweaked.x_only_public_key();
-        let xonly = XOnlyPk::from_byte_array(xonly.serialize()).map_err(|_| TondiP2mrError::InvalidPubkey)?;
+        let xonly = XOnlyPk::from_byte_array(xonly.serialize())
+            .map_err(|_| TondiP2mrError::InvalidPubkey)?;
         Ok(p2mr_single_key_root(xonly))
     }
 }
@@ -186,11 +194,15 @@ pub mod mmb {
         const TAG: &'static str = "urn:tondi:mmb:bundle#2025-01-01";
     }
     impl From<TondiBlake3> for Commitment {
-        fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
+        fn from(hasher: TondiBlake3) -> Self {
+            hasher.finish().into()
+        }
     }
 
     impl From<Commitment> for mpc::Message {
-        fn from(msg: Commitment) -> Self { mpc::Message::from_byte_array(msg.to_byte_array()) }
+        fn from(msg: Commitment) -> Self {
+            mpc::Message::from_byte_array(msg.to_byte_array())
+        }
     }
 
     /// The proof that each message is associated with a separate subset of witness transaction
@@ -318,9 +330,9 @@ pub mod mpc {
     }
 }
 
-/// Anchor is a client-side witness for the bitcoin txout seals.
+/// Anchor is a client-side witness for the tondi txout seals.
 ///
-/// Anchor is a set of data required for the client-side validation of a bitcoin txout single-use
+/// Anchor is a set of data required for the client-side validation of a tondi txout single-use
 /// seal, which can't be recovered from the transaction and other public information itself.
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -334,7 +346,7 @@ pub struct Anchor {
     /// The inclusion proof (using multiprotocol commitments) of a commitment under the
     /// [`mpc_protocol`] into the published witness.
     pub mpc_proof: mpc::MerkleProof,
-    /// The deterministic bitcoin commitment proof that the witness commitment is valid.
+    /// The deterministic tondi commitment proof that the witness commitment is valid.
     pub dbc_proof: Option<TapretProof>,
     /// Tondi-native P2MR commitment proof.
     pub p2mr_proof: Option<TondiP2mrProof>,
@@ -352,7 +364,9 @@ impl Anchor {
     /// In the current version fallback proofs are not implemented, and this method always returns
     /// `false`.
     // TODO: (v0.13) Change when the fallback proofs are ready
-    pub fn is_fallback(&self) -> bool { false }
+    pub fn is_fallback(&self) -> bool {
+        false
+    }
 
     /// Verify the fallback proof.
     ///
@@ -361,20 +375,22 @@ impl Anchor {
     /// In the current version fallback proofs are not implemented, and this method always returns
     /// `Ok(()) `(since if there is no fallback proof defined, it is a case of a valid situation).
     // TODO: (v0.13) Change when the fallback proofs are ready
-    pub fn verify_fallback(&self) -> Result<(), AnchorError> { Ok(()) }
+    pub fn verify_fallback(&self) -> Result<(), AnchorError> {
+        Ok(())
+    }
 }
 
-/// Proof data for verification of deterministic bitcoin commitment produced from anchor.
+/// Proof data for verification of deterministic tondi commitment produced from anchor.
 ///
 /// This proof is used to do the final verification of the single-use seal closing in the witness
 /// transaction (published witness).
 pub struct Proof {
-    /// The message to which the witness transaction must commit with deterministic bitcoin
+    /// The message to which the witness transaction must commit with deterministic tondi
     /// commitment.
     ///
     /// The message is produced from the multiprotocol commitment data of an [`Anchor`].
     pub mpc_commit: mpc::Commitment,
-    /// The deterministic bitcoin commitment proof that the witness commitment is valid.
+    /// The deterministic tondi commitment proof that the witness commitment is valid.
     pub dbc_proof: Option<TapretProof>,
     /// The Tondi-native P2MR proof that the witness commitment is valid.
     pub p2mr_proof: Option<TondiP2mrProof>,
@@ -398,10 +414,12 @@ pub enum TxoSealExt {
 }
 
 impl StrictDumb for TxoSealExt {
-    fn strict_dumb() -> Self { TxoSealExt::Noise(Noise::from(Bytes::from_byte_array([0u8; 40]))) }
+    fn strict_dumb() -> Self {
+        TxoSealExt::Noise(Noise::from(Bytes::from_byte_array([0u8; 40])))
+    }
 }
 
-/// The bitcoin TxO-based single-use seal protocol (see [`SingleUseSeal`]).
+/// The tondi TxO-based single-use seal protocol (see [`SingleUseSeal`]).
 ///
 /// # Nota bene
 ///
@@ -443,12 +461,18 @@ impl PublishedWitness<TxoSeal> for Tx {
     type PubId = Txid;
     type Error = TxoSealError;
 
-    fn pub_id(&self) -> Txid { self.txid() }
+    fn pub_id(&self) -> Txid {
+        self.txid()
+    }
 
     fn verify_commitment(&self, proof: Proof) -> Result<(), Self::Error> {
         let out = self
             .outputs()
-            .find(|out| out.script_pubkey.is_op_return() || out.script_pubkey.is_p2tr() || is_tondi_p2mr_root(&out.script_pubkey))
+            .find(|out| {
+                out.script_pubkey.is_op_return()
+                    || out.script_pubkey.is_p2tr()
+                    || is_tondi_p2mr_root(&out.script_pubkey)
+            })
             .ok_or(TxoSealError::NoOutput)?;
         if out.script_pubkey.is_op_return() {
             if proof.dbc_proof.is_none() && proof.p2mr_proof.is_none() {
@@ -495,7 +519,9 @@ impl ClientSideWitness for Anchor {
     }
 
     fn merge(&mut self, other: Self) -> Result<(), impl Error>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         if self.mpc_protocol != other.mpc_protocol
             || self.mpc_proof != other.mpc_proof
             || self.dbc_proof != other.dbc_proof
@@ -598,7 +624,9 @@ mod test {
         setup(AnchorMode::P2mr)
     }
 
-    fn setup(mode: AnchorMode) -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
+    fn setup(
+        mode: AnchorMode,
+    ) -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
         // Construct messages
         let mut msg = [0u8; 32];
         let messages = (0u8..=13)

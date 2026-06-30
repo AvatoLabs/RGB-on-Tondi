@@ -1,4 +1,4 @@
-// Deterministic bitcoin commitments library.
+// Deterministic tondi commitments library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Taproot OP_RETURN-based deterministic bitcoin commitment scheme ("tapret").
+//! Taproot OP_RETURN-based deterministic tondi commitment scheme ("tapret").
 //!
 //! **Embed-commit by constructor:**
 //! a) `TapTree, Msg -> TapTree', TapRightPartner`, defined in `taptree` mod;
@@ -122,12 +122,16 @@ impl TapretRightBranch {
     /// Returns hash of the left-side child node of the branch (having smaller
     /// hash value).
     #[inline]
-    pub fn left_node_hash(self) -> TapNodeHash { self.left_node_hash }
+    pub fn left_node_hash(self) -> TapNodeHash {
+        self.left_node_hash
+    }
 
     /// Returns hash of the right-side child node of the branch (having smaller
     /// hash value).
     #[inline]
-    pub fn right_node_hash(self) -> TapNodeHash { self.right_node_hash }
+    pub fn right_node_hash(self) -> TapNodeHash {
+        self.right_node_hash
+    }
 
     /// Computes node hash of the partner node defined by this proof.
     pub fn node_hash(&self) -> TapNodeHash {
@@ -291,7 +295,7 @@ impl TapretPathProof {
         self.partner_node.as_ref().map(TapretNodePartner::check_no_commitment).unwrap_or(true)
     }
 
-    /// Returns original merkle root of the tree before deterministic bitcoin
+    /// Returns original merkle root of the tree before deterministic tondi
     /// commitment. If originally there was no script path spendings, returns
     /// `None`.
     #[inline]
@@ -348,7 +352,7 @@ impl StrictSerialize for TapretProof {}
 impl StrictDeserialize for TapretProof {}
 
 impl TapretProof {
-    /// Restores original scripPubkey before deterministic bitcoin commitment
+    /// Restores original scripPubkey before deterministic tondi commitment
     /// applied.
     #[inline]
     pub fn original_pubkey_script(&self) -> ScriptPubkey {

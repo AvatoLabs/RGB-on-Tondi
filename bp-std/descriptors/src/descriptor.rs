@@ -98,7 +98,9 @@ pub struct LegacyKeySig {
 }
 
 impl LegacyKeySig {
-    pub fn new(key: LegacyPk, sig: LegacySig) -> Self { LegacyKeySig { key, sig } }
+    pub fn new(key: LegacyPk, sig: LegacySig) -> Self {
+        LegacyKeySig { key, sig }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -108,18 +110,24 @@ pub struct TaprootKeySig {
 }
 
 impl TaprootKeySig {
-    pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self { TaprootKeySig { key, sig } }
+    pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self {
+        TaprootKeySig { key, sig }
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub struct DescrId(pub u64);
 
 impl From<[u8; 8]> for DescrId {
-    fn from(value: [u8; 8]) -> Self { Self(u64::from_le_bytes(value)) }
+    fn from(value: [u8; 8]) -> Self {
+        Self(u64::from_le_bytes(value))
+    }
 }
 
 impl From<DescrId> for [u8; 8] {
-    fn from(id: DescrId) -> Self { id.0.to_le_bytes() }
+    fn from(id: DescrId) -> Self {
+        id.0.to_le_bytes()
+    }
 }
 
 impl Display for DescrId {
@@ -153,7 +161,9 @@ mod _serde {
 
     impl serde::Serialize for DescrId {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: serde::Serializer {
+        where
+            S: serde::Serializer,
+        {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_string())
             } else {
@@ -164,7 +174,9 @@ mod _serde {
 
     impl<'de> serde::Deserialize<'de> for DescrId {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: serde::Deserializer<'de> {
+        where
+            D: serde::Deserializer<'de>,
+        {
             use serde::de::Error;
             if deserializer.is_human_readable() {
                 let s = String::deserialize(deserializer)?;
@@ -193,14 +205,20 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
 
     fn class(&self) -> SpkClass;
     #[inline]
-    fn is_taproot(&self) -> bool { self.class().is_taproot() }
+    fn is_taproot(&self) -> bool {
+        self.class().is_taproot()
+    }
     #[inline]
-    fn is_segwit(&self) -> bool { self.class().is_segwit() }
+    fn is_segwit(&self) -> bool {
+        self.class().is_segwit()
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a;
+    where
+        K: 'a;
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a V>
-    where V: 'a;
+    where
+        V: 'a;
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount>;
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin>;
@@ -352,7 +370,8 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
 
 impl<K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly>
     Descriptor<K> for StdDescr<K>
-where Self: Derive<DerivedScript>
+where
+    Self: Derive<DerivedScript>,
 {
     fn class(&self) -> SpkClass {
         match self {
@@ -375,7 +394,9 @@ where Self: Derive<DerivedScript>
     }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         match self {
             StdDescr::Raw(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Pkh(d) => d.keys().collect::<Vec<_>>(),
@@ -397,7 +418,9 @@ where Self: Derive<DerivedScript>
     }
 
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
 

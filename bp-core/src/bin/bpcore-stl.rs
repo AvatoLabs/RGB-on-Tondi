@@ -1,4 +1,4 @@
-// Bitcoin protocol core library.
+// Tondi protocol core library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -44,7 +44,7 @@ fn main() {
         "0.1.0",
         Some(
             "
-  Description: Bitcoin transaction library
+  Description: Tondi transaction library
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",
@@ -59,7 +59,7 @@ fn main() {
             "0.1.0",
             Some(
                 "
-  Description: Consensus library for bitcoin protocol
+  Description: Consensus library for Tondi protocol
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",
@@ -74,7 +74,7 @@ fn main() {
             "0.1.0",
             Some(
                 "
-  Description: Bitcoin client-side-validation library
+  Description: Tondi client-side-validation library
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",
@@ -105,7 +105,7 @@ fn main() {
     writeln!(
         file,
         "{{-
-  Description: Bitcoin WTxO blind seals
+  Description: Tondi WTxO blind seals
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0

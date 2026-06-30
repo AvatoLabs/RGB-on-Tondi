@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -28,11 +28,11 @@ use crate::{
     Annex, Block, BlockHash, BlockHeader, BlockMerkleRoot, ControlBlock, InternalPk,
     InvalidLeafVer, LeafVer, LockTime, Outpoint, Parity, RedeemScript, Sats, ScriptBytes,
     ScriptPubkey, SeqNo, SigScript, Sighash, TapBranchHash, TapLeafHash, TapMerklePath, TapScript,
-    Tx, TxIn, TxOut, TxVer, Txid, TondiTxid, TondiOutpoint, Vout, Witness, WitnessScript, LIB_NAME_TONDI,
-    TAPROOT_ANNEX_PREFIX,
+    TondiOutpoint, TondiTxid, Tx, TxIn, TxOut, TxVer, Txid, Vout, Witness, WitnessScript,
+    LIB_NAME_TONDI, TAPROOT_ANNEX_PREFIX,
 };
 
-/// Bitcoin consensus allows arrays which length is encoded as VarInt to grow up
+/// Tondi consensus allows arrays which length is encoded as VarInt to grow up
 /// to 64-bit values. However, at the same time no consensus rule allows any
 /// block data structure to exceed 2^32 bytes (4GB), and any change to that rule
 /// will be a hardfork. So for practical reasons we are safe to restrict the
@@ -49,9 +49,13 @@ pub struct VarInt(pub u64);
 
 #[allow(clippy::len_without_is_empty)] // VarInt has no concept of 'is_empty'.
 impl VarInt {
-    pub const fn new(u: u64) -> Self { VarInt(u) }
+    pub const fn new(u: u64) -> Self {
+        VarInt(u)
+    }
 
-    pub fn with(u: impl Into<usize>) -> Self { VarInt(u.into() as u64) }
+    pub fn with(u: impl Into<usize>) -> Self {
+        VarInt(u.into() as u64)
+    }
 
     /// Gets the length of this VarInt when encoded.
     ///
@@ -67,16 +71,24 @@ impl VarInt {
         }
     }
 
-    pub const fn to_u64(&self) -> u64 { self.0 }
-    pub const fn into_u64(self) -> u64 { self.0 }
+    pub const fn to_u64(&self) -> u64 {
+        self.0
+    }
+    pub const fn into_u64(self) -> u64 {
+        self.0
+    }
     pub fn to_usize(&self) -> usize {
         usize::try_from(self.0).expect("transaction too large for a non-64 bit platform")
     }
-    pub fn into_usize(self) -> usize { self.to_usize() }
+    pub fn into_usize(self) -> usize {
+        self.to_usize()
+    }
 }
 
 impl<U: Into<u64> + Copy> PartialEq<U> for VarInt {
-    fn eq(&self, other: &U) -> bool { self.0.eq(&(*other).into()) }
+    fn eq(&self, other: &U) -> bool {
+        self.0.eq(&(*other).into())
+    }
 }
 
 pub trait LenVarInt {
@@ -84,7 +96,9 @@ pub trait LenVarInt {
 }
 
 impl<T, const MIN_LEN: usize> LenVarInt for VarIntArray<T, MIN_LEN> {
-    fn len_var_int(&self) -> VarInt { VarInt::with(self.len()) }
+    fn len_var_int(&self) -> VarInt {
+        VarInt::with(self.len())
+    }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
@@ -95,7 +109,9 @@ impl<T, const MIN_LEN: usize> LenVarInt for VarIntArray<T, MIN_LEN> {
 pub struct ByteStr(VarIntBytes);
 
 impl AsRef<[u8]> for ByteStr {
-    fn as_ref(&self) -> &[u8] { self.0.as_slice() }
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
 }
 
 impl From<Vec<u8>> for ByteStr {
@@ -105,21 +121,31 @@ impl From<Vec<u8>> for ByteStr {
 }
 
 impl From<TinyBlob> for ByteStr {
-    fn from(vec: TinyBlob) -> Self { ByteStr(Confined::from_checked(vec.release())) }
+    fn from(vec: TinyBlob) -> Self {
+        ByteStr(Confined::from_checked(vec.release()))
+    }
 }
 
 impl From<SmallBlob> for ByteStr {
-    fn from(vec: SmallBlob) -> Self { ByteStr(Confined::from_checked(vec.release())) }
+    fn from(vec: SmallBlob) -> Self {
+        ByteStr(Confined::from_checked(vec.release()))
+    }
 }
 
 impl From<MediumBlob> for ByteStr {
-    fn from(vec: MediumBlob) -> Self { ByteStr(Confined::from_checked(vec.release())) }
+    fn from(vec: MediumBlob) -> Self {
+        ByteStr(Confined::from_checked(vec.release()))
+    }
 }
 
 impl ByteStr {
-    pub fn len_var_int(&self) -> VarInt { VarInt(self.len() as u64) }
+    pub fn len_var_int(&self) -> VarInt {
+        VarInt(self.len() as u64)
+    }
 
-    pub fn into_vec(self) -> Vec<u8> { self.0.release() }
+    pub fn into_vec(self) -> Vec<u8> {
+        self.0.release()
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -132,7 +158,9 @@ mod _serde {
 
     impl Serialize for ByteStr {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_hex())
             } else {
@@ -143,7 +171,9 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for ByteStr {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             if deserializer.is_human_readable() {
                 String::deserialize(deserializer).and_then(|string| {
                     Self::from_hex(&string).map_err(|_| D::Error::custom("wrong hex data"))
@@ -214,7 +244,8 @@ pub trait ConsensusEncode {
 }
 
 pub trait ConsensusDecode
-where Self: Sized
+where
+    Self: Sized,
 {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError>;
     fn consensus_deserialize(bytes: impl AsRef<[u8]>) -> Result<Self, ConsensusDecodeError> {
@@ -307,23 +338,23 @@ impl ConsensusEncode for Tx {
     fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         // ⚠️ CRITICAL: Tondi uses Borsh format for network/storage (u32 lengths + u8 enum tags)
         // This is DIFFERENT from the hash format used in txid() calculation
-        
+
         let mut counter = 0;
-        
+
         // 1. Version (u16, 2 bytes)
         writer.write_all(&self.version.to_consensus_u16().to_le_bytes())?;
         counter += 2;
-        
+
         // 2. Inputs (u32 len + items) - Borsh uses u32 for lengths
         let inputs_len = self.inputs.len() as u32;
         writer.write_all(&inputs_len.to_le_bytes())?;
         counter += 4;
-        
+
         for input in self.inputs.iter() {
             // [Borsh] Enum Variant Tag: 0 = Standard
             writer.write_all(&[0u8])?;
             counter += 1;
-            
+
             // Input: Previous Outpoint
             // Txid (32 bytes)
             writer.write_all(&input.prev_output.txid.to_byte_array())?;
@@ -331,7 +362,7 @@ impl ConsensusEncode for Tx {
             // Vout (u32, 4 bytes)
             writer.write_all(&input.prev_output.vout.to_u32().to_le_bytes())?;
             counter += 4;
-            
+
             // Input: Signature Script (u32 len + bytes) - Borsh uses u32 for lengths
             let sig_script = input.sig_script.as_slice();
             let sig_len = sig_script.len() as u32;
@@ -341,36 +372,36 @@ impl ConsensusEncode for Tx {
                 writer.write_all(sig_script)?;
                 counter += sig_script.len();
             }
-            
+
             // Input: Sequence (u64, 8 bytes)
             let seq = input.sequence.to_consensus_u32() as u64;
             writer.write_all(&seq.to_le_bytes())?;
             counter += 8;
-            
+
             // Input: SigOpCount (u8, 1 byte) - Tondi-specific field
             writer.write_all(&[1u8])?; // Default to 1
             counter += 1;
         }
-        
+
         // 3. Outputs (u32 len + items) - Borsh uses u32 for lengths
         let outputs_len = self.outputs.len() as u32;
         writer.write_all(&outputs_len.to_le_bytes())?;
         counter += 4;
-        
+
         for output in self.outputs.iter() {
             // [Borsh] Enum Variant Tag: 0 = Standard
             writer.write_all(&[0u8])?;
             counter += 1;
-            
+
             // Output: Value (u64, 8 bytes)
             writer.write_all(&output.value.sats().to_le_bytes())?;
             counter += 8;
-            
+
             // Output: ScriptPublicKey
             // Version (u16, 2 bytes) - Tondi uses version 0 for standard scripts
             writer.write_all(&0u16.to_le_bytes())?;
             counter += 2;
-            
+
             // Script length (u32, 4 bytes) + Script bytes - Borsh uses u32 for lengths
             let script = output.script_pubkey.as_slice();
             let script_len = script.len() as u32;
@@ -381,19 +412,19 @@ impl ConsensusEncode for Tx {
                 counter += script.len();
             }
         }
-        
+
         // 4. LockTime (u64, 8 bytes)
         writer.write_all(&self.lock_time.to_consensus_u64().to_le_bytes())?;
         counter += 8;
-        
+
         // 5. SubnetworkID (20 bytes)
         writer.write_all(&self.subnetwork_id)?;
         counter += 20;
-        
+
         // 6. Gas (u64, 8 bytes)
         writer.write_all(&self.gas.to_le_bytes())?;
         counter += 8;
-        
+
         // 7. Payload (u32 len + bytes) - Borsh uses u32 for lengths
         let payload_len = self.payload.len() as u32;
         writer.write_all(&payload_len.to_le_bytes())?;
@@ -402,11 +433,11 @@ impl ConsensusEncode for Tx {
             writer.write_all(&self.payload)?;
             counter += self.payload.len();
         }
-        
+
         // 8. Mass (u64, 8 bytes) - Borsh format includes Mass
         writer.write_all(&self.mass.to_le_bytes())?;
         counter += 8;
-        
+
         Ok(counter)
     }
 }
@@ -415,17 +446,17 @@ impl ConsensusDecode for Tx {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
         // ⚠️ CRITICAL: Tondi uses Borsh format for network/storage (u32 lengths + u8 enum tags)
         // This is DIFFERENT from the hash format used in txid() calculation
-        
+
         // 1. Version (u16, 2 bytes)
         let mut version_buf = [0u8; 2];
         reader.read_exact(&mut version_buf)?;
         let version = TxVer::from_consensus_u16(u16::from_le_bytes(version_buf));
-        
+
         // 2. Inputs (u32 len) - Borsh uses u32 for lengths
         let mut inputs_len_buf = [0u8; 4];
         reader.read_exact(&mut inputs_len_buf)?;
         let inputs_len = u32::from_le_bytes(inputs_len_buf) as usize;
-        
+
         let mut inputs = Vec::with_capacity(inputs_len);
         for _ in 0..inputs_len {
             // [Borsh] Read Enum Tag (u8) - 0 = Standard
@@ -433,21 +464,23 @@ impl ConsensusDecode for Tx {
             reader.read_exact(&mut tag_buf)?;
             if tag_buf[0] != 0 {
                 // RGB Purist Mode only supports Standard inputs
-                return Err(ConsensusDecodeError::Data(ConsensusDataError::UnsupportedSegwitFlag(tag_buf[0])));
+                return Err(ConsensusDecodeError::Data(ConsensusDataError::UnsupportedSegwitFlag(
+                    tag_buf[0],
+                )));
             }
-            
+
             // Input: Previous Outpoint
             // Txid (32 bytes)
             let mut txid_buf = [0u8; 32];
             reader.read_exact(&mut txid_buf)?;
             let txid = Txid::from_byte_array(txid_buf);
-            
+
             // Vout (u32, 4 bytes)
             let mut vout_buf = [0u8; 4];
             reader.read_exact(&mut vout_buf)?;
             let vout = Vout::from_u32(u32::from_le_bytes(vout_buf));
             let prev_output = Outpoint::new(txid, vout);
-            
+
             // Input: Signature Script (u32 len + bytes) - Borsh uses u32 for lengths
             let mut sig_len_buf = [0u8; 4];
             reader.read_exact(&mut sig_len_buf)?;
@@ -456,18 +489,18 @@ impl ConsensusDecode for Tx {
             if sig_len > 0 {
                 reader.read_exact(&mut sig_script)?;
             }
-            
+
             // Input: Sequence (u64, 8 bytes) -> cast to u32 for internal storage
             let mut seq_buf = [0u8; 8];
             reader.read_exact(&mut seq_buf)?;
             let seq_u64 = u64::from_le_bytes(seq_buf);
             let sequence = SeqNo::from_consensus_u32(seq_u64 as u32); // ⚠️ Potential data loss if > u32::MAX
-            
+
             // Input: SigOpCount (u8, 1 byte) - Read and discard (we don't store it in TxIn)
             let mut sig_op_buf = [0u8; 1];
             reader.read_exact(&mut sig_op_buf)?;
             let _sig_op_count = sig_op_buf[0];
-            
+
             inputs.push(TxIn {
                 prev_output,
                 sig_script: SigScript::from_checked(sig_script),
@@ -475,12 +508,12 @@ impl ConsensusDecode for Tx {
                 witness: Witness::default(), // Tondi has no witness in input stream
             });
         }
-        
+
         // 3. Outputs (u32 len) - Borsh uses u32 for lengths
         let mut outputs_len_buf = [0u8; 4];
         reader.read_exact(&mut outputs_len_buf)?;
         let outputs_len = u32::from_le_bytes(outputs_len_buf) as usize;
-        
+
         let mut outputs = Vec::with_capacity(outputs_len);
         for _ in 0..outputs_len {
             // [Borsh] Read Enum Tag (u8) - 0 = Standard
@@ -488,73 +521,78 @@ impl ConsensusDecode for Tx {
             reader.read_exact(&mut tag_buf)?;
             if tag_buf[0] != 0 {
                 // RGB Purist Mode only supports Standard outputs
-                return Err(ConsensusDecodeError::Data(ConsensusDataError::UnsupportedSegwitFlag(tag_buf[0])));
+                return Err(ConsensusDecodeError::Data(ConsensusDataError::UnsupportedSegwitFlag(
+                    tag_buf[0],
+                )));
             }
-            
+
             // Output: Value (u64, 8 bytes)
             let mut value_buf = [0u8; 8];
             reader.read_exact(&mut value_buf)?;
             let value = Sats(u64::from_le_bytes(value_buf));
-            
+
             // Output: ScriptPublicKey
             // Version (u16, 2 bytes) - Read and discard (we don't store it)
             let mut version_buf = [0u8; 2];
             reader.read_exact(&mut version_buf)?;
             let _script_version = u16::from_le_bytes(version_buf);
-            
+
             // Script length (u32, 4 bytes) + Script bytes - Borsh uses u32 for lengths
             let mut script_len_buf = [0u8; 4];
             reader.read_exact(&mut script_len_buf)?;
             let script_len = u32::from_le_bytes(script_len_buf) as usize;
-            
+
             let mut script = vec![0u8; script_len];
             if script_len > 0 {
                 reader.read_exact(&mut script)?;
             }
-            
+
             outputs.push(TxOut {
                 value,
                 script_pubkey: ScriptPubkey::from_checked(script),
             });
         }
-        
+
         // 4. LockTime (u64, 8 bytes)
         let mut lock_time_buf = [0u8; 8];
         reader.read_exact(&mut lock_time_buf)?;
         let lock_time = LockTime::from_consensus_u64(u64::from_le_bytes(lock_time_buf));
-        
+
         // 5. SubnetworkID (20 bytes)
         let mut subnetwork_id = [0u8; 20];
         reader.read_exact(&mut subnetwork_id)?;
-        
+
         // 6. Gas (u64, 8 bytes)
         let mut gas_buf = [0u8; 8];
         reader.read_exact(&mut gas_buf)?;
         let gas = u64::from_le_bytes(gas_buf);
-        
+
         // 7. Payload (u32 len + bytes) - Borsh uses u32 for lengths
         let mut payload_len_buf = [0u8; 4];
         reader.read_exact(&mut payload_len_buf)?;
         let payload_len = u32::from_le_bytes(payload_len_buf) as usize;
-        
+
         let mut payload = vec![0u8; payload_len];
         if payload_len > 0 {
             reader.read_exact(&mut payload)?;
         }
-        
+
         // 8. Mass (u64, 8 bytes) - Borsh format includes Mass
         let mut mass_buf = [0u8; 8];
         reader.read_exact(&mut mass_buf)?;
         let mass = u64::from_le_bytes(mass_buf);
-        
+
         Ok(Tx {
             version,
-            inputs: VarIntArray::try_from(inputs).map_err(|e| ConsensusDecodeError::Data(ConsensusDataError::Confined(e)))?,
-            outputs: VarIntArray::try_from(outputs).map_err(|e| ConsensusDecodeError::Data(ConsensusDataError::Confined(e)))?,
+            inputs: VarIntArray::try_from(inputs)
+                .map_err(|e| ConsensusDecodeError::Data(ConsensusDataError::Confined(e)))?,
+            outputs: VarIntArray::try_from(outputs)
+                .map_err(|e| ConsensusDecodeError::Data(ConsensusDataError::Confined(e)))?,
             lock_time,
             subnetwork_id,
             gas,
-            payload: VarIntBytes::try_from(payload).map_err(|e| ConsensusDecodeError::Data(ConsensusDataError::Confined(e)))?,
+            payload: VarIntBytes::try_from(payload)
+                .map_err(|e| ConsensusDecodeError::Data(ConsensusDataError::Confined(e)))?,
             mass,
         })
     }
@@ -702,7 +740,7 @@ impl ConsensusDecode for SeqNo {
 
 impl ConsensusEncode for LockTime {
     fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Bitcoin
+        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Tondi
         writer.write_all(&self.to_consensus_u64().to_le_bytes())?;
         Ok(8)
     }
@@ -710,7 +748,7 @@ impl ConsensusEncode for LockTime {
 
 impl ConsensusDecode for LockTime {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Bitcoin
+        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Tondi
         let mut bytes = [0u8; 8];
         reader.read_exact(&mut bytes)?;
         Ok(LockTime::from_consensus_u64(u64::from_le_bytes(bytes)))
@@ -1171,9 +1209,10 @@ mod tests {
         assert_eq!(serialize(&VarInt(0xFD)), vec![0xFDu8, 0xFD, 0]);
         assert_eq!(serialize(&VarInt(0xFFF)), vec![0xFDu8, 0xFF, 0xF]);
         assert_eq!(serialize(&VarInt(0xF0F0F0F)), vec![0xFEu8, 0xF, 0xF, 0xF, 0xF]);
-        assert_eq!(serialize(&VarInt(0xF0F0F0F0F0E0)), vec![
-            0xFFu8, 0xE0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0, 0
-        ]);
+        assert_eq!(
+            serialize(&VarInt(0xF0F0F0F0F0E0)),
+            vec![0xFFu8, 0xE0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0, 0]
+        );
         assert_eq!(
             test_varint_encode(0xFF, &0x100000000_u64.to_le_bytes()).unwrap(),
             VarInt(0x100000000)

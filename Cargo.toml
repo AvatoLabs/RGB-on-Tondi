@@ -19,13 +19,13 @@ members = [
     "client_side_validation/commit_verify/derive",
     "client_side_validation/single_use_seals",
     
-    # Bitcoin Protocol Core
+    # Tondi protocol core
     "bp-core",
     "bp-core/consensus",
     "bp-core/dbc",
     "bp-core/seals",
     
-    # Bitcoin Protocol Standard
+    # Tondi wallet standards
     "bp-std",
     "bp-std/invoice",
     "bp-std/derive",
@@ -116,7 +116,7 @@ commit_verify_derive = { version = "0.12.0", path = "./client_side_validation/co
 single_use_seals = { version = "0.12.0", path = "./client_side_validation/single_use_seals" }
 client_side_validation = { version = "0.12.0", path = "./client_side_validation" }
 
-# Workspace internal dependencies - Bitcoin Protocol
+# Workspace internal dependencies - Tondi protocol
 bp-consensus = { version = "0.12.0", path = "./bp-core/consensus" }
 bp-dbc = { version = "0.12.0", path = "./bp-core/dbc" }
 bp-seals = { version = "0.12.0", path = "./bp-core/seals" }

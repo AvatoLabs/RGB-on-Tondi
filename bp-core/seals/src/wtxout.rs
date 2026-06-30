@@ -1,4 +1,4 @@
-// Bitcoin protocol single-use-seals library.
+// Tondi protocol single-use-seals library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,7 +23,7 @@
 //! RGB.
 
 use bc::{Outpoint, Vout};
-use commit_verify::{TondiBlake3, StrictHash};
+use commit_verify::{StrictHash, TondiBlake3};
 
 use crate::{Noise, TxoSealExt};
 

@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -587,20 +587,20 @@ pub enum TapCode {
     #[display("OP_CODESEPARATOR")]
     CodeSeparator = OP_CODESEPARATOR,
 
-    /// <https://en.bitcoin.it/wiki/OP_CHECKSIG> pushing 1/0 for success/failure.
+    /// <https://en.tondi.it/wiki/OP_CHECKSIG> pushing 1/0 for success/failure.
     #[display("OP_CHECKSIG")]
     CheckSig = OP_CHECKSIG,
-    /// <https://en.bitcoin.it/wiki/OP_CHECKSIG> returning success/failure.
+    /// <https://en.tondi.it/wiki/OP_CHECKSIG> returning success/failure.
     #[display("OP_CHECKSIGVERIFY")]
     CheckSigVerify = OP_CHECKSIGVERIFY,
 
     /// Does nothing.
     #[display("OP_NOP1")]
     Nop1 = OP_NOP1,
-    /// <https://github.com/bitcoin/bips/blob/master/bip-0065.mediawiki>
+    /// <https://github.com/tondi/bips/blob/master/bip-0065.mediawiki>
     #[display("OP_CLTV")]
     Cltv = OP_CLTV,
-    /// <https://github.com/bitcoin/bips/blob/master/bip-0112.mediawiki>
+    /// <https://github.com/tondi/bips/blob/master/bip-0112.mediawiki>
     #[display("OP_CSV")]
     Csv = OP_CSV,
     /// Does nothing.

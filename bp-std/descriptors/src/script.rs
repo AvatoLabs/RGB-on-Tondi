@@ -216,10 +216,14 @@ pub struct Raw<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
 
 impl<K: DeriveLegacy> Derive<DerivedScript> for Raw<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.0.default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.0.keychains()
+    }
 
     fn derive(
         &self,
@@ -234,17 +238,25 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for Raw<K> {
 }
 
 impl<K: DeriveLegacy> Descriptor<K> for Raw<K> {
-    fn class(&self) -> SpkClass { SpkClass::Bare }
+    fn class(&self) -> SpkClass {
+        SpkClass::Bare
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.0.keys()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(K::xpub_spec)
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.keys()
@@ -295,7 +307,9 @@ impl<K: DeriveLegacy> Descriptor<K> for Raw<K> {
 }
 
 impl<K: DeriveLegacy> Display for Raw<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "raw({})", self.0) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "raw({})", self.0)
+    }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -304,10 +318,14 @@ pub struct Sh<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
 
 impl<K: DeriveLegacy> Derive<DerivedScript> for Sh<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.0.default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.0.keychains()
+    }
 
     fn derive(
         &self,
@@ -319,17 +337,25 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for Sh<K> {
 }
 
 impl<K: DeriveLegacy> Descriptor<K> for Sh<K> {
-    fn class(&self) -> SpkClass { SpkClass::P2sh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2sh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.0.keys()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(K::xpub_spec)
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.keys()
@@ -380,7 +406,9 @@ impl<K: DeriveLegacy> Descriptor<K> for Sh<K> {
 }
 
 impl<K: DeriveLegacy> Display for Sh<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "sh({})", self.0) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "sh({})", self.0)
+    }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -389,10 +417,14 @@ pub struct Wsh<K: DeriveCompr = XpubDerivable>(ScriptDescr<OpCode, K>);
 
 impl<K: DeriveCompr> Derive<DerivedScript> for Wsh<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+    fn default_keychain(&self) -> Keychain {
+        self.0.default_keychain()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.0.keychains()
+    }
 
     fn derive(
         &self,
@@ -404,17 +436,25 @@ impl<K: DeriveCompr> Derive<DerivedScript> for Wsh<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for Wsh<K> {
-    fn class(&self) -> SpkClass { SpkClass::P2wsh }
+    fn class(&self) -> SpkClass {
+        SpkClass::P2wsh
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.0.keys()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.keys().map(K::xpub_spec)
+    }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.keys()
@@ -465,5 +505,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wsh<K> {
 }
 
 impl<K: DeriveCompr> Display for Wsh<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wsh({})", self.0) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "wsh({})", self.0)
+    }
 }

@@ -110,5 +110,4 @@ pub enum ParseInvoiceError {
     /// RGB invoice contains unrecognizable URI authority, which is neither contract id nor a
     /// contract query.
     Unrecognizable(Baid64ParseError),
-
 }

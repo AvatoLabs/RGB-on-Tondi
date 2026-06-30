@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB wallet library for smart contracts on Tondi & off-chain network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,7 +21,7 @@
 
 //! Managing client-side-validation-related proprietary keys inside PSTT.
 //!
-//! Supports deterministic bitcoin commitments with tapret and opret schemes and multi-protocol
+//! Supports deterministic tondi commitments with tapret and opret schemes and multi-protocol
 //! commitment structures used by all of them.
 
 mod mmb;

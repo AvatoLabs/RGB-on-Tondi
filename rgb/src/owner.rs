@@ -38,8 +38,8 @@ use rgb::popls::bp::WalletProvider;
 use rgb::{AuthToken, RgbSealDef, WitnessStatus};
 use rgbdescr::RgbDescr;
 
-use crate::resolvers::{Resolver, ResolverError};
 use crate::p2mr::p2mr_original_pubkey_key;
+use crate::resolvers::{Resolver, ResolverError};
 use crate::{MemUtxos, UtxoSet};
 
 const TONDI_P2MR_ADDRESS_VERSION: u8 = 216;
@@ -576,10 +576,8 @@ where
         else {
             return;
         };
-        let _ = output.push_proprietary(
-            p2mr_original_pubkey_key(),
-            original_pubkey.to_byte_array().to_vec(),
-        );
+        let _ = output
+            .push_proprietary(p2mr_original_pubkey_key(), original_pubkey.to_byte_array().to_vec());
     }
 }
 
@@ -695,7 +693,11 @@ mod test {
     fn setup() -> MemUtxos {
         let mut utxo = MemUtxos::default();
         let next = utxo.next_index(Keychain::OUTER, true);
-        utxo.insert(Outpoint::coinbase(), Sats::from_btc(2), Terminal::new(Keychain::OUTER, next));
+        utxo.insert(
+            Outpoint::coinbase(),
+            Sats::from_tondi(2),
+            Terminal::new(Keychain::OUTER, next),
+        );
         utxo
     }
 
@@ -718,7 +720,7 @@ mod test {
         assert!(utxo.has(Outpoint::coinbase()));
         assert_eq!(
             utxo.get(Outpoint::coinbase()),
-            Some((Sats::from_btc(2), Terminal::new(Keychain::OUTER, NormalIndex::ZERO)))
+            Some((Sats::from_tondi(2), Terminal::new(Keychain::OUTER, NormalIndex::ZERO)))
         );
     }
 

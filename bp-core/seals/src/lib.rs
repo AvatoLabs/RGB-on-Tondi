@@ -1,4 +1,4 @@
-// Bitcoin protocol single-use-seals library.
+// Tondi protocol single-use-seals library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -36,7 +36,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! The library provides single-use-seal implementations for bitcoin protocol.
+//! The library provides single-use-seal implementations for tondi protocol.
 
 #[macro_use]
 extern crate amplify;

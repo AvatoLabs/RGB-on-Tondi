@@ -47,30 +47,42 @@ pub struct Keychain(u8);
 
 impl From<Keychain> for NormalIndex {
     #[inline]
-    fn from(keychain: Keychain) -> Self { NormalIndex::from(keychain.0) }
+    fn from(keychain: Keychain) -> Self {
+        NormalIndex::from(keychain.0)
+    }
 }
 
 impl From<Keychain> for DerivationIndex {
     #[inline]
-    fn from(keychain: Keychain) -> Self { DerivationIndex::Normal(keychain.into()) }
+    fn from(keychain: Keychain) -> Self {
+        DerivationIndex::Normal(keychain.into())
+    }
 }
 
 impl Keychain {
     pub const OUTER: Self = Keychain(0);
     pub const INNER: Self = Keychain(1);
 
-    pub const fn with(idx: u8) -> Self { Keychain(idx) }
+    pub const fn with(idx: u8) -> Self {
+        Keychain(idx)
+    }
 }
 
 impl IdxBase for Keychain {
     #[inline]
-    fn is_hardened(&self) -> bool { false }
+    fn is_hardened(&self) -> bool {
+        false
+    }
 
     #[inline]
-    fn child_number(&self) -> u32 { self.0 as u32 }
+    fn child_number(&self) -> u32 {
+        self.0 as u32
+    }
 
     #[inline]
-    fn index(&self) -> u32 { self.0 as u32 }
+    fn index(&self) -> u32 {
+        self.0 as u32
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -87,7 +99,9 @@ impl Terminal {
             index,
         }
     }
-    pub fn change(index: NormalIndex) -> Self { Self::new(1, index) }
+    pub fn change(index: NormalIndex) -> Self {
+        Self::new(1, index)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -137,7 +151,9 @@ mod _serde {
 
     impl Serialize for Keychain {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             if serializer.is_human_readable() {
                 self.0.to_string().serialize(serializer)
             } else {
@@ -148,7 +164,9 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for Keychain {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             if deserializer.is_human_readable() {
                 let s = String::deserialize(deserializer)?;
                 Self::from_str(&s).map_err(D::Error::custom)
@@ -160,7 +178,9 @@ mod _serde {
 
     impl Serialize for Terminal {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             if serializer.is_human_readable() {
                 self.to_string().serialize(serializer)
             } else {
@@ -172,7 +192,9 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for Terminal {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             if deserializer.is_human_readable() {
                 let s = String::deserialize(deserializer)?;
                 Self::from_str(&s).map_err(D::Error::custom)
@@ -247,7 +269,9 @@ impl DerivedScript {
             DerivedScript::TaprootScript(_, _) => None,
         }
     }
-    pub fn to_witness_script(&self) -> Option<WitnessScript> { self.as_witness_script().cloned() }
+    pub fn to_witness_script(&self) -> Option<WitnessScript> {
+        self.as_witness_script().cloned()
+    }
 
     pub fn to_internal_pk(&self) -> Option<InternalPk> {
         match self {
@@ -273,7 +297,9 @@ impl DerivedScript {
         }
     }
 
-    pub fn to_tap_tree(&self) -> Option<TapTree> { self.as_tap_tree().cloned() }
+    pub fn to_tap_tree(&self) -> Option<TapTree> {
+        self.as_tap_tree().cloned()
+    }
 
     pub fn to_leaf_scripts(&self) -> IndexMap<ControlBlock, LeafScript> {
         let (Some(internal_pk), Some(tap_tree)) = (self.to_internal_pk(), self.to_tap_tree())
@@ -302,11 +328,15 @@ pub struct DerivedAddr {
 }
 
 impl Ord for DerivedAddr {
-    fn cmp(&self, other: &Self) -> Ordering { self.terminal.cmp(&other.terminal) }
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.terminal.cmp(&other.terminal)
+    }
 }
 
 impl PartialOrd for DerivedAddr {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl DerivedAddr {
@@ -417,23 +447,33 @@ pub trait DeriveScripts: Derive<DerivedScript> {
 impl<T: Derive<DerivedScript>> DeriveScripts for T {}
 
 impl DeriveKey<LegacyPk> for XpubDerivable {
-    fn xpub_spec(&self) -> &XpubAccount { self.spec() }
+    fn xpub_spec(&self) -> &XpubAccount {
+        self.spec()
+    }
 }
 
 impl DeriveKey<CompressedPk> for XpubDerivable {
-    fn xpub_spec(&self) -> &XpubAccount { self.spec() }
+    fn xpub_spec(&self) -> &XpubAccount {
+        self.spec()
+    }
 }
 
 impl DeriveKey<XOnlyPk> for XpubDerivable {
-    fn xpub_spec(&self) -> &XpubAccount { self.spec() }
+    fn xpub_spec(&self) -> &XpubAccount {
+        self.spec()
+    }
 }
 
 impl Derive<LegacyPk> for XpubDerivable {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keychains.first() }
+    fn default_keychain(&self) -> Keychain {
+        self.keychains.first()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keychains.to_set()
+    }
 
     fn derive(
         &self,
@@ -446,10 +486,14 @@ impl Derive<LegacyPk> for XpubDerivable {
 
 impl Derive<CompressedPk> for XpubDerivable {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keychains.first() }
+    fn default_keychain(&self) -> Keychain {
+        self.keychains.first()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keychains.to_set()
+    }
 
     fn derive(
         &self,
@@ -462,10 +506,14 @@ impl Derive<CompressedPk> for XpubDerivable {
 
 impl Derive<XOnlyPk> for XpubDerivable {
     #[inline]
-    fn default_keychain(&self) -> Keychain { self.keychains.first() }
+    fn default_keychain(&self) -> Keychain {
+        self.keychains.first()
+    }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.keychains.to_set()
+    }
 
     fn derive(
         &self,

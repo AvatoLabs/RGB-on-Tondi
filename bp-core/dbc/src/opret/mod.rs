@@ -1,4 +1,4 @@
-// Deterministic bitcoin commitments library.
+// Deterministic tondi commitments library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //

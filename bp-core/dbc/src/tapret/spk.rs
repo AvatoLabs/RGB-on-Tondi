@@ -1,4 +1,4 @@
-// Deterministic bitcoin commitments library.
+// Deterministic tondi commitments library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -27,9 +27,13 @@ use super::{TapretFirst, TapretKeyError, TapretProof};
 impl ConvolveCommitProof<mpc::Commitment, ScriptPubkey, TapretFirst> for TapretProof {
     type Suppl = Self;
 
-    fn restore_original(&self, _: &ScriptPubkey) -> ScriptPubkey { self.original_pubkey_script() }
+    fn restore_original(&self, _: &ScriptPubkey) -> ScriptPubkey {
+        self.original_pubkey_script()
+    }
 
-    fn extract_supplement(&self) -> &Self::Suppl { self }
+    fn extract_supplement(&self) -> &Self::Suppl {
+        self
+    }
 }
 
 impl ConvolveCommit<mpc::Commitment, TapretProof, TapretFirst> for ScriptPubkey {

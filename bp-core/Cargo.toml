@@ -4,8 +4,8 @@
 [package]
 name = "bp-core"
 version = "0.12.0"
-description = "Bitcoin protocol core library (BP Core Lib)"
-keywords = ["lnp-bp", "smart-contracts", "bitcoin", "blockchain"]
+description = "Tondi protocol core library (BP Core Lib)"
+keywords = ["lnp-bp", "smart-contracts", "tondi", "blockchain"]
 categories = ["cryptography"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 repository = "https://github.com/BP-WG/bp-core"

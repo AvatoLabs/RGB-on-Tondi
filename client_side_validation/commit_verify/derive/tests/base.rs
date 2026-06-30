@@ -55,11 +55,15 @@ impl CommitmentId for DumbId {
 }
 
 impl From<TondiBlake3> for DumbId {
-    fn from(value: TondiBlake3) -> Self { value.finish().into() }
+    fn from(value: TondiBlake3) -> Self {
+        value.finish().into()
+    }
 }
 
 fn verify_commit<T: CommitId>(value: T, expect: &'static str)
-where T::CommitmentId: Display {
+where
+    T::CommitmentId: Display,
+{
     assert_eq!(&value.commit_id().to_string(), expect, "invalid commitment");
 }
 
@@ -221,7 +225,9 @@ fn conceal() -> common::Result {
 
     impl Conceal for Data {
         type Concealed = Self;
-        fn conceal(&self) -> Self { Self::Concealed(0xde) }
+        fn conceal(&self) -> Self {
+            Self::Concealed(0xde)
+        }
     }
 
     verify_commit(

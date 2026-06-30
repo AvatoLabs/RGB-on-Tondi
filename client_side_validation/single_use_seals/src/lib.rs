@@ -214,7 +214,8 @@ pub trait ClientSideWitness: Eq {
     /// private and not known to the other users.
     /// This procedure allows combining information from multiple sources back.
     fn merge(&mut self, other: Self) -> Result<(), impl Error>
-    where Self: Sized;
+    where
+        Self: Sized;
 }
 
 /// Some single-use seal protocols may not distinguish client-side seal closing
@@ -225,7 +226,9 @@ pub trait ClientSideWitness: Eq {
 pub struct NoClientWitness<Seal: SingleUseSeal>(PhantomData<Seal>);
 
 impl<Seal: SingleUseSeal> PartialEq for NoClientWitness<Seal> {
-    fn eq(&self, _: &Self) -> bool { true }
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
 }
 impl<Seal: SingleUseSeal> Eq for NoClientWitness<Seal> {}
 
@@ -234,21 +237,29 @@ impl<Seal: SingleUseSeal> ClientSideWitness for NoClientWitness<Seal> {
     type Proof = Seal::Message;
     type Error = Infallible;
 
-    fn convolve_commit(&self, msg: Seal::Message) -> Result<Self::Proof, Self::Error> { Ok(msg) }
+    fn convolve_commit(&self, msg: Seal::Message) -> Result<Self::Proof, Self::Error> {
+        Ok(msg)
+    }
 
     fn merge(&mut self, _: Self) -> Result<(), impl Error>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         Ok::<_, Infallible>(())
     }
 }
 
 impl<Seal: SingleUseSeal> NoClientWitness<Seal> {
     /// Constructs the object.
-    pub fn new() -> Self { Self(PhantomData) }
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
 }
 
 impl<Seal: SingleUseSeal> Default for NoClientWitness<Seal> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(feature = "strict_encoding")]
@@ -267,7 +278,9 @@ mod _strict_encoding_impls {
         const FIELD_COUNT: u8 = 0;
     }
     impl<Seal: SingleUseSeal> StrictEncode for NoClientWitness<Seal> {
-        fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> { Ok(writer) }
+        fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+            Ok(writer)
+        }
     }
     impl<Seal: SingleUseSeal> StrictDecode for NoClientWitness<Seal> {
         fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
@@ -322,7 +335,8 @@ pub trait PublishedWitness<Seal: SingleUseSeal> {
                    Seal::CliWitness: serde::Serialize + for<'d> serde::Deserialize<'d>")
 )]
 pub struct SealWitness<Seal>
-where Seal: SingleUseSeal
+where
+    Seal: SingleUseSeal,
 {
     /// The published part of the single-use seal closing witness.
     pub published: Seal::PubWitness,
@@ -334,7 +348,8 @@ where Seal: SingleUseSeal
 }
 
 impl<Seal> SealWitness<Seal>
-where Seal: SingleUseSeal
+where
+    Seal: SingleUseSeal,
 {
     /// Construct seal closing withness out of published and client-side
     /// components.
@@ -463,7 +478,9 @@ mod tests {
     struct DumbSeal(u8);
 
     impl Display for DumbSeal {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { f.write_str("DumbSeal") }
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            f.write_str("DumbSeal")
+        }
     }
 
     impl SingleUseSeal for DumbSeal {
@@ -485,7 +502,9 @@ mod tests {
         type PubId = u8;
         type Error = Invalid;
 
-        fn pub_id(&self) -> Self::PubId { self.1 .0 }
+        fn pub_id(&self) -> Self::PubId {
+            self.1 .0
+        }
 
         fn verify_commitment(&self, proof: DumbMessage) -> Result<(), Self::Error> {
             (self.0 == proof).then_some(()).ok_or(Invalid)
@@ -496,7 +515,9 @@ mod tests {
         type PubId = u8;
         type Error = Invalid;
 
-        fn pub_id(&self) -> Self::PubId { self.1 .0 }
+        fn pub_id(&self) -> Self::PubId {
+            self.1 .0
+        }
 
         fn verify_commitment(&self, proof: DumbMessage) -> Result<(), Self::Error> {
             (self.0 == proof).then_some(()).ok_or(Invalid)
@@ -507,7 +528,9 @@ mod tests {
         type PubId = u8;
         type Error = Invalid;
 
-        fn pub_id(&self) -> Self::PubId { self.1 .0 }
+        fn pub_id(&self) -> Self::PubId {
+            self.1 .0
+        }
 
         fn verify_commitment(&self, proof: DumbMessage) -> Result<(), Self::Error> {
             (self.0 == proof).then_some(()).ok_or(Invalid)
@@ -520,7 +543,9 @@ mod tests {
     struct FailingSeal(u8);
 
     impl Display for FailingSeal {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { f.write_str("DumbSeal") }
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            f.write_str("DumbSeal")
+        }
     }
 
     impl SingleUseSeal for FailingSeal {
@@ -551,7 +576,9 @@ mod tests {
         }
 
         fn merge(&mut self, _other: Self) -> Result<(), impl Error>
-        where Self: Sized {
+        where
+            Self: Sized,
+        {
             Result::<_, Infallible>::Ok(())
         }
     }
@@ -559,7 +586,9 @@ mod tests {
     #[derive(Copy, Clone, Debug)]
     struct Invalid;
     impl Display for Invalid {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { f.write_str("invalid seal") }
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            f.write_str("invalid seal")
+        }
     }
     impl Error for Invalid {}
 

@@ -133,7 +133,9 @@ pub enum Leaf {
 
 impl Leaf {
     /// Construct a [`Leaf::Entropy`] variant.
-    pub fn entropy(entropy: u64, pos: u32) -> Self { Self::Entropy { entropy, pos } }
+    pub fn entropy(entropy: u64, pos: u32) -> Self {
+        Self::Entropy { entropy, pos }
+    }
 
     /// Construct a [`Leaf::Inhabited`] variant.
     pub fn inhabited(protocol: ProtocolId, message: Message) -> Self {
@@ -142,7 +144,9 @@ impl Leaf {
 }
 
 impl StrictDumb for Leaf {
-    fn strict_dumb() -> Self { Self::Entropy { entropy: 0, pos: 0 } }
+    fn strict_dumb() -> Self {
+        Self::Entropy { entropy: 0, pos: 0 }
+    }
 }
 
 /// Final [LNPBP-4] commitment value.
@@ -178,7 +182,9 @@ impl Commitment {
 }
 
 impl From<TondiBlake3> for Commitment {
-    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
+    fn from(hasher: TondiBlake3) -> Self {
+        hasher.finish().into()
+    }
 }
 
 /// Structured source multi-message data for commitment creation

@@ -31,11 +31,14 @@ pub const LIB_ID_BPCORE: &str =
 
 #[allow(clippy::result_large_err)]
 fn _bp_core_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_BPCORE), [
-        strict_types::stl::std_stl().to_dependency_types(),
-        bc::stl::bp_consensus_stl().to_dependency_types(),
-        commit_verify::stl::commit_verify_stl().to_dependency_types(),
-    ])
+    LibBuilder::with(
+        libname!(LIB_NAME_BPCORE),
+        [
+            strict_types::stl::std_stl().to_dependency_types(),
+            bc::stl::bp_consensus_stl().to_dependency_types(),
+            commit_verify::stl::commit_verify_stl().to_dependency_types(),
+        ],
+    )
     .transpile::<seals::TxoSeal>()
     .transpile::<seals::WTxoSeal>()
     .transpile::<seals::Anchor>()
@@ -45,7 +48,9 @@ fn _bp_core_stl() -> Result<TypeLib, CompileError> {
 
 /// Generates strict type library providing data types from [`dbc`] and
 /// [`seals`] crates.
-pub fn bp_core_stl() -> TypeLib { _bp_core_stl().expect("invalid strict type Tondi core library") }
+pub fn bp_core_stl() -> TypeLib {
+    _bp_core_stl().expect("invalid strict type Tondi core library")
+}
 
 #[cfg(test)]
 mod test {

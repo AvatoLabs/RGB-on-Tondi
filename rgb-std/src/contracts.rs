@@ -81,7 +81,9 @@ pub struct WalletState<Seal> {
 }
 
 impl<Seal> Default for WalletState<Seal> {
-    fn default() -> Self { Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} } }
+    fn default() -> Self {
+        Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} }
+    }
 }
 
 impl<Seal> WalletState<Seal> {
@@ -219,9 +221,13 @@ where
         self.persistence.codex_ids()
     }
 
-    pub fn issuers_count(&self) -> usize { self.persistence.issuers_count() }
+    pub fn issuers_count(&self) -> usize {
+        self.persistence.issuers_count()
+    }
 
-    pub fn has_issuer(&self, codex_id: CodexId) -> bool { self.persistence.has_issuer(codex_id) }
+    pub fn has_issuer(&self, codex_id: CodexId) -> bool {
+        self.persistence.has_issuer(codex_id)
+    }
 
     pub fn issuers(&self) -> impl Iterator<Item = (CodexId, Issuer)> + use<'_, Sp, S, C> {
         self.persistence
@@ -238,7 +244,9 @@ where
         self.issuers.borrow().get(&codex_id).cloned()
     }
 
-    pub fn contracts_count(&self) -> usize { self.persistence.contracts_count() }
+    pub fn contracts_count(&self) -> usize {
+        self.persistence.contracts_count()
+    }
 
     pub fn has_contract(&self, contract_id: ContractId) -> bool {
         self.persistence.has_contract(contract_id)

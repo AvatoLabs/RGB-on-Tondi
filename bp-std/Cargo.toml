@@ -3,7 +3,7 @@
 
 [package]
 name = "bp-std"
-description = "Modern & lightweight implementation of bitcoin standards without rust-bitcoin/miniscript dependencies"
+description = "Modern & lightweight implementation of tondi standards without rust-tondi/miniscript dependencies"
 readme = "README.md"
 version = "0.12.0-rc.3"
 keywords = ["tondi", "wallet", "descriptors", "pstt", "copperoot"]

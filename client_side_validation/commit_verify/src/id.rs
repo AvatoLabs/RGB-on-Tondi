@@ -83,7 +83,7 @@ pub enum CommitStep {
 /// A helper engine used in computing commitment ids.
 ///
 /// Uses TondiBlake3 (BLAKE3 with domain separation) for Tondi L1 by default.
-/// Can be configured to use SHA256 for Bitcoin compatibility.
+/// Can be configured to use SHA256 for Tondi compatibility.
 #[derive(Clone, Debug)]
 pub struct CommitEngine {
     finished: bool,
@@ -124,14 +124,14 @@ impl CommitEngine {
     pub fn commit_to_serialized<T: StrictEncode>(&mut self, value: &T) {
         let fqn = commitment_fqn::<T>();
         debug_assert!(
-            Some(&fqn.name) != MerkleHash::strict_name().as_ref() ||
-                fqn.lib.as_str() != MerkleHash::STRICT_LIB_NAME,
+            Some(&fqn.name) != MerkleHash::strict_name().as_ref()
+                || fqn.lib.as_str() != MerkleHash::STRICT_LIB_NAME,
             "do not use `commit_to_serialized` for merklized collections, use `commit_to_merkle` \
              instead"
         );
         debug_assert!(
-            Some(&fqn.name) != StrictHash::strict_name().as_ref() ||
-                fqn.lib.as_str() != StrictHash::STRICT_LIB_NAME,
+            Some(&fqn.name) != StrictHash::strict_name().as_ref()
+                || fqn.lib.as_str() != StrictHash::STRICT_LIB_NAME,
             "do not use `commit_to_serialized` for StrictHash types, use `commit_to_hash` instead"
         );
         self.layout
@@ -168,7 +168,9 @@ impl CommitEngine {
     ///
     /// The collection must implement [`MerkleLeaves`] trait.
     pub fn commit_to_merkle<T: MerkleLeaves>(&mut self, value: &T)
-    where T::Leaf: StrictType {
+    where
+        T::Leaf: StrictType,
+    {
         let fqn = commitment_fqn::<T::Leaf>();
         self.layout
             .push(CommitStep::Merklized(fqn))
@@ -275,18 +277,26 @@ impl CommitEngine {
     }
 
     /// Convert into the underlying sequence of commit steps.
-    pub fn into_layout(self) -> TinyVec<CommitStep> { self.layout }
+    pub fn into_layout(self) -> TinyVec<CommitStep> {
+        self.layout
+    }
 
     /// Mark the procedure as completed, preventing any further data from being
     /// added.
-    pub fn set_finished(&mut self) { self.finished = true; }
+    pub fn set_finished(&mut self) {
+        self.finished = true;
+    }
 
     /// Complete the commitment returning the resulting hash.
-    pub fn finish(self) -> TondiBlake3 { self.hasher }
+    pub fn finish(self) -> TondiBlake3 {
+        self.hasher
+    }
 
     /// Complete the commitment returning the resulting hash and the description
     /// of all commitment steps performed during the procedure.
-    pub fn finish_layout(self) -> (TondiBlake3, TinyVec<CommitStep>) { (self.hasher, self.layout) }
+    pub fn finish_layout(self) -> (TondiBlake3, TinyVec<CommitStep>) {
+        (self.hasher, self.layout)
+    }
 }
 
 /// A trait for types supporting commit-encode procedure.
@@ -332,7 +342,7 @@ impl Display for CommitLayout {
 /// identifier of the underlying data.
 ///
 /// For Tondi L1, uses TondiBlake3 (BLAKE3 with domain separation).
-/// For Bitcoin compatibility, uses SHA256 with BIP-340 tagging.
+/// For Tondi compatibility, uses SHA256 with BIP-340 tagging.
 ///
 /// The type must be constructible from a 32-byte array, which is the output
 /// of both BLAKE3 and SHA256 hash functions.
@@ -340,7 +350,7 @@ pub trait CommitmentId: Copy + Ord + From<[u8; 32]> + StrictType {
     /// A tag string used in initializing the hasher.
     ///
     /// For Tondi: Used as domain separation context with BLAKE3 derive_key.
-    /// For Bitcoin: Used as BIP-340 style tagged hash.
+    /// For Tondi: Used as BIP-340 style tagged hash.
     const TAG: &'static str;
 }
 
@@ -353,7 +363,8 @@ pub trait CommitmentLayout: CommitEncode {
 }
 
 impl<T> CommitmentLayout for T
-where T: CommitEncode + StrictDumb
+where
+    T: CommitEncode + StrictDumb,
 {
     fn commitment_layout() -> CommitLayout {
         let dumb = Self::strict_dumb();
@@ -432,7 +443,9 @@ mod tests {
 
     impl Conceal for DumbConceal {
         type Concealed = DumbHash;
-        fn conceal(&self) -> Self::Concealed { DumbHash(0xFF - self.0) }
+        fn conceal(&self) -> Self::Concealed {
+            DumbHash(0xFF - self.0)
+        }
     }
 
     #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
@@ -541,11 +554,14 @@ mod tests {
         engine.commit_to_linear_list(&val);
         engine.set_finished();
         let (id, layout) = engine.finish_layout();
-        assert_eq!(layout, tiny_vec![CommitStep::Collection(
-            CommitColType::List,
-            Sizing::new(0, 0xFF),
-            TypeFqn::from("_.U8")
-        )]);
+        assert_eq!(
+            layout,
+            tiny_vec![CommitStep::Collection(
+                CommitColType::List,
+                Sizing::new(0, 0xFF),
+                TypeFqn::from("_.U8")
+            )]
+        );
         // Verify hash is computed (TondiBlake3)
         assert_eq!(
             id.finish(),
@@ -562,11 +578,14 @@ mod tests {
         engine.commit_to_linear_set(&val);
         engine.set_finished();
         let (id, layout) = engine.finish_layout();
-        assert_eq!(layout, tiny_vec![CommitStep::Collection(
-            CommitColType::Set,
-            Sizing::new(0, 0xFF),
-            TypeFqn::from("_.U8")
-        )]);
+        assert_eq!(
+            layout,
+            tiny_vec![CommitStep::Collection(
+                CommitColType::Set,
+                Sizing::new(0, 0xFF),
+                TypeFqn::from("_.U8")
+            )]
+        );
         // Verify hash is computed (TondiBlake3)
         assert_eq!(
             id.finish(),
@@ -583,13 +602,16 @@ mod tests {
         engine.commit_to_linear_map(&val);
         engine.set_finished();
         let (id, layout) = engine.finish_layout();
-        assert_eq!(layout, tiny_vec![CommitStep::Collection(
-            CommitColType::Map {
-                key: TypeFqn::from("_.U8")
-            },
-            Sizing::new(0, 0xFF),
-            TypeFqn::from("StrictTypes.TypeName")
-        )]);
+        assert_eq!(
+            layout,
+            tiny_vec![CommitStep::Collection(
+                CommitColType::Map {
+                    key: TypeFqn::from("_.U8")
+                },
+                Sizing::new(0, 0xFF),
+                TypeFqn::from("StrictTypes.TypeName")
+            )]
+        );
         // Verify hash is computed (TondiBlake3)
         assert_eq!(
             id.finish(),
@@ -620,10 +642,10 @@ mod tests {
         // Verify that different tags produce different hashes
         let mut engine1 = CommitEngine::new("test1");
         let mut engine2 = CommitEngine::new("test2");
-        
+
         engine1.commit_to_serialized(&42u64);
         engine2.commit_to_serialized(&42u64);
-        
+
         assert_ne!(
             engine1.finish().finish(),
             engine2.finish().finish(),

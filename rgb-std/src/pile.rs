@@ -56,7 +56,7 @@ pub enum WitnessStatus {
 
     /// Indicates offchain status where the receiver is in at least partial control over
     /// transaction execution and the transaction can't be replaced (RBFed) without the
-    /// receiver participation - for instance, like in lightning channel transactions (but only
+    /// receiver participation - for instance, like in off-chain channel transactions (but only
     /// for the current channel state).
     Offchain,
 

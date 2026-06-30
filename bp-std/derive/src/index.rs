@@ -116,61 +116,87 @@ pub trait Idx: IdxBase {
     /// and for hardened in range of [`HARDENED_INDEX_BOUNDARY`]`..=u32::MAX`
     fn try_from_index(index: u32) -> Result<Self, IndexError>;
 
-    fn to_be_bytes(&self) -> [u8; 4] { self.index().to_be_bytes() }
+    fn to_be_bytes(&self) -> [u8; 4] {
+        self.index().to_be_bytes()
+    }
 
     /// Increments the index on one step; fails if the index value is already
     /// maximum value.
     #[must_use]
-    fn checked_inc(&self) -> Option<Self> { self.checked_add(1u8) }
+    fn checked_inc(&self) -> Option<Self> {
+        self.checked_add(1u8)
+    }
 
     /// Decrements the index on one step; fails if the index value is already
     /// minimum value.
     #[must_use]
-    fn checked_dec(&self) -> Option<Self> { self.checked_sub(1u8) }
+    fn checked_dec(&self) -> Option<Self> {
+        self.checked_sub(1u8)
+    }
 
     /// Increments the index on one step saturating at the `Self::MAX` bounds
     /// instead of overflowing.
     #[must_use]
-    fn saturating_inc(&self) -> Self { self.saturating_add(1u8) }
+    fn saturating_inc(&self) -> Self {
+        self.saturating_add(1u8)
+    }
 
     /// Decrements the index on one step saturating at the `Self::MIN` bounds
     /// instead of overflowing.
     #[must_use]
-    fn saturating_dec(&self) -> Self { self.saturating_sub(1u8) }
+    fn saturating_dec(&self) -> Self {
+        self.saturating_sub(1u8)
+    }
 
     /// Increments the index on one step; fails if the index value is already
     /// maximum value.
     #[must_use]
-    fn wrapping_inc(&self) -> Self { self.checked_add(1u8).unwrap_or(Self::MIN) }
+    fn wrapping_inc(&self) -> Self {
+        self.checked_add(1u8).unwrap_or(Self::MIN)
+    }
 
     /// Decrements the index on one step; fails if the index value is already
     /// minimum value.
     #[must_use]
-    fn wrapping_dec(&self) -> Self { self.checked_sub(1u8).unwrap_or(Self::MAX) }
+    fn wrapping_dec(&self) -> Self {
+        self.checked_sub(1u8).unwrap_or(Self::MAX)
+    }
 
     /// Mutates the self by incrementing the index on one step; fails if the index
     /// value is already maximum value.
-    fn checked_inc_assign(&mut self) -> Option<Self> { self.checked_add_assign(1u8) }
+    fn checked_inc_assign(&mut self) -> Option<Self> {
+        self.checked_add_assign(1u8)
+    }
 
     /// Mutates the self by decrementing the index on one step; fails if the index
     /// value is already maximum value.
-    fn checked_dec_assign(&mut self) -> Option<Self> { self.checked_sub_assign(1u8) }
+    fn checked_dec_assign(&mut self) -> Option<Self> {
+        self.checked_sub_assign(1u8)
+    }
 
     /// Mutates the self by incrementing the index on one step, saturating at the
     /// `Self::MAX` bounds instead of overflowing.
-    fn saturating_inc_assign(&mut self) -> bool { self.saturating_add_assign(1u8) }
+    fn saturating_inc_assign(&mut self) -> bool {
+        self.saturating_add_assign(1u8)
+    }
 
     /// Mutates the self by decrementing the index on one step, saturating at the
     /// `Self::MIN` bounds instead of overflowing.
-    fn saturating_dec_assign(&mut self) -> bool { self.saturating_sub_assign(1u8) }
+    fn saturating_dec_assign(&mut self) -> bool {
+        self.saturating_sub_assign(1u8)
+    }
 
     /// Mutates the self by incrementing the index on one step; fails if the index
     /// value is already maximum value.
-    fn wrapping_inc_assign(&mut self) { *self = self.wrapping_inc(); }
+    fn wrapping_inc_assign(&mut self) {
+        *self = self.wrapping_inc();
+    }
 
     /// Mutates the self by decrementing the index on one step; fails if the index
     /// value is already maximum value.
-    fn wrapping_dec_assign(&mut self) { *self = self.wrapping_inc(); }
+    fn wrapping_dec_assign(&mut self) {
+        *self = self.wrapping_inc();
+    }
 
     /// Adds value the index; fails if the index value overflow happens.
     #[must_use]
@@ -266,40 +292,60 @@ pub struct NormalIndex(
 );
 
 impl PartialEq<u8> for NormalIndex {
-    fn eq(&self, other: &u8) -> bool { self.0 == *other as u32 }
+    fn eq(&self, other: &u8) -> bool {
+        self.0 == *other as u32
+    }
 }
 
 impl PartialEq<u16> for NormalIndex {
-    fn eq(&self, other: &u16) -> bool { self.0 == *other as u32 }
+    fn eq(&self, other: &u16) -> bool {
+        self.0 == *other as u32
+    }
 }
 
 impl PartialOrd<u8> for NormalIndex {
-    fn partial_cmp(&self, other: &u8) -> Option<Ordering> { self.0.partial_cmp(&(*other as u32)) }
+    fn partial_cmp(&self, other: &u8) -> Option<Ordering> {
+        self.0.partial_cmp(&(*other as u32))
+    }
 }
 
 impl PartialOrd<u16> for NormalIndex {
-    fn partial_cmp(&self, other: &u16) -> Option<Ordering> { self.0.partial_cmp(&(*other as u32)) }
+    fn partial_cmp(&self, other: &u16) -> Option<Ordering> {
+        self.0.partial_cmp(&(*other as u32))
+    }
 }
 
 impl From<&NormalIndex> for NormalIndex {
-    fn from(index: &NormalIndex) -> Self { *index }
+    fn from(index: &NormalIndex) -> Self {
+        *index
+    }
 }
 
 impl NormalIndex {
-    pub const fn normal(child_number: u16) -> Self { NormalIndex(child_number as u32) }
-    pub(crate) const fn normal_unchecked(child_number: u32) -> Self { NormalIndex(child_number) }
+    pub const fn normal(child_number: u16) -> Self {
+        NormalIndex(child_number as u32)
+    }
+    pub(crate) const fn normal_unchecked(child_number: u32) -> Self {
+        NormalIndex(child_number)
+    }
 }
 
 impl IdxBase for NormalIndex {
     #[inline]
-    fn index(&self) -> u32 { self.child_number() }
+    fn index(&self) -> u32 {
+        self.child_number()
+    }
 
     /// Returns unhardened index number.
     #[inline]
-    fn child_number(&self) -> u32 { self.0 }
+    fn child_number(&self) -> u32 {
+        self.0
+    }
 
     #[inline]
-    fn is_hardened(&self) -> bool { false }
+    fn is_hardened(&self) -> bool {
+        false
+    }
 }
 
 impl Idx for NormalIndex {
@@ -310,7 +356,9 @@ impl Idx for NormalIndex {
     const MAX: Self = Self(HARDENED_INDEX_BOUNDARY - 1);
 
     #[inline]
-    fn from_child_number(child_no: impl Into<u16>) -> Self { Self(child_no.into() as u32) }
+    fn from_child_number(child_no: impl Into<u16>) -> Self {
+        Self(child_no.into() as u32)
+    }
 
     #[inline]
     fn try_from_child_number(child_no: impl Into<u32>) -> Result<Self, IndexError> {
@@ -375,37 +423,53 @@ pub struct HardenedIndex(
 );
 
 impl PartialEq<u8> for HardenedIndex {
-    fn eq(&self, other: &u8) -> bool { self.0 == *other as u32 }
+    fn eq(&self, other: &u8) -> bool {
+        self.0 == *other as u32
+    }
 }
 
 impl PartialEq<u16> for HardenedIndex {
-    fn eq(&self, other: &u16) -> bool { self.0 == *other as u32 }
+    fn eq(&self, other: &u16) -> bool {
+        self.0 == *other as u32
+    }
 }
 
 impl PartialOrd<u8> for HardenedIndex {
-    fn partial_cmp(&self, other: &u8) -> Option<Ordering> { self.0.partial_cmp(&(*other as u32)) }
+    fn partial_cmp(&self, other: &u8) -> Option<Ordering> {
+        self.0.partial_cmp(&(*other as u32))
+    }
 }
 
 impl PartialOrd<u16> for HardenedIndex {
-    fn partial_cmp(&self, other: &u16) -> Option<Ordering> { self.0.partial_cmp(&(*other as u32)) }
+    fn partial_cmp(&self, other: &u16) -> Option<Ordering> {
+        self.0.partial_cmp(&(*other as u32))
+    }
 }
 
 impl HardenedIndex {
-    pub const fn hardened(child_number: u16) -> Self { HardenedIndex(child_number as u32) }
+    pub const fn hardened(child_number: u16) -> Self {
+        HardenedIndex(child_number as u32)
+    }
 }
 
 impl IdxBase for HardenedIndex {
     /// Returns hardened index number not offset by [`HARDENED_INDEX_BOUNDARY`]
     /// (i.e. zero-based).
     #[inline]
-    fn child_number(&self) -> u32 { self.0 }
+    fn child_number(&self) -> u32 {
+        self.0
+    }
 
     /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`].
     #[inline]
-    fn index(&self) -> u32 { self.0 + HARDENED_INDEX_BOUNDARY }
+    fn index(&self) -> u32 {
+        self.0 + HARDENED_INDEX_BOUNDARY
+    }
 
     #[inline]
-    fn is_hardened(&self) -> bool { true }
+    fn is_hardened(&self) -> bool {
+        true
+    }
 }
 
 impl Idx for HardenedIndex {
@@ -416,7 +480,9 @@ impl Idx for HardenedIndex {
     const MAX: Self = Self(HARDENED_INDEX_BOUNDARY - 1);
 
     #[inline]
-    fn from_child_number(child_no: impl Into<u16>) -> Self { Self(child_no.into() as u32) }
+    fn from_child_number(child_no: impl Into<u16>) -> Self {
+        Self(child_no.into() as u32)
+    }
 
     #[inline]
     fn try_from_child_number(child_no: impl Into<u32>) -> Result<Self, IndexError> {
@@ -488,7 +554,9 @@ pub enum DerivationIndex {
 }
 
 impl From<u32> for DerivationIndex {
-    fn from(value: u32) -> Self { Self::from_index(value) }
+    fn from(value: u32) -> Self {
+        Self::from_index(value)
+    }
 }
 
 impl DerivationIndex {
@@ -537,14 +605,18 @@ impl Idx for DerivationIndex {
     const MAX: Self = DerivationIndex::Normal(NormalIndex::MAX);
 
     #[doc(hidden)]
-    fn from_child_number(_no: impl Into<u16>) -> Self { panic!("method must not be used") }
+    fn from_child_number(_no: impl Into<u16>) -> Self {
+        panic!("method must not be used")
+    }
 
     #[doc(hidden)]
     fn try_from_child_number(_index: impl Into<u32>) -> Result<Self, IndexError> {
         panic!("method must not be used")
     }
 
-    fn try_from_index(index: u32) -> Result<Self, IndexError> { Ok(Self::from_index(index)) }
+    fn try_from_index(index: u32) -> Result<Self, IndexError> {
+        Ok(Self::from_index(index))
+    }
 
     fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self> {
         match self {

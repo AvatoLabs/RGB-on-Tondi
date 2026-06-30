@@ -40,13 +40,12 @@ use rgb::popls::bp::{
     RgbWallet, WalletProvider,
 };
 use rgb::{
-    AuthToken, CodexId, Contract, ContractId, Contracts, EitherSeal, Issuer, Pile, Stock,
-    Stockpile,
+    AuthToken, CodexId, Contract, ContractId, Contracts, EitherSeal, Issuer, Pile, Stock, Stockpile,
 };
 use rgpstt::{RgbPstt, RgbPsttCsvError, RgbPsttPrepareError};
 
-use crate::CoinselectStrategy;
 use crate::p2mr::p2mr_original_pubkey_key;
+use crate::CoinselectStrategy;
 
 /// Payment structure is used in the process of RBF (replace by fee). It is returned by
 /// [`RgbRuntime::pay_invoice`] method when the original transaction is created, and then must be
@@ -313,9 +312,13 @@ where
         Ok(pstt)
     }
 
-    fn tondi_p2mr_commit(pstt: &mut Pstt) -> Result<(mpc::MerkleBlock, TondiP2mrProof), TransferError> {
+    fn tondi_p2mr_commit(
+        pstt: &mut Pstt,
+    ) -> Result<(mpc::MerkleBlock, TondiP2mrProof), TransferError> {
         if pstt.are_outputs_modifiable() {
-            return Err(TransferError::P2mrAnchor("transaction outputs are still modifiable".to_string()));
+            return Err(TransferError::P2mrAnchor(
+                "transaction outputs are still modifiable".to_string(),
+            ));
         }
 
         let map = pstt.mmb_complete()?;
@@ -334,7 +337,9 @@ where
                 let bytes: [u8; 33] = bytes.as_slice().try_into().ok()?;
                 CompressedPk::from_byte_array(bytes).ok()
             })
-            .ok_or_else(|| TransferError::P2mrAnchor("invalid Tondi P2MR anchor pubkey".to_string()))?;
+            .ok_or_else(|| {
+                TransferError::P2mrAnchor("invalid Tondi P2MR anchor pubkey".to_string())
+            })?;
 
         for (id, msg) in map {
             output.set_mpc_message(id, msg)?;
