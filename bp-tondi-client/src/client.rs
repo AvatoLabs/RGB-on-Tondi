@@ -3,79 +3,60 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use amplify::{hex::ToHex, ByteArray, Bytes32};
-use hex;
+#[cfg(feature = "grpc")]
+use amplify::{ByteArray, Bytes32, hex::ToHex};
 
 use crate::{
-    BalanceByAddressEntry, DagInfo, Error, FeeEstimate, MempoolEntry, NetworkType, Result,
-    ServerInfo, TondiBlock, TondiBlockHash, TondiTransaction, TondiTxid, TxStatus,
-    UtxosByAddressEntry,
+    BalanceByAddressEntry, DagInfo, Error, FeeEstimate, MempoolEntry, NetworkType, Result, ServerInfo, TondiBlock, TondiBlockHash,
+    TondiTransaction, TondiTxid, TxStatus, UtxosByAddressEntry,
 };
 
-// gRPC proto 
+// gRPC proto
 #[cfg(feature = "grpc")]
 pub mod proto {
-    tonic::include_proto!("protowire"); 
+    tonic::include_proto!("protowire");
 }
 
 #[cfg(feature = "grpc")]
-fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
+fn tondi_tx_to_proto(tx: &TondiTransaction) -> Result<proto::RpcTransaction> {
     use crate::types::{TondiTxInput, TondiTxOutput};
-    
+
+    tx.validate_tondi_native_rgb()?;
+
     // 旧版 Kaspa/Tondi v1.22.0 proto 格式：扁平字段，无 oneof 包装
     let rpc_inputs: Vec<proto::RpcTransactionInput> = tx
         .inputs
         .iter()
-        .map(|input| {
-            match input {
-                TondiTxInput::Standard {
-                    previous_outpoint,
-                    signature_script,
-                    sequence,
-                    sig_op_count,
-                } => {
-                    proto::RpcTransactionInput {
-                        previous_outpoint: Some(proto::RpcOutpoint {
-                            transaction_id: previous_outpoint.transaction_id.to_hex(),
-                            index: previous_outpoint.index,
-                        }),
-                        signature_script: signature_script.to_hex(),
-                        sequence: *sequence,
-                        sig_op_count: *sig_op_count as u32,
-                        verbose_data: None,
-                    }
-                }
-                _ => {
-                    panic!("RGB Purist Mode only supports Standard inputs");
-                }
-            }
+        .map(|input| match input {
+            TondiTxInput::Standard { previous_outpoint, signature_script, sequence, sig_op_count } => Ok(proto::RpcTransactionInput {
+                previous_outpoint: Some(proto::RpcOutpoint {
+                    transaction_id: previous_outpoint.transaction_id.to_hex(),
+                    index: previous_outpoint.index,
+                }),
+                signature_script: signature_script.to_hex(),
+                sequence: *sequence,
+                sig_op_count: *sig_op_count as u32,
+                verbose_data: None,
+            }),
+            _ => Err(Error::InvalidNativeTransaction("RGB-on-Tondi only supports Tondi Standard inputs".to_string())),
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     let rpc_outputs: Vec<proto::RpcTransactionOutput> = tx
         .outputs
         .iter()
-        .map(|output| {
-            match output {
-                TondiTxOutput::Standard {
-                    value,
-                    script_public_key,
-                } => {
-                    proto::RpcTransactionOutput {
-                        amount: *value,
-                        script_public_key: Some(proto::RpcScriptPublicKey {
-                            version: script_public_key.version as u32,
-                            script_public_key: script_public_key.script.to_hex(),
-                        }),
-                        verbose_data: None,
-                    }
-                }
-                _ => {
-                    panic!("RGB Purist Mode only supports Standard outputs");
-                }
-            }
+        .map(|output| match output {
+            TondiTxOutput::Standard { value, script_public_key } => Ok(proto::RpcTransactionOutput {
+                amount: *value,
+                script_public_key: Some(proto::RpcScriptPublicKey {
+                    version: script_public_key.version as u32,
+                    script_public_key: script_public_key.script.to_hex(),
+                }),
+                verbose_data: None,
+            }),
+            _ => Err(Error::InvalidNativeTransaction("RGB-on-Tondi only supports Tondi Standard P2MR outputs".to_string())),
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     // ========================================================================
     // 核心修复：子网 ID 和 Payload 的编码逻辑（回归 Kaspa 标准）
@@ -84,20 +65,15 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
     // 在处理 string 类型的十六进制字段时，不使用 0x 前缀
     let subnetwork_id_hex = {
         let bytes32 = tx.subnetwork_id.to_byte_array();
-        let subnetwork_id_20: [u8; 20] = bytes32[0..20].try_into()
-            .expect("Failed to extract 20 bytes from Bytes32");
+        let subnetwork_id_20: [u8; 20] = bytes32[0..20].try_into().expect("Failed to extract 20 bytes from Bytes32");
         // 始终发送 40 位纯 hex（不带 0x 前缀）
         hex::encode(subnetwork_id_20)
     };
 
     // 空 Payload 必须是空字符串 ""，非空 Payload 发送纯 hex（不带 0x 前缀）
-    let payload_encoded = if tx.payload.is_empty() {
-        "".to_string()
-    } else {
-        tx.payload.to_hex()
-    };
+    let payload_encoded = if tx.payload.is_empty() { "".to_string() } else { tx.payload.to_hex() };
 
-    proto::RpcTransaction {
+    Ok(proto::RpcTransaction {
         version: tx.version as u32,
         inputs: rpc_inputs,
         outputs: rpc_outputs,
@@ -107,41 +83,35 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> proto::RpcTransaction {
         payload: payload_encoded,
         mass: tx.mass,
         verbose_data: None,
-    }
+    })
 }
 
 /// Convert proto::RpcTransaction back to TondiTransaction
 #[cfg(feature = "grpc")]
 fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction> {
-    use crate::types::{TondiTxInput, TondiTxOutput, TondiOutpoint, ScriptPublicKey};
-    
+    use crate::types::{ScriptPublicKey, TondiOutpoint, TondiTxInput, TondiTxOutput};
+
     // Convert inputs
     let inputs: Vec<TondiTxInput> = rpc_tx
         .inputs
         .iter()
         .map(|rpc_input| {
-            let previous_outpoint = rpc_input
-                .previous_outpoint
-                .as_ref()
-                .ok_or_else(|| Error::RpcCall("Missing previous_outpoint".into()))?;
-            
+            let previous_outpoint =
+                rpc_input.previous_outpoint.as_ref().ok_or_else(|| Error::RpcCall("Missing previous_outpoint".into()))?;
+
             let txid = hex::decode(&previous_outpoint.transaction_id)
                 .map_err(|e| Error::RpcCall(format!("Failed to decode transaction_id: {}", e)))?;
-            
+
             if txid.len() != 32 {
-                return Err(Error::RpcCall(format!(
-                    "Invalid transaction_id length: {} (expected 32)",
-                    txid.len()
-                )));
+                return Err(Error::RpcCall(format!("Invalid transaction_id length: {} (expected 32)", txid.len())));
             }
-            
-            let txid_bytes: [u8; 32] = txid.try_into()
-                .map_err(|_| Error::RpcCall("Failed to convert txid to array".into()))?;
-            
+
+            let txid_bytes: [u8; 32] = txid.try_into().map_err(|_| Error::RpcCall("Failed to convert txid to array".into()))?;
+
             // 旧版 proto 格式：扁平字段
             let signature_script = hex::decode(&rpc_input.signature_script)
                 .map_err(|e| Error::RpcCall(format!("Failed to decode signature_script: {}", e)))?;
-            
+
             Ok(TondiTxInput::Standard {
                 previous_outpoint: TondiOutpoint {
                     transaction_id: Bytes32::from_byte_array(txid_bytes),
@@ -153,56 +123,47 @@ fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction>
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    
+
     // Convert outputs
     let outputs: Vec<TondiTxOutput> = rpc_tx
         .outputs
         .iter()
         .map(|rpc_output| {
             // 旧版 proto 格式：扁平字段
-            let script_pubkey = rpc_output
-                .script_public_key
-                .as_ref()
-                .ok_or_else(|| Error::RpcCall("Missing script_public_key".into()))?;
-            
+            let script_pubkey =
+                rpc_output.script_public_key.as_ref().ok_or_else(|| Error::RpcCall("Missing script_public_key".into()))?;
+
             let script = hex::decode(&script_pubkey.script_public_key)
                 .map_err(|e| Error::RpcCall(format!("Failed to decode script: {}", e)))?;
-            
+
             Ok(TondiTxOutput::Standard {
                 value: rpc_output.amount,
-                script_public_key: ScriptPublicKey {
-                    version: script_pubkey.version as u16,
-                    script,
-                },
+                script_public_key: ScriptPublicKey { version: script_pubkey.version as u16, script },
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    
+
     // Convert subnetwork_id (from 40-char hex string to Bytes32)
     let subnetwork_id = {
-        let subnetwork_bytes = hex::decode(&rpc_tx.subnetwork_id)
-            .map_err(|e| Error::RpcCall(format!("Failed to decode subnetwork_id: {}", e)))?;
-        
+        let subnetwork_bytes =
+            hex::decode(&rpc_tx.subnetwork_id).map_err(|e| Error::RpcCall(format!("Failed to decode subnetwork_id: {}", e)))?;
+
         if subnetwork_bytes.len() != 20 {
-            return Err(Error::RpcCall(format!(
-                "Invalid subnetwork_id length: {} (expected 20)",
-                subnetwork_bytes.len()
-            )));
+            return Err(Error::RpcCall(format!("Invalid subnetwork_id length: {} (expected 20)", subnetwork_bytes.len())));
         }
-        
+
         let mut bytes32 = [0u8; 32];
         bytes32[0..20].copy_from_slice(&subnetwork_bytes);
         Bytes32::from_byte_array(bytes32)
     };
-    
+
     // Convert payload (from hex string to bytes)
     let payload = if rpc_tx.payload.is_empty() {
         Vec::new()
     } else {
-        hex::decode(&rpc_tx.payload)
-            .map_err(|e| Error::RpcCall(format!("Failed to decode payload: {}", e)))?
+        hex::decode(&rpc_tx.payload).map_err(|e| Error::RpcCall(format!("Failed to decode payload: {}", e)))?
     };
-    
+
     Ok(TondiTransaction {
         version: rpc_tx.version as u16,
         inputs,
@@ -232,12 +193,7 @@ pub struct TondiConfig {
 impl TondiConfig {
     /// Create a new configuration with the given endpoint
     pub fn new(endpoint: impl Into<String>) -> Self {
-        Self {
-            endpoint: endpoint.into(),
-            timeout: Some(Duration::from_secs(30)),
-            network: NetworkType::default(),
-            max_retries: 3,
-        }
+        Self { endpoint: endpoint.into(), timeout: Some(Duration::from_secs(30)), network: NetworkType::default(), max_retries: 3 }
     }
 
     /// Set the network type
@@ -313,18 +269,12 @@ impl TondiClient {
 
             let inner = proto::rpc_client::RpcClient::new(channel);
 
-            Ok(Self {
-                config,
-                inner: Some(inner),
-            })
+            Ok(Self { config, inner: Some(inner) })
         }
 
         #[cfg(not(feature = "grpc"))]
         {
-            Ok(Self {
-                config,
-                _phantom: std::marker::PhantomData,
-            })
+            Ok(Self { config, _phantom: std::marker::PhantomData })
         }
     }
 
@@ -355,61 +305,43 @@ impl TondiClient {
     pub async fn get_server_info(&self) -> Result<ServerInfo> {
         #[cfg(feature = "grpc")]
         {
-            let mut client = self
-                .inner
-                .as_ref()
-                .ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?
-                .clone();
+            let mut client =
+                self.inner.as_ref().ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?.clone();
 
             use std::time::{SystemTime, UNIX_EPOCH};
-            let request_id = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
+            let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
 
             let get_info_request = proto::GetInfoRequestMessage {};
 
             let tondid_request = proto::TondidRequest {
                 id: request_id,
-                payload: Some(proto::tondid_request::Payload::GetInfoRequest(
-                    get_info_request,
-                )),
+                payload: Some(proto::tondid_request::Payload::GetInfoRequest(get_info_request)),
             };
 
-            let response = client
-                .message_stream(tonic::Request::new(tokio_stream::once(tondid_request)))
-                .await
-                .map_err(|e| {
-                    Error::RpcCall(format!(
-                        "Failed to establish message stream: {}. Make sure the node is accessible at {}",
-                        e, self.config.endpoint
-                    ))
-                })?;
+            let response = client.message_stream(tonic::Request::new(tokio_stream::once(tondid_request))).await.map_err(|e| {
+                Error::RpcCall(format!(
+                    "Failed to establish message stream: {}. Make sure the node is accessible at {}",
+                    e, self.config.endpoint
+                ))
+            })?;
 
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
-            
+
             while let Some(response_result) = response_stream.next().await {
-                let tondid_response = response_result.map_err(|e| {
-                    Error::RpcCall(format!("Failed to receive response from stream: {}", e))
-                })?;
+                let tondid_response =
+                    response_result.map_err(|e| Error::RpcCall(format!("Failed to receive response from stream: {}", e)))?;
 
                 if tondid_response.id != request_id {
-                    continue; 
+                    continue;
                 }
 
-                if let Some(proto::tondid_response::Payload::GetInfoResponse(
-                    info_response,
-                )) = tondid_response.payload
-                {
+                if let Some(proto::tondid_response::Payload::GetInfoResponse(info_response)) = tondid_response.payload {
                     return Ok(ServerInfo::from(info_response));
                 }
             }
 
-            Err(Error::RpcCall(format!(
-                "No response received for GetInfo request ID {}",
-                request_id
-            )))
+            Err(Error::RpcCall(format!("No response received for GetInfo request ID {}", request_id)))
         }
 
         #[cfg(not(feature = "grpc"))]
@@ -437,63 +369,22 @@ impl TondiClient {
     ///
     /// This method uses the MessageStream bidirectional stream interface as defined in the proto.
     #[cfg(feature = "async")]
-    pub async fn submit_transaction(
-        &self,
-        transaction: TondiTransaction,
-        allow_orphan: bool,
-    ) -> Result<TondiTxid> {
+    pub async fn submit_transaction(&self, transaction: TondiTransaction, allow_orphan: bool) -> Result<TondiTxid> {
         #[cfg(feature = "grpc")]
         {
-            let mut client = self
-                .inner
-                .as_ref()
-                .ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?
-                .clone();
+            let mut client =
+                self.inner.as_ref().ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?.clone();
 
-            let rpc_tx = tondi_tx_to_proto(&transaction);
-            
-            println!("\n[调试信息] 最终生成的 RpcTransaction 结构:");
-            println!("  - Version: {}", rpc_tx.version);
-            println!("  - Inputs 数量: {}", rpc_tx.inputs.len());
-            if let Some(first_input) = rpc_tx.inputs.first() {
-                println!("  - 第一个输入的 signature_script 长度: {} 字符 (hex)", first_input.signature_script.len());
-                println!("  - 第一个输入的 signature_script (hex): {}", first_input.signature_script);
-                println!("  - 第一个输入的 sequence: {}", first_input.sequence);
-                println!("  - 第一个输入的 sig_op_count: {}", first_input.sig_op_count);
-            }
-            println!("  - Outputs 数量: {}", rpc_tx.outputs.len());
-            println!("  - Lock Time: {}", rpc_tx.lock_time);
-            println!("  - Subnetwork ID: {} (长度: {} 字符, 应为 40)", 
-                rpc_tx.subnetwork_id, rpc_tx.subnetwork_id.len());
-            println!("  - Gas: {}", rpc_tx.gas);
-            println!("  - Payload: {} (长度: {} 字符, 空为正常普通转账)", 
-                if rpc_tx.payload.len() > 50 { 
-                    format!("{}...", &rpc_tx.payload[..50]) 
-                } else if rpc_tx.payload.is_empty() {
-                    "(空)".to_string()
-                } else { 
-                    rpc_tx.payload.clone() 
-                },
-                rpc_tx.payload.len());
-            println!("  - Mass: {}", rpc_tx.mass);
-            println!();
+            let rpc_tx = tondi_tx_to_proto(&transaction)?;
 
-            let submit_request = proto::SubmitTransactionRequestMessage {
-                transaction: Some(rpc_tx),
-                allow_orphan,
-            };
+            let submit_request = proto::SubmitTransactionRequestMessage { transaction: Some(rpc_tx), allow_orphan };
 
             use std::time::{SystemTime, UNIX_EPOCH};
-            let request_id = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
+            let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
 
             let tondid_request = proto::TondidRequest {
                 id: request_id,
-                payload: Some(proto::tondid_request::Payload::SubmitTransactionRequest(
-                    submit_request,
-                )),
+                payload: Some(proto::tondid_request::Payload::SubmitTransactionRequest(submit_request)),
             };
 
             // 使用 mpsc channel 保持流开启，避免竞态条件
@@ -501,21 +392,18 @@ impl TondiClient {
             // 会清理连接，但此时 handler 可能还没处理完交易（验证签名、插入 mempool 等）
             // 解决：用 mpsc channel 保持流开启，收到响应后再 drop sender 结束流
             let (request_tx, request_rx) = tokio::sync::mpsc::channel(1);
-            request_tx.send(tondid_request).await
-                .expect("Failed to send request to channel");
+            request_tx.send(tondid_request).await.expect("Failed to send request to channel");
             let mut request_tx_opt = Some(request_tx);
 
             let response = client
-                .message_stream(tonic::Request::new(
-                    tokio_stream::wrappers::ReceiverStream::new(request_rx)
-                ))
+                .message_stream(tonic::Request::new(tokio_stream::wrappers::ReceiverStream::new(request_rx)))
                 .await
                 .map_err(|e| {
-                    Error::RpcCall(format!(
-                        "Failed to establish message stream: {}. Make sure the node is accessible at {}",
-                        e, self.config.endpoint
-                    ))
-                })?;
+                Error::RpcCall(format!(
+                    "Failed to establish message stream: {}. Make sure the node is accessible at {}",
+                    e, self.config.endpoint
+                ))
+            })?;
 
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
@@ -526,35 +414,23 @@ impl TondiClient {
             loop {
                 if start_time.elapsed() > timeout_duration {
                     request_tx_opt.take(); // 超时时关闭流
-                    return Err(Error::RpcCall(format!(
-                        "Request timeout after {:?} for request ID {}",
-                        timeout_duration, request_id
-                    )));
+                    return Err(Error::RpcCall(format!("Request timeout after {:?} for request ID {}", timeout_duration, request_id)));
                 }
 
-                let tondid_response = match tokio::time::timeout(
-                    Duration::from_secs(2), response_stream.next()
-                ).await {
+                let tondid_response = match tokio::time::timeout(Duration::from_secs(2), response_stream.next()).await {
                     Ok(Some(Ok(resp))) => resp,
                     Ok(Some(Err(e))) => {
                         request_tx_opt.take();
-                        return Err(Error::RpcCall(format!(
-                            "Stream error from node: {}", e
-                        )));
+                        return Err(Error::RpcCall(format!("Stream error from node: {}", e)));
                     }
                     Ok(None) => {
-                        return Err(Error::RpcCall(format!(
-                            "Stream ended without response for request ID {}",
-                            request_id
-                        )));
+                        return Err(Error::RpcCall(format!("Stream ended without response for request ID {}", request_id)));
                     }
                     Err(_) => {
                         // 2秒超时，继续等待
                         continue;
                     }
                 };
-
-                println!("[gRPC 响应] ID: {}, Payload: {:?}", tondid_response.id, tondid_response.payload);
 
                 if tondid_response.id != request_id {
                     continue;
@@ -563,15 +439,9 @@ impl TondiClient {
                 // 收到响应后关闭流
                 request_tx_opt.take();
 
-                if let Some(proto::tondid_response::Payload::SubmitTransactionResponse(
-                    submit_response,
-                )) = tondid_response.payload
-                {
+                if let Some(proto::tondid_response::Payload::SubmitTransactionResponse(submit_response)) = tondid_response.payload {
                     if let Some(err) = submit_response.error {
-                        return Err(Error::RpcCall(format!(
-                            "Transaction rejected: {}",
-                            err.message
-                        )));
+                        return Err(Error::RpcCall(format!("Transaction rejected: {}", err.message)));
                     }
 
                     let txid_str = &submit_response.transaction_id;
@@ -579,12 +449,7 @@ impl TondiClient {
                     let txid = txid_str
                         .trim_start_matches("0x")
                         .parse::<TondiTxid>()
-                        .map_err(|e| {
-                            Error::RpcCall(format!(
-                                "Failed to parse transaction ID '{}': {}",
-                                txid_str, e
-                            ))
-                        })?;
+                        .map_err(|e| Error::RpcCall(format!("Failed to parse transaction ID '{}': {}", txid_str, e)))?;
 
                     return Ok(txid);
                 }
@@ -593,6 +458,7 @@ impl TondiClient {
 
         #[cfg(not(feature = "grpc"))]
         {
+            let _ = (&transaction, allow_orphan);
             Err(Error::Connection("gRPC feature not enabled. Enable it with 'grpc' feature flag.".into()))
         }
     }
@@ -602,111 +468,88 @@ impl TondiClient {
     pub async fn get_transaction(&self, txid: TondiTxid) -> Result<TondiTransaction> {
         #[cfg(feature = "grpc")]
         {
-            let mut client = self
-                .inner
-                .as_ref()
-                .ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?
-                .clone();
-            
+            let mut client =
+                self.inner.as_ref().ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?.clone();
+
             use std::time::{SystemTime, UNIX_EPOCH};
-            let request_id = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
-            
+            let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+
             // 构造请求
             let tondid_request = proto::TondidRequest {
                 id: request_id,
-                payload: Some(proto::tondid_request::Payload::GetTransactionRequest(
-                    proto::GetTransactionRequestMessage {
-                        hash: txid.to_hex(),
-                    },
-                )),
+                payload: Some(proto::tondid_request::Payload::GetTransactionRequest(proto::GetTransactionRequestMessage {
+                    hash: txid.to_hex(),
+                })),
             };
-            
+
             // 使用优化过的 mpsc 异步流逻辑，保持流开启
             let (request_tx, request_rx) = tokio::sync::mpsc::channel(1);
-            request_tx.send(tondid_request).await
-                .expect("Failed to send request to channel");
-            
+            request_tx.send(tondid_request).await.expect("Failed to send request to channel");
+
             let response = client
-                .message_stream(tonic::Request::new(
-                    tokio_stream::wrappers::ReceiverStream::new(request_rx)
-                ))
+                .message_stream(tonic::Request::new(tokio_stream::wrappers::ReceiverStream::new(request_rx)))
                 .await
                 .map_err(|e| {
-                    Error::RpcCall(format!(
-                        "Failed to establish message stream: {}. Make sure the node is accessible at {}",
-                        e, self.config.endpoint
-                    ))
-                })?;
-            
+                Error::RpcCall(format!(
+                    "Failed to establish message stream: {}. Make sure the node is accessible at {}",
+                    e, self.config.endpoint
+                ))
+            })?;
+
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
-            
+
             // 设置超时时间，避免无限等待
             let timeout_duration = self.config.timeout.unwrap_or(Duration::from_secs(30));
             let start_time = std::time::Instant::now();
-            
+
             // 保持流循环等待响应，给节点足够时间处理
             loop {
                 // 检查总超时
                 if start_time.elapsed() > timeout_duration {
-                    return Err(Error::RpcCall(format!(
-                        "Request timeout after {:?} for request ID {}",
-                        timeout_duration, request_id
-                    )));
+                    return Err(Error::RpcCall(format!("Request timeout after {:?} for request ID {}", timeout_duration, request_id)));
                 }
-                
+
                 // 使用带超时的 next()，每次最多等待1秒，然后检查总超时
                 let tondid_response = match tokio::time::timeout(Duration::from_secs(1), response_stream.next()).await {
                     Ok(Some(Ok(resp))) => resp,
                     Ok(Some(Err(e))) => {
-                        return Err(Error::RpcCall(format!(
-                            "Stream error: {}",
-                            e
-                        )));
+                        return Err(Error::RpcCall(format!("Stream error: {}", e)));
                     }
                     Ok(None) => {
-                        return Err(Error::TransactionNotFound(bp::Txid::from_byte_array(
-                            txid.to_byte_array(),
-                        )));
+                        return Err(Error::TransactionNotFound(bp::Txid::from_byte_array(txid.to_byte_array())));
                     }
                     Err(_) => {
                         // 1秒超时，继续循环检查总超时（给节点更多时间）
                         continue;
                     }
                 };
-                
+
                 // 检查响应 ID 是否匹配
                 if tondid_response.id != request_id {
                     continue;
                 }
-                
+
                 // 处理 GetTransactionResponse
                 if let Some(proto::tondid_response::Payload::GetTransactionResponse(resp)) = tondid_response.payload {
                     if let Some(err) = resp.error {
-                        return Err(Error::RpcCall(format!(
-                            "GetTransaction failed: {}",
-                            err.message
-                        )));
+                        return Err(Error::RpcCall(format!("GetTransaction failed: {}", err.message)));
                     }
-                    
+
                     if let Some(rpc_tx) = resp.transaction {
                         println!("[调试] 收到查询响应，交易版本号: {}", rpc_tx.version);
                         // 转换 proto::RpcTransaction 到 TondiTransaction
                         return proto_to_tondi_tx(&rpc_tx);
                     } else {
-                        return Err(Error::TransactionNotFound(bp::Txid::from_byte_array(
-                            txid.to_byte_array(),
-                        )));
+                        return Err(Error::TransactionNotFound(bp::Txid::from_byte_array(txid.to_byte_array())));
                     }
                 }
             }
         }
-        
+
         #[cfg(not(feature = "grpc"))]
         {
+            let _ = txid;
             Err(Error::Connection("gRPC feature not enabled. Enable it with 'grpc' feature flag.".into()))
         }
     }
@@ -736,11 +579,7 @@ impl TondiClient {
 
     /// Get block by hash
     #[cfg(feature = "async")]
-    pub async fn get_block(
-        &self,
-        _hash: TondiBlockHash,
-        _include_transactions: bool,
-    ) -> Result<TondiBlock> {
+    pub async fn get_block(&self, _hash: TondiBlockHash, _include_transactions: bool) -> Result<TondiBlock> {
         // TODO: Implement actual RPC call
         Err(Error::Connection("Not implemented".into()))
     }
@@ -759,61 +598,43 @@ impl TondiClient {
     pub async fn get_block_dag_info(&self) -> Result<DagInfo> {
         #[cfg(feature = "grpc")]
         {
-            let mut client = self
-                .inner
-                .as_ref()
-                .ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?
-                .clone();
+            let mut client =
+                self.inner.as_ref().ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?.clone();
 
             use std::time::{SystemTime, UNIX_EPOCH};
-            let request_id = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
+            let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
 
             let get_block_dag_info_request = proto::GetBlockDagInfoRequestMessage {};
 
             let tondid_request = proto::TondidRequest {
                 id: request_id,
-                payload: Some(proto::tondid_request::Payload::GetBlockDagInfoRequest(
-                    get_block_dag_info_request,
-                )),
+                payload: Some(proto::tondid_request::Payload::GetBlockDagInfoRequest(get_block_dag_info_request)),
             };
 
-            let response = client
-                .message_stream(tonic::Request::new(tokio_stream::once(tondid_request)))
-                .await
-                .map_err(|e| {
-                    Error::RpcCall(format!(
-                        "Failed to establish message stream: {}. Make sure the node is accessible at {}",
-                        e, self.config.endpoint
-                    ))
-                })?;
+            let response = client.message_stream(tonic::Request::new(tokio_stream::once(tondid_request))).await.map_err(|e| {
+                Error::RpcCall(format!(
+                    "Failed to establish message stream: {}. Make sure the node is accessible at {}",
+                    e, self.config.endpoint
+                ))
+            })?;
 
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
-            
+
             while let Some(response_result) = response_stream.next().await {
-                let tondid_response = response_result.map_err(|e| {
-                    Error::RpcCall(format!("Failed to receive response from stream: {}", e))
-                })?;
+                let tondid_response =
+                    response_result.map_err(|e| Error::RpcCall(format!("Failed to receive response from stream: {}", e)))?;
 
                 if tondid_response.id != request_id {
-                    continue; 
+                    continue;
                 }
 
-                if let Some(proto::tondid_response::Payload::GetBlockDagInfoResponse(
-                    dag_info_response,
-                )) = tondid_response.payload
-                {
+                if let Some(proto::tondid_response::Payload::GetBlockDagInfoResponse(dag_info_response)) = tondid_response.payload {
                     return Ok(DagInfo::from(dag_info_response));
                 }
             }
 
-            Err(Error::RpcCall(format!(
-                "No response received for GetBlockDagInfo request ID {}",
-                request_id
-            )))
+            Err(Error::RpcCall(format!("No response received for GetBlockDagInfo request ID {}", request_id)))
         }
 
         #[cfg(not(feature = "grpc"))]
@@ -844,10 +665,7 @@ impl TondiClient {
     ///
     /// Note: Requires the node to be started with `--utxoindex`
     #[cfg(feature = "async")]
-    pub async fn get_balances_by_addresses(
-        &self,
-        _addresses: &[String],
-    ) -> Result<Vec<BalanceByAddressEntry>> {
+    pub async fn get_balances_by_addresses(&self, _addresses: &[String]) -> Result<Vec<BalanceByAddressEntry>> {
         // TODO: Implement actual RPC call
         Err(Error::UtxoIndexNotEnabled)
     }
@@ -859,84 +677,61 @@ impl TondiClient {
     pub async fn get_utxos_by_address(&self, address: &str) -> Result<Vec<UtxosByAddressEntry>> {
         #[cfg(feature = "grpc")]
         {
-            let mut client = self
-                .inner
-                .as_ref()
-                .ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?
-                .clone();
+            let mut client =
+                self.inner.as_ref().ok_or_else(|| Error::Connection("Client not connected. Call connect() first.".into()))?.clone();
 
             use std::time::{SystemTime, UNIX_EPOCH};
-            let request_id = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
+            let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
 
             let get_utxos_request = proto::GetUtxosByAddressRequestMessage {
                 address: address.to_string(),
-                start: 0, // Start from the beginning
+                start: 0,    // Start from the beginning
                 limit: 1000, // Limit to 1000 entries (adjust as needed)
             };
 
             let tondid_request = proto::TondidRequest {
                 id: request_id,
-                payload: Some(proto::tondid_request::Payload::GetUtxosByAddressRequest(
-                    get_utxos_request,
-                )),
+                payload: Some(proto::tondid_request::Payload::GetUtxosByAddressRequest(get_utxos_request)),
             };
 
-            let response = client
-                .message_stream(tonic::Request::new(tokio_stream::once(tondid_request)))
-                .await
-                .map_err(|e| {
-                    Error::RpcCall(format!(
-                        "Failed to establish message stream: {}. Make sure the node is accessible at {}",
-                        e, self.config.endpoint
-                    ))
-                })?;
+            let response = client.message_stream(tonic::Request::new(tokio_stream::once(tondid_request))).await.map_err(|e| {
+                Error::RpcCall(format!(
+                    "Failed to establish message stream: {}. Make sure the node is accessible at {}",
+                    e, self.config.endpoint
+                ))
+            })?;
 
             let mut response_stream = response.into_inner();
             use tokio_stream::StreamExt;
-            
+
             while let Some(response_result) = response_stream.next().await {
-                let tondid_response = response_result.map_err(|e| {
-                    Error::RpcCall(format!("Failed to receive response from stream: {}", e))
-                })?;
+                let tondid_response =
+                    response_result.map_err(|e| Error::RpcCall(format!("Failed to receive response from stream: {}", e)))?;
 
                 if tondid_response.id != request_id {
-                    continue; 
+                    continue;
                 }
 
-                if let Some(proto::tondid_response::Payload::GetUtxosByAddressResponse(
-                    utxos_response,
-                )) = tondid_response.payload
-                {
+                if let Some(proto::tondid_response::Payload::GetUtxosByAddressResponse(utxos_response)) = tondid_response.payload {
                     // Check for errors first
                     if let Some(err) = utxos_response.error {
-                        return Err(Error::RpcCall(format!(
-                            "GetUtxosByAddress failed: {}",
-                            err.message
-                        )));
+                        return Err(Error::RpcCall(format!("GetUtxosByAddress failed: {}", err.message)));
                     }
 
                     // Convert proto entries to UtxosByAddressEntry
-                    let entries: Vec<UtxosByAddressEntry> = utxos_response
-                        .entries
-                        .into_iter()
-                        .map(UtxosByAddressEntry::from)
-                        .collect();
-                    
+                    let entries: Vec<UtxosByAddressEntry> =
+                        utxos_response.entries.into_iter().map(UtxosByAddressEntry::from).collect();
+
                     return Ok(entries);
                 }
             }
 
-            Err(Error::RpcCall(format!(
-                "No response received for GetUtxosByAddress request ID {}",
-                request_id
-            )))
+            Err(Error::RpcCall(format!("No response received for GetUtxosByAddress request ID {}", request_id)))
         }
 
         #[cfg(not(feature = "grpc"))]
         {
+            let _ = address;
             Err(Error::Connection("gRPC feature not enabled. Enable it with 'grpc' feature flag.".into()))
         }
     }
@@ -945,10 +740,7 @@ impl TondiClient {
     ///
     /// Note: Requires the node to be started with `--utxoindex`
     #[cfg(feature = "async")]
-    pub async fn get_utxos_by_addresses(
-        &self,
-        _addresses: &[String],
-    ) -> Result<Vec<UtxosByAddressEntry>> {
+    pub async fn get_utxos_by_addresses(&self, _addresses: &[String]) -> Result<Vec<UtxosByAddressEntry>> {
         // TODO: Implement actual RPC call
         Err(Error::UtxoIndexNotEnabled)
     }
@@ -963,10 +755,7 @@ impl TondiClient {
     }
 
     /// Convert fee rate to the target confirmation time
-    pub fn convert_fee_rate(
-        target_seconds: u64,
-        estimate: &FeeEstimate,
-    ) -> Option<f64> {
+    pub fn convert_fee_rate(target_seconds: u64, estimate: &FeeEstimate) -> Option<f64> {
         // Priority bucket is for fastest confirmation
         if estimate.priority_bucket.estimated_seconds <= target_seconds as f64 {
             return Some(estimate.priority_bucket.feerate);
@@ -1003,11 +792,7 @@ impl TondiClient {
 
     /// Estimate network hash rate
     #[cfg(feature = "async")]
-    pub async fn estimate_network_hashes_per_second(
-        &self,
-        _window_size: u32,
-        _start_hash: Option<TondiBlockHash>,
-    ) -> Result<u64> {
+    pub async fn estimate_network_hashes_per_second(&self, _window_size: u32, _start_hash: Option<TondiBlockHash>) -> Result<u64> {
         // TODO: Implement actual RPC call
         Err(Error::Connection("Not implemented".into()))
     }
@@ -1023,10 +808,7 @@ pub struct TondiClientBuilder {
 impl TondiClientBuilder {
     /// Create a new builder with the given endpoint
     pub fn new(endpoint: impl Into<String>) -> Self {
-        Self {
-            config: TondiConfig::new(endpoint),
-            headers: HashMap::new(),
-        }
+        Self { config: TondiConfig::new(endpoint), headers: HashMap::new() }
     }
 
     /// Set the network type
@@ -1059,4 +841,3 @@ impl TondiClientBuilder {
         TondiClient::connect(self.config).await
     }
 }
-

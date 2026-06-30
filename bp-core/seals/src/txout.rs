@@ -26,7 +26,7 @@ use core::error::Error;
 use core::fmt::Debug;
 
 use amplify::{ByteArray, Bytes, Bytes32};
-use bc::{Outpoint, Tx, Txid};
+use bc::{secp256k1, CompressedPk, Outpoint, ScriptPubkey, TapLeafHash, TapScript, Tx, Txid, XOnlyPk};
 use commit_verify::{
     CommitId, ConvolveVerifyError, DigestExt, EmbedVerifyError, ReservedBytes, TondiBlake3,
 };
@@ -36,6 +36,73 @@ use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness, SingleU
 use strict_encoding::{StrictDumb, StrictSum};
 
 use crate::WOutpoint;
+
+const RGB_COMMITMENT_DOMAIN: &[u8] = b"TondiRgbCommitment";
+const OP_PUSHBYTES_32: u8 = 0x20;
+const OP_CHECKSIG: u8 = 0xac;
+
+fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] {
+    let mut script = Vec::with_capacity(34);
+    script.push(OP_PUSHBYTES_32);
+    script.extend_from_slice(&xonly.to_byte_array());
+    script.push(OP_CHECKSIG);
+    TapLeafHash::with_tap_script(&TapScript::from_checked(script)).to_byte_array()
+}
+
+fn is_tondi_p2mr_root(script: &ScriptPubkey) -> bool {
+    script.len() == 32 && script.iter().any(|byte| *byte != 0)
+}
+
+/// Proof that a Tondi P2MR root commits to an RGB MPC commitment by tweaking a
+/// standard single-key P2MR leaf key.
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = dbc::LIB_NAME_BPCORE)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub struct TondiP2mrProof {
+    /// The untweaked compressed public key used by the standard single-key P2MR leaf.
+    pub original_pubkey: CompressedPk,
+}
+
+impl TondiP2mrProof {
+    /// Construct a proof from the untweaked compressed public key.
+    pub fn new(original_pubkey: CompressedPk) -> Self { Self { original_pubkey } }
+
+    /// Computes the RGB tweak used by Tondi PSTT RGB outputs.
+    pub fn rgb_tweak(&self, commitment: mpc::Commitment) -> Result<secp256k1::Scalar, TondiP2mrError> {
+        let mut hasher = TondiBlake3::new();
+        hasher.input_raw(RGB_COMMITMENT_DOMAIN);
+        hasher.input_raw(&self.original_pubkey.to_byte_array());
+        hasher.input_raw(&commitment.to_byte_array());
+        secp256k1::Scalar::from_be_bytes(hasher.finish()).map_err(|_| TondiP2mrError::InvalidTweak)
+    }
+
+    /// Computes the expected 32-byte Tondi P2MR output root for the MPC commitment.
+    pub fn p2mr_root(&self, commitment: mpc::Commitment) -> Result<[u8; 32], TondiP2mrError> {
+        let public_key = secp256k1::PublicKey::from_slice(&self.original_pubkey.to_byte_array())
+            .map_err(|_| TondiP2mrError::InvalidPubkey)?;
+        let tweaked = public_key
+            .add_exp_tweak(secp256k1::SECP256K1, &self.rgb_tweak(commitment)?)
+            .map_err(|_| TondiP2mrError::InvalidTweak)?;
+        let (xonly, _) = tweaked.x_only_public_key();
+        let xonly = XOnlyPk::from_byte_array(xonly.serialize()).map_err(|_| TondiP2mrError::InvalidPubkey)?;
+        Ok(p2mr_single_key_root(xonly))
+    }
+}
+
+/// Errors verifying Tondi P2MR commitment proofs.
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum TondiP2mrError {
+    /// invalid Tondi P2MR original public key.
+    InvalidPubkey,
+
+    /// invalid Tondi P2MR RGB tweak.
+    InvalidTweak,
+
+    /// witness transaction has no output matching the Tondi P2MR commitment proof.
+    CommitmentMismatch,
+}
 
 /// A noise, which acts as a placeholder for seal definitions lacking fallback seal (see
 /// [`TxoSealExt::Noise`]).
@@ -269,6 +336,8 @@ pub struct Anchor {
     pub mpc_proof: mpc::MerkleProof,
     /// The deterministic bitcoin commitment proof that the witness commitment is valid.
     pub dbc_proof: Option<TapretProof>,
+    /// Tondi-native P2MR commitment proof.
+    pub p2mr_proof: Option<TondiP2mrProof>,
     #[cfg_attr(feature = "serde", serde(skip))]
     /// Reserved for the future proofs regarding fallback seals.
     // TODO: This should become an option once fallback proofs are ready
@@ -307,6 +376,8 @@ pub struct Proof {
     pub mpc_commit: mpc::Commitment,
     /// The deterministic bitcoin commitment proof that the witness commitment is valid.
     pub dbc_proof: Option<TapretProof>,
+    /// The Tondi-native P2MR proof that the witness commitment is valid.
+    pub p2mr_proof: Option<TondiP2mrProof>,
 }
 
 /// The value for a fallback seal definition.
@@ -377,16 +448,26 @@ impl PublishedWitness<TxoSeal> for Tx {
     fn verify_commitment(&self, proof: Proof) -> Result<(), Self::Error> {
         let out = self
             .outputs()
-            .find(|out| out.script_pubkey.is_op_return() || out.script_pubkey.is_p2tr())
+            .find(|out| out.script_pubkey.is_op_return() || out.script_pubkey.is_p2tr() || is_tondi_p2mr_root(&out.script_pubkey))
             .ok_or(TxoSealError::NoOutput)?;
         if out.script_pubkey.is_op_return() {
-            if proof.dbc_proof.is_none() {
+            if proof.dbc_proof.is_none() && proof.p2mr_proof.is_none() {
                 OpretProof::default().verify(&proof.mpc_commit, self).map_err(TxoSealError::from)
             } else {
                 Err(TxoSealError::InvalidProofType)
             }
         } else if let Some(ref dbc_proof) = proof.dbc_proof {
+            if proof.p2mr_proof.is_some() {
+                return Err(TxoSealError::InvalidProofType);
+            }
             dbc_proof.verify(&proof.mpc_commit, self).map_err(TxoSealError::from)
+        } else if let Some(ref p2mr_proof) = proof.p2mr_proof {
+            let expected = p2mr_proof.p2mr_root(proof.mpc_commit)?;
+            if out.script_pubkey.as_slice() == expected.as_slice() {
+                Ok(())
+            } else {
+                Err(TxoSealError::TondiP2mr(TondiP2mrError::CommitmentMismatch))
+            }
         } else {
             Err(TxoSealError::NoTapretProof)
         }
@@ -409,6 +490,7 @@ impl ClientSideWitness for Anchor {
         Ok(Proof {
             mpc_commit,
             dbc_proof: self.dbc_proof.clone(),
+            p2mr_proof: self.p2mr_proof,
         })
     }
 
@@ -417,6 +499,7 @@ impl ClientSideWitness for Anchor {
         if self.mpc_protocol != other.mpc_protocol
             || self.mpc_proof != other.mpc_proof
             || self.dbc_proof != other.dbc_proof
+            || self.p2mr_proof != other.p2mr_proof
             || self.fallback_proof != other.fallback_proof
             || self.mmb_proof != other.mmb_proof
         {
@@ -431,7 +514,7 @@ impl ClientSideWitness for Anchor {
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum TxoSealError {
-    /// witness transaction contains no taproot or OP_RETURN output.
+    /// witness transaction contains no Tondi P2MR, taproot, or OP_RETURN output.
     NoOutput,
 
     /// the first witness transaction DBC-compatible output does not match the provided proof type.
@@ -448,6 +531,10 @@ pub enum TxoSealError {
     #[from]
     /// invalid opret commitment.
     Opret(EmbedVerifyError<OpretError>),
+
+    #[from]
+    /// invalid Tondi P2MR commitment.
+    TondiP2mr(TondiP2mrError),
 }
 
 /// Error merging information from multiple anchors for the same witness (see [`Anchor::merge`]).
@@ -481,7 +568,7 @@ mod test {
 
     use amplify::confinement::{Confined, SmallOrdMap};
     use amplify::num::u5;
-    use bc::secp256k1::{SecretKey, SECP256K1};
+    use bc::secp256k1::{PublicKey, SecretKey, SECP256K1};
     use bc::{InternalPk, Sats, ScriptPubkey, SeqNo, TapLeafHash, TapScript, TxIn, TxOut, Vout};
     use commit_verify::{CommitVerify, DigestExt};
     use dbc::tapret::{TapretCommitment, TapretPathProof};
@@ -492,15 +579,26 @@ mod test {
     use crate::mpc::{MessageMap, MessageSource};
     use crate::TxoSealError;
 
+    #[derive(Copy, Clone)]
+    enum AnchorMode {
+        Opret,
+        Tapret,
+        P2mr,
+    }
+
     fn setup_opret() -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
-        setup(false)
+        setup(AnchorMode::Opret)
     }
 
     fn setup_tapret() -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
-        setup(true)
+        setup(AnchorMode::Tapret)
     }
 
-    fn setup(tapret: bool) -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
+    fn setup_p2mr() -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
+        setup(AnchorMode::P2mr)
+    }
+
+    fn setup(mode: AnchorMode) -> (Vec<mmb::Message>, BundleProof, Vec<TxoSeal>, SealWitness<TxoSeal>) {
         // Construct messages
         let mut msg = [0u8; 32];
         let messages = (0u8..=13)
@@ -557,12 +655,16 @@ mod test {
         assert_eq!(merkle_proofs.len(), 1);
         assert_eq!(merkle_proofs[0].0, protocol);
 
+        let tapret = matches!(mode, AnchorMode::Tapret);
+        let p2mr = matches!(mode, AnchorMode::P2mr);
+
         // Tapret
         let nonce = 0;
         let tapret_commitment = TapretCommitment::with(merkle_tree.commit_id(), nonce);
         let script_commitment = TapScript::commit(&tapret_commitment);
         let secret = SecretKey::from_byte_array(&[0x66; 32]).unwrap();
         let internal_pk = InternalPk::from(secret.x_only_public_key(SECP256K1).0);
+        let p2mr_proof = TondiP2mrProof::new(PublicKey::from_secret_key(SECP256K1, &secret).into());
         let tapret_proof = TapretProof {
             path_proof: TapretPathProof::root(nonce),
             internal_pk,
@@ -574,6 +676,7 @@ mod test {
             mpc_protocol: protocol,
             mpc_proof: merkle_proof,
             dbc_proof: if tapret { Some(tapret_proof) } else { None },
+            p2mr_proof: if p2mr { Some(p2mr_proof) } else { None },
             fallback_proof: none!(),
         };
 
@@ -594,11 +697,17 @@ mod test {
                         internal_pk,
                         Some(TapLeafHash::with_leaf_script(&script_commitment.into()).into()),
                     )
+                } else if p2mr {
+                    ScriptPubkey::from_checked(p2mr_proof.p2mr_root(mpc).unwrap().to_vec())
                 } else {
                     ScriptPubkey::op_return(mpc.as_slice())
                 },
             }]),
             lock_time: default!(),
+            subnetwork_id: [0u8; 20],
+            gas: 0,
+            payload: default!(),
+            mass: 0,
         };
         let witness = SealWitness::new(tx, anchor);
 
@@ -631,6 +740,30 @@ mod test {
     #[test]
     fn valid_taprets() {
         let (messages, bundle, seals, witness) = setup_tapret();
+
+        for seal in seals {
+            let outpoint = seal.primary;
+            let pos = outpoint.txid[0] as usize;
+            if pos == 12 {
+                assert!(!bundle.verify(outpoint, messages[pos], &witness.published));
+                assert!(bundle.verify(outpoint, messages[11], &witness.published));
+
+                assert!(!seal.is_included(messages[pos], &witness));
+                witness.verify_seal_closing(seal, messages[pos]).unwrap_err();
+
+                assert!(seal.is_included(messages[11], &witness));
+                witness.verify_seal_closing(seal, messages[11]).unwrap();
+            } else {
+                assert!(bundle.verify(outpoint, messages[pos], &witness.published));
+                assert!(seal.is_included(messages[pos], &witness));
+                witness.verify_seal_closing(seal, messages[pos]).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn valid_p2mrs() {
+        let (messages, bundle, seals, witness) = setup_p2mr();
 
         for seal in seals {
             let outpoint = seal.primary;

@@ -35,9 +35,8 @@ use amplify::confinement::{
     Collection, KeyedCollection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX,
 };
 use amplify::{confinement, ByteArray, Bytes32, MultiError, Wrapper};
-use bp::dbc::tapret::TapretProof;
 pub use bp::seals;
-use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
+use bp::seals::{mmb, Anchor, Noise, TondiP2mrProof, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Txid, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, DigestExt, StrictHash, TondiBlake3};
@@ -46,7 +45,6 @@ use hypersonic::{
     NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError, StateName,
     StateUnknown, Stock,
 };
-use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::RgbSealDef;
 use rgbcore::LIB_NAME_RGB;
@@ -79,7 +77,6 @@ pub trait WalletProvider {
     ) -> impl Iterator<Item = WTxoSeal>;
 
     fn noise_seed(&self) -> Bytes32;
-    fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
 
     #[cfg(not(feature = "async"))]
@@ -133,21 +130,9 @@ pub struct PrefabSeal {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[display("{wout}/{sats}")]
+#[display("disabled-external-output")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
-pub struct WoutAssignment {
-    #[cfg_attr(feature = "serde", serde(with = "serde_with::rust::display_fromstr"))]
-    pub wout: WitnessOut,
-    pub sats: Sats,
-}
-
-impl From<WoutAssignment> for ScriptPubkey {
-    fn from(val: WoutAssignment) -> Self { val.script_pubkey() }
-}
-
-impl WoutAssignment {
-    pub fn script_pubkey(&self) -> ScriptPubkey { self.wout.script_pubkey() }
-}
+pub enum DisabledExternalOutput {}
 
 impl<T> EitherSeal<T> {
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EitherSeal<U> {
@@ -211,7 +196,7 @@ pub struct UsedState {
     pub satisfaction: Option<Satisfaction>,
 }
 
-pub type PaymentScript = OpRequestSet<Option<WoutAssignment>>;
+pub type PaymentScript = OpRequestSet<Option<DisabledExternalOutput>>;
 
 /// A set of multiple operation requests (see [`OpRequests`]) under single or multiple contracts.
 #[derive(Wrapper, WrapperMut, Clone, Debug, From)]
@@ -238,10 +223,10 @@ impl<T> OpRequestSet<T> {
     pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
 }
 
-impl OpRequestSet<Option<WoutAssignment>> {
+impl OpRequestSet<Option<DisabledExternalOutput>> {
     pub fn resolve_seals(
         self,
-        resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
+        _resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
         change: Option<Vout>,
     ) -> Result<OpRequestSet<PrefabSeal>, UnresolvedSeal> {
         let mut items = Vec::with_capacity(self.0.len());
@@ -249,12 +234,7 @@ impl OpRequestSet<Option<WoutAssignment>> {
             let mut owned = Vec::with_capacity(request.owned.len());
             for assignment in request.owned {
                 let seal = match assignment.state.seal {
-                    EitherSeal::Alt(Some(seal)) => {
-                        let spk = seal.script_pubkey();
-                        let vout = resolver(&spk).ok_or(UnresolvedSeal::Spk(spk))?;
-                        let seal = PrefabSeal { vout, noise: Some(seal.wout.noise()) };
-                        EitherSeal::Alt(seal)
-                    }
+                    EitherSeal::Alt(Some(seal)) => match seal {},
                     EitherSeal::Alt(None) => {
                         let change = change.ok_or(UnresolvedSeal::Change)?;
                         let seal = PrefabSeal { vout: change, noise: None };
@@ -283,7 +263,7 @@ impl OpRequestSet<Option<WoutAssignment>> {
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum UnresolvedSeal {
-    /// unable to resolve seal witness output seal definition for script pubkey {0:x}.
+    /// unable to resolve external seal definition for script pubkey {0:x}.
     Spk(ScriptPubkey),
 
     /// seal requires assignment to a change output, but the transaction lacks change.
@@ -315,27 +295,6 @@ pub struct OpRequest<T> {
     pub using: Vec<UsedState>,
     pub global: Vec<NamedState<StateAtom>>,
     pub owned: Vec<NamedState<Assignment<EitherSeal<T>>>>,
-}
-
-impl OpRequest<Option<WoutAssignment>> {
-    pub fn resolve_seal(
-        &self,
-        wout: WitnessOut,
-        resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
-    ) -> Option<WTxoSeal> {
-        for assignment in &self.owned {
-            if let EitherSeal::Alt(Some(assignment)) = &assignment.state.seal {
-                if assignment.wout == wout {
-                    let spk = assignment.script_pubkey();
-                    let vout = resolver(&spk)?;
-                    let primary = WOutpoint::Wout(vout);
-                    let seal = WTxoSeal { primary, secondary: TxoSealExt::Noise(wout.noise()) };
-                    return Some(seal);
-                }
-            }
-        }
-        None
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -461,12 +420,6 @@ where
         Some(auth)
     }
 
-    pub fn wout(&mut self, nonce: Option<u64>) -> WitnessOut {
-        let address = self.wallet.next_address();
-        let nonce = nonce.unwrap_or_else(|| self.wallet.next_nonce());
-        WitnessOut::new(address.payload, nonce)
-    }
-
     pub fn wallet_state(&self) -> WalletState<TxoSeal> {
         let iter = self
             .contracts
@@ -508,8 +461,8 @@ where
         &mut self,
         invoice: &RgbInvoice<ContractId>,
         mut coinselect: impl Coinselect,
-        giveaway: Option<Sats>,
-    ) -> Result<OpRequest<Option<WoutAssignment>>, FulfillError> {
+        _giveaway: Option<Sats>,
+    ) -> Result<OpRequest<Option<DisabledExternalOutput>>, FulfillError> {
         let contract_id = invoice.scope;
 
         // Determine method
@@ -559,13 +512,6 @@ where
         // Add beneficiaries
         let seal = match invoice.auth {
             RgbBeneficiary::Token(auth) => EitherSeal::Token(auth),
-            RgbBeneficiary::WitnessOut(wout) => {
-                let wout = WoutAssignment {
-                    wout,
-                    sats: giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?,
-                };
-                EitherSeal::Alt(Some(wout))
-            }
         };
         calc.lessen(value)?;
         let assignment = Assignment { seal, data: value.clone() };
@@ -815,7 +761,7 @@ where
         bundle: &PrefabBundle,
         witness: &Tx,
         mpc: mpc::MerkleBlock,
-        dbc: Option<TapretProof>,
+        p2mr_proof: Option<TondiP2mrProof>,
         prevouts: &[Outpoint],
     ) -> Result<(), IncludeError> {
         for prefab in bundle {
@@ -833,7 +779,8 @@ where
                 mmb_proof: mmb::BundleProof { map: SmallOrdMap::from_checked(map) },
                 mpc_protocol: protocol_id,
                 mpc_proof: mpc.to_merkle_proof(protocol_id)?,
-                dbc_proof: dbc.clone(),
+                dbc_proof: None,
+                p2mr_proof,
                 fallback_proof: default!(),
             };
             self.contracts

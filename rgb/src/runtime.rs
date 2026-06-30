@@ -28,23 +28,25 @@ use std::collections::{BTreeSet, HashMap};
 use amplify::confinement::KeyedCollection;
 use amplify::MultiError;
 use bpstd::pstt::{
-    Beneficiary, ConstructionError, DbcPsttError, PsttConstructor, PsttMeta, TxParams,
+    ConstructionError, KeyMap, MmbPsttError, MpcPsttError, PsttConstructor, PsttMeta, TxParams,
     UnfinalizedInputs,
 };
-use bpstd::seals::TxoSeal;
-use bpstd::{Address, IdxBase, Pstt, Sats, Tx, Vout};
+use bpstd::seals::{TondiP2mrError, TondiP2mrProof, TxoSeal};
+use bpstd::{CompressedPk, IdxBase, Pstt, Sats, ScriptPubkey, Tx, Vout};
+use commit_verify::mpc;
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{
     BundleError, Coinselect, FulfillError, IncludeError, OpRequestSet, PaymentScript, PrefabBundle,
     RgbWallet, WalletProvider,
 };
 use rgb::{
-    AuthToken, CodexId, Contract, ContractId, Contracts, EitherSeal, Issuer, Pile, RgbSealDef,
-    Stock, Stockpile,
+    AuthToken, CodexId, Contract, ContractId, Contracts, EitherSeal, Issuer, Pile, Stock,
+    Stockpile,
 };
-use rgpstt::{RgbPstt, RgbPsttCsvError, RgbPsttPrepareError, ScriptResolver};
+use rgpstt::{RgbPstt, RgbPsttCsvError, RgbPsttPrepareError};
 
 use crate::CoinselectStrategy;
+use crate::p2mr::p2mr_original_pubkey_key;
 
 /// Payment structure is used in the process of RBF (replace by fee). It is returned by
 /// [`RgbRuntime::pay_invoice`] method when the original transaction is created, and then must be
@@ -89,7 +91,9 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    fn from(wallet: RgbWallet<W, Sp, S, C>) -> Self { Self(wallet) }
+    fn from(wallet: RgbWallet<W, Sp, S, C>) -> Self {
+        Self(wallet)
+    }
 }
 
 impl<W, Sp, S, C> Deref for RgbRuntime<W, Sp, S, C>
@@ -101,7 +105,9 @@ where
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     type Target = RgbWallet<W, Sp, S, C>;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 impl<W, Sp, S, C> DerefMut for RgbRuntime<W, Sp, S, C>
 where
@@ -111,7 +117,9 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
@@ -125,8 +133,12 @@ where
     pub fn with_components(wallet: W, contracts: Contracts<Sp, S, C>) -> Self {
         Self(RgbWallet::with_components(wallet, contracts))
     }
-    pub fn into_rgb_wallet(self) -> RgbWallet<W, Sp, S, C> { self.0 }
-    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { self.0.into_components() }
+    pub fn into_rgb_wallet(self) -> RgbWallet<W, Sp, S, C> {
+        self.0
+    }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) {
+        self.0.into_components()
+    }
 }
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
@@ -157,16 +169,12 @@ where
         let request = self
             .fulfill(invoice, strategy, giveaway)
             .map_err(MultiError::from_a)?;
-        let script = OpRequestSet::with(request.clone());
+        let script = OpRequestSet::with(request);
         let (pstt, mut payment) = self
             .transfer(script, params)
             .map_err(MultiError::from_other_a)?;
         let terminal = match invoice.auth {
             RgbBeneficiary::Token(auth) => auth,
-            RgbBeneficiary::WitnessOut(wout) => request
-                .resolve_seal(wout, pstt.script_resolver())
-                .expect("witness out must be present in the PSTT")
-                .auth_token(),
         };
         payment.terminals.insert(terminal);
         Ok((pstt, payment))
@@ -218,24 +226,20 @@ where
         bundle: &PaymentScript,
         params: TxParams,
     ) -> Result<(Pstt, PsttMeta), ConstructionError> {
+        if bundle
+            .iter()
+            .flat_map(|params| &params.owned)
+            .any(|assignment| matches!(&assignment.state.seal, EitherSeal::Alt(Some(_))))
+        {
+            return Err(ConstructionError::ExternalOutputDisabled);
+        }
+
         let closes = bundle
             .iter()
             .flat_map(|params| &params.using)
             .map(|used| used.outpoint);
 
-        let network = self.wallet.network();
-        let beneficiaries = bundle
-            .iter()
-            .flat_map(|params| &params.owned)
-            .filter_map(|assignment| match &assignment.state.seal {
-                EitherSeal::Alt(seal) => seal.as_ref(),
-                EitherSeal::Token(_) => None,
-            })
-            .map(|seal| {
-                let address = Address::with(&seal.wout.script_pubkey(), network)
-                    .expect("script pubkey which is not representable as an address");
-                Beneficiary::new(address, seal.sats)
-            });
+        let beneficiaries = std::iter::empty::<bpstd::pstt::Beneficiary>();
         self.wallet.construct_pstt(closes, beneficiaries, params)
     }
 
@@ -297,16 +301,49 @@ where
         mut pstt: Pstt,
         bundle: &PrefabBundle,
     ) -> Result<Pstt, TransferError> {
-        let (mpc, dbc) = pstt.dbc_commit()?;
+        let (mpc, p2mr_proof) = Self::tondi_p2mr_commit(&mut pstt)?;
         let tx = pstt.to_unsigned_tx();
 
         let prevouts = pstt
             .inputs()
             .map(|inp| inp.previous_outpoint)
             .collect::<Vec<_>>();
-        self.include(bundle, &tx.into(), mpc, dbc, &prevouts)?;
+        self.include(bundle, &tx.into(), mpc, Some(p2mr_proof), &prevouts)?;
 
         Ok(pstt)
+    }
+
+    fn tondi_p2mr_commit(pstt: &mut Pstt) -> Result<(mpc::MerkleBlock, TondiP2mrProof), TransferError> {
+        if pstt.are_outputs_modifiable() {
+            return Err(TransferError::P2mrAnchor("transaction outputs are still modifiable".to_string()));
+        }
+
+        let map = pstt.mmb_complete()?;
+        let key = p2mr_original_pubkey_key();
+        let output = pstt
+            .outputs_mut()
+            .find(|out| out.proprietary(&key).is_some())
+            .ok_or_else(|| {
+                TransferError::P2mrAnchor(
+                    "RGB transfer requires a Tondi P2MR change/anchor output carrying the original pubkey".to_string(),
+                )
+            })?;
+        let original_pubkey = output
+            .proprietary(&key)
+            .and_then(|bytes| {
+                let bytes: [u8; 33] = bytes.as_slice().try_into().ok()?;
+                CompressedPk::from_byte_array(bytes).ok()
+            })
+            .ok_or_else(|| TransferError::P2mrAnchor("invalid Tondi P2MR anchor pubkey".to_string()))?;
+
+        for (id, msg) in map {
+            output.set_mpc_message(id, msg)?;
+        }
+        let (commitment, mpc_proof) = output.mpc_commit()?;
+        let p2mr_proof = TondiP2mrProof::new(original_pubkey);
+        output.script = ScriptPubkey::from_checked(p2mr_proof.p2mr_root(commitment)?.to_vec());
+
+        Ok((mpc_proof, p2mr_proof))
     }
 
     #[allow(clippy::type_complexity)]
@@ -370,7 +407,15 @@ pub enum TransferError {
     PsttRgbCsv(RgbPsttCsvError),
 
     #[from]
-    PsttDbc(DbcPsttError),
+    PsttMmb(MmbPsttError),
+
+    #[from]
+    PsttMpc(MpcPsttError),
+
+    #[from]
+    PsttP2mr(TondiP2mrError),
+
+    P2mrAnchor(String),
 
     #[from]
     PsttPrepare(RgbPsttPrepareError),

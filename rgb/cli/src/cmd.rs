@@ -56,18 +56,12 @@ pub enum Cmd {
     /// List known wallets
     Wallets,
 
-    /// Create a new wallet from a descriptor
+    /// Create a new Tondi-native wallet from a P2MR descriptor
     Create {
-        #[clap(long, conflicts_with = "wpkh")]
-        tapret_key_only: bool,
-
-        #[clap(long)]
-        wpkh: bool,
-
         /// Wallet name
         name: String,
 
-        /// Extended pubkey descriptor
+        /// Tondi-native P2MR extended pubkey descriptor
         descriptor: String,
     },
 
@@ -81,7 +75,7 @@ pub enum Cmd {
         wallet: Option<String>,
     },
 
-    /// Receiving a wallet address for gas funding
+    /// Receive a Tondi P2MR wallet address for funding
     Fund {
         /// Wallet to use
         #[clap(env = RGB_WALLET_ENV)]
@@ -196,10 +190,6 @@ pub enum Cmd {
         /// Just generate a single-use seal, and not an entire invoice
         #[clap(long)]
         seal_only: bool,
-
-        /// Use witness-output-based seal
-        #[clap(long)]
-        wout: bool,
 
         /// Nonce number to use
         #[clap(long, global = true)]

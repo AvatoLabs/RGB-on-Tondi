@@ -406,7 +406,7 @@ mod test {
         }
     }
 
-    const SEAL_WOUT: WTxoSeal = WTxoSeal {
+    const SEAL_EXTERNAL_OUTPUT: WTxoSeal = WTxoSeal {
         primary: WOutpoint::Wout(Vout::from_u32(0)),
         secondary: TxoSealExt::Fallback(Outpoint::coinbase()),
     };
@@ -575,17 +575,17 @@ Sources for the reported seals: {
     }
 
     #[test]
-    #[should_panic(expected = "unknown seal definition for cell address k7fHvPyBlnM8m1n0QUaqNhB0I8kTwWXmi7nB_ZjTGVc:0.")]
-    fn genesis_with_wout() {
+    #[should_panic(expected = "unknown seal definition for cell address DdIqg2TZ61AbBI5T23xEefAw8Sl3H5_Gyoj6rVOosJs:0.")]
+    fn genesis_with_external_output() {
         let mut genesis = genesis();
-        genesis.destructible_out[0].auth = SEAL_WOUT.auth_token();
+        genesis.destructible_out[0].auth = SEAL_EXTERNAL_OUTPUT.auth_token();
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
         let operation = operation();
 
         let reader = TestReader::new(vec![
             OperationSeals {
                 operation: genesis_op,
-                defined_seals: small_bmap! { 0 => SEAL_WOUT},
+                defined_seals: small_bmap! { 0 => SEAL_EXTERNAL_OUTPUT},
                 witness: None,
             },
             OperationSeals { operation, defined_seals: none!(), witness: None },

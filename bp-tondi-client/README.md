@@ -6,7 +6,7 @@ Tondi RPC client library for RGB/BP integration.
 
 This crate provides a native Tondi RPC client for the RGB protocol stack, replacing the Esplora client for Tondi blockchain integration.
 
-Tondi is a Kaspa fork with Taproot support and BLAKE3 hashing.
+Tondi RGB uses native P2MR outputs and BLAKE3 transaction IDs.
 
 ## Features
 
@@ -114,4 +114,3 @@ For UTXO-related queries, the Tondi node must be started with the `--utxoindex` 
 ## License
 
 MIT
-

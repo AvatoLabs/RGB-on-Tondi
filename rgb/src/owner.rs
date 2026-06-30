@@ -27,19 +27,22 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use amplify::Bytes32;
-use bpstd::pstt::{PsttConstructor, Utxo};
+use bech32::{ToBase32, Variant};
+use bpstd::pstt::{KeyMap, Pstt, PsttConstructor, Utxo};
 use bpstd::seals::WTxoSeal;
 use bpstd::{
-    Address, Derive, DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly, DescrId, Idx, Keychain,
-    Network, NormalIndex, Outpoint, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout,
-    XpubDerivable,
+    Derive, DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly, DescrId, Idx, Keychain, Network,
+    NormalIndex, Outpoint, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout, XpubDerivable,
 };
 use rgb::popls::bp::WalletProvider;
 use rgb::{AuthToken, RgbSealDef, WitnessStatus};
 use rgbdescr::RgbDescr;
 
 use crate::resolvers::{Resolver, ResolverError};
+use crate::p2mr::p2mr_original_pubkey_key;
 use crate::{MemUtxos, UtxoSet};
+
+const TONDI_P2MR_ADDRESS_VERSION: u8 = 216;
 
 pub trait OwnerProvider {
     type Key: DeriveSet<Legacy = Self::Key, Compr = Self::Key, XOnly = Self::Key>
@@ -70,9 +73,13 @@ where
     U: UtxoSet,
 {
     #[inline]
-    pub fn with_components(descriptor: RgbDescr<K>, utxos: U) -> Self { Self { descriptor, utxos } }
+    pub fn with_components(descriptor: RgbDescr<K>, utxos: U) -> Self {
+        Self { descriptor, utxos }
+    }
     #[inline]
-    pub fn into_components(self) -> (RgbDescr<K>, U) { (self.descriptor, self.utxos) }
+    pub fn into_components(self) -> (RgbDescr<K>, U) {
+        (self.descriptor, self.utxos)
+    }
 }
 
 impl<K, U> OwnerProvider for Holder<K, U>
@@ -84,13 +91,21 @@ where
     type UtxoSet = U;
 
     #[inline]
-    fn descriptor(&self) -> &RgbDescr<K> { &self.descriptor }
+    fn descriptor(&self) -> &RgbDescr<K> {
+        &self.descriptor
+    }
     #[inline]
-    fn utxos(&self) -> &U { &self.utxos }
+    fn utxos(&self) -> &U {
+        &self.utxos
+    }
     #[inline]
-    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> { &mut self.descriptor }
+    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> {
+        &mut self.descriptor
+    }
     #[inline]
-    fn utxos_mut(&mut self) -> &mut U { &mut self.utxos }
+    fn utxos_mut(&mut self) -> &mut U {
+        &mut self.utxos
+    }
 }
 
 #[derive(Clone, Default)]
@@ -108,7 +123,9 @@ where
     K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
     U: UtxoSet,
 {
-    pub fn new() -> Self { Self { current: None, holders: none!() } }
+    pub fn new() -> Self {
+        Self { current: None, holders: none!() }
+    }
 
     pub fn with(id: DescrId, holder: Holder<K, U>) -> Self {
         Self { current: Some(id), holders: map! { id => holder } }
@@ -162,13 +179,21 @@ where
     type UtxoSet = U;
 
     #[inline]
-    fn descriptor(&self) -> &RgbDescr<K> { self.current().descriptor() }
+    fn descriptor(&self) -> &RgbDescr<K> {
+        self.current().descriptor()
+    }
     #[inline]
-    fn utxos(&self) -> &U { self.current().utxos() }
+    fn utxos(&self) -> &U {
+        self.current().utxos()
+    }
     #[inline]
-    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> { self.current_mut().descriptor_mut() }
+    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> {
+        self.current_mut().descriptor_mut()
+    }
     #[inline]
-    fn utxos_mut(&mut self) -> &mut U { self.current_mut().utxos_mut() }
+    fn utxos_mut(&mut self) -> &mut U {
+        self.current_mut().utxos_mut()
+    }
 }
 
 /// Owner structure represents a holder of an RGB wallet, which keeps information of the wallet
@@ -198,7 +223,9 @@ where
 {
     type Target = O;
 
-    fn deref(&self) -> &Self::Target { &self.provider }
+    fn deref(&self) -> &Self::Target {
+        &self.provider
+    }
 }
 
 impl<R, O, K, U> DerefMut for Owner<R, O, K, U>
@@ -208,7 +235,9 @@ where
     R: Resolver,
     U: UtxoSet,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.provider }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.provider
+    }
 }
 
 impl<R, O, K, U> Owner<R, O, K, U>
@@ -222,10 +251,53 @@ where
         Self { network, provider, resolver, _phantom: PhantomData }
     }
 
-    pub fn into_components(self) -> (O, R) { (self.provider, self.resolver) }
+    pub fn into_components(self) -> (O, R) {
+        (self.provider, self.resolver)
+    }
 
     #[inline]
-    pub fn network(&self) -> Network { self.network }
+    pub fn network(&self) -> Network {
+        self.network
+    }
+
+    pub fn next_tondi_p2mr_address(&mut self) -> Result<String, String> {
+        let next = self.next_derivation_index(Keychain::OUTER, true);
+        let spk = self
+            .provider
+            .descriptor()
+            .derive(Keychain::OUTER, next)
+            .next()
+            .ok_or_else(|| "P2MR descriptor produced no derivation".to_string())?
+            .to_script_pubkey();
+        encode_tondi_p2mr_address(self.network, spk.as_slice())
+    }
+}
+
+fn encode_tondi_p2mr_address(network: Network, root: &[u8]) -> Result<String, String> {
+    if root.len() != 32 || root.iter().all(|byte| *byte == 0) {
+        return Err(format!(
+            "invalid P2MR root for address: expected non-zero 32 bytes, got {} bytes",
+            root.len()
+        ));
+    }
+
+    let prefix = match network {
+        Network::Mainnet => "tondi",
+        Network::Testnet => "tondi0",
+        Network::Simnet => "tondisim",
+        Network::Devnet => "tondidev",
+    };
+
+    let mut data = Vec::with_capacity(33);
+    data.push(TONDI_P2MR_ADDRESS_VERSION);
+    data.extend_from_slice(root);
+    let encoded = bech32::encode(prefix, data.to_base32(), Variant::Bech32m)
+        .map_err(|err| format!("failed to encode Tondi P2MR address: {err}"))?;
+    let payload = encoded
+        .strip_prefix(prefix)
+        .and_then(|rest| rest.strip_prefix('1'))
+        .ok_or_else(|| "bech32 encoder returned an unexpected address prefix".to_string())?;
+    Ok(format!("{prefix}:{payload}"))
 }
 
 impl<R, O, K, U> WalletProvider for Owner<R, O, K, U>
@@ -237,62 +309,40 @@ where
 {
     type Error = ResolverError;
 
-    fn has_utxo(&self, outpoint: Outpoint) -> bool { self.provider.utxos().has(outpoint) }
+    fn has_utxo(&self, outpoint: Outpoint) -> bool {
+        self.provider.utxos().has(outpoint)
+    }
 
-    fn utxos(&self) -> impl Iterator<Item = Outpoint> { self.provider.utxos().outpoints() }
+    fn utxos(&self) -> impl Iterator<Item = Outpoint> {
+        self.provider.utxos().outpoints()
+    }
 
     #[cfg(not(feature = "async"))]
     fn update_utxos(&mut self) -> Result<(), Self::Error> {
         let mut new = set![];
         let mut not_found = self.provider.utxos().outpoints().collect::<HashSet<_>>();
-        eprintln!("[DEBUG] update_utxos: Starting UTXO update");
-        eprintln!("[DEBUG] update_utxos: Available keychains: {:?}", self.provider.descriptor().keychains().into_iter().collect::<Vec<_>>());
-        eprintln!("[DEBUG] update_utxos: Default keychain: {:?}", self.provider.descriptor().default_keychain());
-        eprintln!("[DEBUG] update_utxos: Expected address: tb1p475g7ttjev5pn8mdnlf0qgrmsgnkhdkkvjjd6sr7p93ccfu8q94qp076t4");
-        
+
         for keychain in self.provider.descriptor().keychains() {
-            eprintln!("[DEBUG] update_utxos: Processing keychain: {:?}", keychain);
             let mut index = NormalIndex::ZERO;
             let last_index = self.provider.utxos().next_index_noshift(keychain);
-            eprintln!("[DEBUG] update_utxos: Starting from index: {:?}, last_index: {:?}", index, last_index);
             loop {
-            let Some(to) = index.checked_add(20u16) else {
-                break;
-            };
-
-            let mut range = Vec::with_capacity(20);
-            while index < to {
-                let terminal = Terminal::new(keychain, index);
-                let iter = self.provider.descriptor().derive(keychain, index);
-
-                // Add logging for address derivation
-                let mut derived_addresses = Vec::new();
-                for derived in iter {
-                    let spk = derived.to_script_pubkey();
-                    // Try to convert to address for logging
-                    if let Ok(addr) = Address::with(&spk, self.network()) {
-                        derived_addresses.push(format!("{}", addr));
-                        // Check if this is the expected address
-                        if addr.to_string() == "tb1p475g7ttjev5pn8mdnlf0qgrmsgnkhdkkvjjd6sr7p93ccfu8q94qp076t4" {
-                            eprintln!("[DEBUG] ✅ FOUND EXPECTED ADDRESS! keychain={:?}, index={:?}", keychain, index);
-                        }
-                    }
-                    range.push((terminal, spk));
-                }
-                if !derived_addresses.is_empty() {
-                    eprintln!("[DEBUG] update_utxos: Derived {} address(es) for keychain={:?}, index={:?}: {:?}", 
-                        derived_addresses.len(), keychain, index, derived_addresses);
-                } else {
-                    eprintln!("[DEBUG] update_utxos: Derived ScriptPubkey for keychain={:?}, index={:?} (could not convert to address for logging)", 
-                        keychain, index);
-                }
-
-                if index.checked_inc_assign().is_none() {
+                let Some(to) = index.checked_add(20u16) else {
                     break;
-                }
-            }
+                };
 
-            let set = self.resolver.resolve_utxos(range);
+                let mut range = Vec::with_capacity(20);
+                while index < to {
+                    let terminal = Terminal::new(keychain, index);
+                    let iter = self.provider.descriptor().derive(keychain, index);
+
+                    range.extend(iter.map(|d| (terminal, d.to_script_pubkey())));
+
+                    if index.checked_inc_assign().is_none() {
+                        break;
+                    }
+                }
+
+                let set = self.resolver.resolve_utxos(range);
                 let prev_len = self.provider.utxos().len();
                 for utxo in set {
                     let utxo = utxo?;
@@ -362,7 +412,9 @@ where
         Ok(())
     }
 
-    fn register_seal(&mut self, seal: WTxoSeal) { self.provider.descriptor_mut().add_seal(seal); }
+    fn register_seal(&mut self, seal: WTxoSeal) {
+        self.provider.descriptor_mut().add_seal(seal);
+    }
 
     fn resolve_seals(
         &self,
@@ -376,21 +428,13 @@ where
         })
     }
 
-    fn noise_seed(&self) -> Bytes32 { self.provider.descriptor().noise() }
-
-    fn next_address(&mut self) -> Address {
-        let next = self.next_derivation_index(Keychain::OUTER, true);
-        let spk = self
-            .provider
-            .descriptor()
-            .derive(Keychain::OUTER, next)
-            .next()
-            .expect("at least one address must be derivable")
-            .to_script_pubkey();
-        Address::with(&spk, self.network).expect("invalid scriptpubkey derivation")
+    fn noise_seed(&self) -> Bytes32 {
+        self.provider.descriptor().noise()
     }
 
-    fn next_nonce(&mut self) -> u64 { self.provider.descriptor_mut().next_nonce() }
+    fn next_nonce(&mut self) -> u64 {
+        self.provider.descriptor_mut().next_nonce()
+    }
 
     #[cfg(not(feature = "async"))]
     fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error> {
@@ -403,7 +447,9 @@ where
     }
 
     #[cfg(not(feature = "async"))]
-    fn last_block_height(&self) -> Result<u64, Self::Error> { self.resolver.last_block_height() }
+    fn last_block_height(&self) -> Result<u64, Self::Error> {
+        self.resolver.last_block_height()
+    }
 
     #[cfg(feature = "async")]
     async fn last_block_height_async(&self) -> Result<u64, Self::Error> {
@@ -473,7 +519,9 @@ where
     type Key = K;
     type Descr = RgbDescr<K>;
 
-    fn descriptor(&self) -> &Self::Descr { self.provider.descriptor() }
+    fn descriptor(&self) -> &Self::Descr {
+        self.provider.descriptor()
+    }
 
     #[cfg(not(feature = "async"))]
     fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx> {
@@ -500,7 +548,9 @@ where
         Some((utxo, script.to_script_pubkey()))
     }
 
-    fn network(&self) -> Network { self.network }
+    fn network(&self) -> Network {
+        self.network
+    }
 
     #[cfg(not(feature = "async"))]
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex {
@@ -510,6 +560,26 @@ where
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex {
         use futures::executor::block_on;
         block_on(self.provider.utxos_mut().next_index_async(keychain, shift))
+    }
+
+    fn after_construct_pstt(&mut self, pstt: &mut Pstt, meta: &bpstd::pstt::PsttMeta) {
+        let Some(change) = meta.change else {
+            return;
+        };
+        let Some(output) = pstt.output_mut(change.vout.into_usize()) else {
+            return;
+        };
+        let Some(original_pubkey) = self
+            .provider
+            .descriptor()
+            .derive_p2mr_compressed_key(change.terminal.keychain, change.terminal.index)
+        else {
+            return;
+        };
+        let _ = output.push_proprietary(
+            p2mr_original_pubkey_key(),
+            original_pubkey.to_byte_array().to_vec(),
+        );
     }
 }
 
@@ -581,7 +651,9 @@ pub mod file {
             Ok(())
         }
 
-        pub fn path(&self) -> &Path { &self.path }
+        pub fn path(&self) -> &Path {
+            &self.path
+        }
     }
 
     impl Drop for FileHolder {
@@ -596,13 +668,21 @@ pub mod file {
         type Key = XpubDerivable;
         type UtxoSet = MemUtxos;
         #[inline]
-        fn descriptor(&self) -> &RgbDescr<Self::Key> { self.inner.descriptor() }
+        fn descriptor(&self) -> &RgbDescr<Self::Key> {
+            self.inner.descriptor()
+        }
         #[inline]
-        fn utxos(&self) -> &Self::UtxoSet { self.inner.utxos() }
+        fn utxos(&self) -> &Self::UtxoSet {
+            self.inner.utxos()
+        }
         #[inline]
-        fn descriptor_mut(&mut self) -> &mut RgbDescr<Self::Key> { self.inner.descriptor_mut() }
+        fn descriptor_mut(&mut self) -> &mut RgbDescr<Self::Key> {
+            self.inner.descriptor_mut()
+        }
         #[inline]
-        fn utxos_mut(&mut self) -> &mut Self::UtxoSet { self.inner.utxos_mut() }
+        fn utxos_mut(&mut self) -> &mut Self::UtxoSet {
+            self.inner.utxos_mut()
+        }
     }
 }
 
@@ -658,5 +738,42 @@ mod test {
 
         let utxo2 = toml::from_str(&s).unwrap();
         assert_eq!(utxo, utxo2);
+    }
+}
+
+#[cfg(test)]
+mod p2mr_address_tests {
+    use bpstd::{h, Network, XprivAccount, XpubDerivable};
+    use rgbdescr::RgbDescr;
+
+    use super::super::resolvers::NoResolver;
+    use super::encode_tondi_p2mr_address;
+    use super::{Holder, MemUtxos, Owner};
+
+    #[test]
+    fn tondi_p2mr_address_encoding() {
+        let address =
+            encode_tondi_p2mr_address(Network::Testnet, &[1u8; 32]).expect("encode P2MR address");
+        assert!(
+            address.starts_with("tondi0:m"),
+            "P2MR address should use tondi0:m prefix: {address}"
+        );
+        assert!(encode_tondi_p2mr_address(Network::Testnet, &[0u8; 32]).is_err());
+        assert!(encode_tondi_p2mr_address(Network::Testnet, &[1u8; 31]).is_err());
+    }
+
+    #[test]
+    fn owner_derives_tondi_p2mr_funding_address() {
+        let seed = [9u8; 64];
+        let xpriv = XprivAccount::with_seed(true, &seed).derive(h![86, 1, 0]);
+        let descriptor =
+            RgbDescr::p2mr_unfunded(XpubDerivable::from(xpriv.to_xpub_account()), [0u8; 32]);
+        let holder = Holder::with_components(descriptor, MemUtxos::default());
+        let mut owner = Owner::with_components(Network::Testnet, holder, NoResolver);
+
+        let address = owner
+            .next_tondi_p2mr_address()
+            .expect("derive P2MR funding address");
+        assert!(address.starts_with("tondi0:m"), "funding address should be Tondi P2MR: {address}");
     }
 }

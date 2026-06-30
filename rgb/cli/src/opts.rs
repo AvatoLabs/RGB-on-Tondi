@@ -28,25 +28,10 @@ use clap::ValueHint;
 
 use crate::cmd::RGB_WALLET_ENV;
 
-pub const DEFAULT_ELECTRUM: &str = "mycitadel.io:50001";
 pub const DEFAULT_TONDI: &str = "localhost:17110";
 
 #[derive(Args, Clone, PartialEq, Eq, Debug)]
-#[group(args = ["electrum", "tondi"])]
 pub struct ResolverOpt {
-    /// Electrum server to use
-    #[arg(
-        long,
-        global = true,
-        default_missing_value = DEFAULT_ELECTRUM,
-        num_args = 0..=1,
-        require_equals = true,
-        env = "ELECRTUM_SERVER",
-        value_hint = ValueHint::Url,
-        value_name = "URL"
-    )]
-    pub electrum: Option<String>,
-
     /// Tondi RPC endpoint to use
     #[arg(
         long,
@@ -79,7 +64,7 @@ impl WalletOpts {
         WalletOpts {
             wallet: name.clone(),
             sync: false,
-            resolver: ResolverOpt { electrum: None, tondi: None },
+            resolver: ResolverOpt { tondi: None },
         }
     }
 

@@ -81,7 +81,7 @@ pub struct Args {
     )]
     pub data_dir: PathBuf,
 
-    /// Tondi/Bitcoin network
+    /// Tondi network
     #[arg(short, long, global = true, default_value = "testnet", env = RGB_NETWORK_ENV)]
     pub network: Network,
 
@@ -97,7 +97,7 @@ pub struct Args {
     #[clap(subcommand)]
     pub command: Cmd,
 
-    /// Resolver options (Electrum or Tondi)
+    /// Tondi resolver options
     #[clap(flatten)]
     pub resolver: ResolverOpt,
 }
@@ -141,18 +141,15 @@ impl Args {
 
     pub fn contracts(&self) -> Contracts<StockpileDir<TxoSeal>> {
         // Determine Consensus based on network
-        let consensus = if self.network.is_testnet() {
-            Consensus::TondiTestnet
-        } else {
-            Consensus::Tondi
-        };
-        
+        let consensus =
+            if self.network.is_testnet() { Consensus::TondiTestnet } else { Consensus::Tondi };
+
         let stockpile = StockpileDir::load(self.data_dir(), consensus, true)
             .expect("Invalid contracts directory");
         Contracts::load(stockpile)
     }
 
-    fn wallet_dir(&self, name: Option<&str>) -> PathBuf {
+    pub(crate) fn wallet_dir(&self, name: Option<&str>) -> PathBuf {
         self.data_dir()
             .join(name.unwrap_or("default"))
             .with_extension("wallet")
@@ -172,8 +169,7 @@ impl Args {
             RgbpRuntimeDir::from(RgbWallet::with_components(wallet, self.contracts()));
         if opts.sync {
             eprint!("Synchronizing wallet:");
-            let rt = tokio::runtime::Runtime::new()
-                .expect("Unable to create tokio runtime");
+            let rt = tokio::runtime::Runtime::new().expect("Unable to create tokio runtime");
             rt.block_on(async {
                 runtime
                     .update_async(self.min_confirmations)
@@ -186,22 +182,20 @@ impl Args {
     }
 
     pub fn resolver(&self, resolver: &ResolverOpt) -> MultiResolver {
-        match (&resolver.tondi, &resolver.electrum) {
-            (None, Some(url)) => MultiResolver::new_electrum(url)
-                .expect("Unable to connect to Electrum server"),
-            (Some(endpoint), None) => {
+        match &resolver.tondi {
+            Some(endpoint) => {
                 // Tondi resolver requires async runtime, so we use tokio::runtime::Runtime
                 // to run the async code in a sync context
                 let rt = tokio::runtime::Runtime::new()
                     .expect("Unable to create tokio runtime for Tondi resolver");
                 rt.block_on(async {
                     // Use MultiResolver::new_tondi which is available when resolver-tondi feature is enabled
-                    MultiResolver::new_tondi(endpoint).await
+                    MultiResolver::new_tondi(endpoint)
+                        .await
                         .expect("Unable to connect to Tondi node")
                 })
             }
-            _ => MultiResolver::new_absent()
-                .expect("Unable to create resolver"),
+            None => MultiResolver::new_absent().expect("Unable to create resolver"),
         }
     }
 }

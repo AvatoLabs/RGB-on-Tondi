@@ -29,13 +29,13 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use bpstd::pstt::{PsttConstructor, TxParams};
-use bpstd::{ConsensusEncode, Outpoint, Pstt, PsttVer, Wpkh, XpubDerivable};
+use bpstd::{ConsensusEncode, Outpoint, Pstt, PsttVer, XpubDerivable};
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{PaymentScript, PrefabBundle, WalletProvider};
 use rgb::{CallScope, Consensus, CreateParams, Issuer};
 use rgbp::descriptors::RgbDescr;
-use rgbp::resolvers::Resolver;
-use rgbp::{ContractInfo, FileHolder};
+use rgbp::ContractInfo;
+use rgbp::FileHolder;
 use strict_types::StrictVal;
 
 use crate::args::Args;
@@ -89,37 +89,30 @@ impl Args {
                 }
             }
 
-            Cmd::Create { tapret_key_only, wpkh, name, descriptor } => {
+            Cmd::Create { name, descriptor } => {
                 let xpub = XpubDerivable::from_str(descriptor)?;
-                let noise = xpub.xpub().chain_code().to_byte_array();
-                let descr = match (tapret_key_only, wpkh) {
-                    (false, true) => RgbDescr::new_unfunded(Wpkh::from(xpub), noise),
-                    (true, false) => RgbDescr::key_only_unfunded(xpub, noise),
-                    (true, true) => unreachable!(),
-                    (false, false) => anyhow::bail!(
-                        "a type of wallet descriptor must be specified either with \
-                         `--tapret-key-only` or `--wpkh`"
-                    ),
-                };
-                let path = self.data_dir().join(name);
-                FileHolder::create(path, descr).expect("Unable to create wallet");
+                let descriptor = RgbDescr::p2mr_unfunded(xpub, [0u8; 32]);
+                let path = self.wallet_dir(Some(name));
+                FileHolder::create(path.clone(), descriptor).with_context(|| {
+                    format!("unable to create Tondi P2MR wallet at '{}'", path.display())
+                })?;
             }
 
             Cmd::Sync { wallet, resolver } => {
                 let mut runtime = self.runtime(&WalletOpts::with(wallet, resolver));
-                
-                let rt = tokio::runtime::Runtime::new()
-                    .expect("Unable to create tokio runtime");
-                rt.block_on(async {
-                    runtime.update_async(self.min_confirmations).await
-                })?;
-                
+
+                let rt = tokio::runtime::Runtime::new().expect("Unable to create tokio runtime");
+                rt.block_on(async { runtime.update_async(self.min_confirmations).await })?;
+
                 println!();
             }
 
             Cmd::Fund { wallet } => {
                 let mut runtime = self.runtime(&WalletOpts::default_with_name(wallet));
-                let addr = runtime.wallet.next_address();
+                let addr = runtime
+                    .wallet
+                    .next_tondi_p2mr_address()
+                    .map_err(anyhow::Error::msg)?;
                 println!("{addr}");
             }
 
@@ -258,11 +251,9 @@ impl Args {
             Cmd::State { wallet, all, global, owned, contract } => {
                 let mut runtime = self.runtime(wallet);
                 if wallet.sync {
-                    let rt = tokio::runtime::Runtime::new()
-                        .expect("Unable to create tokio runtime");
-                    rt.block_on(async {
-                        runtime.update_async(self.min_confirmations).await
-                    })?;
+                    let rt =
+                        tokio::runtime::Runtime::new().expect("Unable to create tokio runtime");
+                    rt.block_on(async { runtime.update_async(self.min_confirmations).await })?;
                     println!();
                 }
                 let contract_id = contract
@@ -329,7 +320,7 @@ impl Args {
                             println!("Owned:  # no known owned state");
                         } else {
                             println!(
-                                "Owned:  {:<16}\t{:<12}\t{:<32}\t{:<46}\tBitcoin outpoint",
+                                "Owned:  {:<16}\t{:<12}\t{:<32}\t{:<46}\tTondi outpoint",
                                 "State name", "Conf. height", "Value", "RGB output"
                             );
                         }
@@ -349,7 +340,6 @@ impl Args {
             Cmd::Invoice {
                 wallet,
                 seal_only,
-                wout,
                 nonce,
                 contract,
                 api,
@@ -358,16 +348,10 @@ impl Args {
                 value,
             } => {
                 let mut runtime = self.runtime(&WalletOpts::default_with_name(wallet));
-                let beneficiary = if *wout {
-                    let wout = runtime.wout(*nonce);
-                    RgbBeneficiary::WitnessOut(wout)
-                } else {
-                    let auth = runtime.auth_token(*nonce).ok_or(anyhow::anyhow!(
-                        "Wallet has no unspent outputs; try `fund` first, or use `-w` flag to \
-                         generate a witness output-based seal"
-                    ))?;
-                    RgbBeneficiary::Token(auth)
-                };
+                let auth = runtime.auth_token(*nonce).ok_or(anyhow::anyhow!(
+                    "Wallet has no unspent P2MR outputs; fund a Tondi P2MR wallet output first"
+                ))?;
+                let beneficiary = RgbBeneficiary::Token(auth);
                 if *seal_only {
                     println!("{beneficiary}");
                     return Ok(());
@@ -531,7 +515,7 @@ impl Args {
                         input.final_script_sig = Some(Default::default());
                     }
                 }
-                
+
                 let inputs = pstt.finalize(runtime.wallet.descriptor());
                 eprint!("{inputs} of {} inputs were finalized", pstt.inputs().count());
                 if pstt.is_finalized() {
@@ -568,11 +552,9 @@ impl Args {
                 };
 
                 if *broadcast {
-                    let rt = tokio::runtime::Runtime::new()
-                        .expect("Unable to create tokio runtime");
-                    rt.block_on(async {
-                        runtime.wallet.broadcast_async(&extracted, None).await
-                    })?;
+                    let rt =
+                        tokio::runtime::Runtime::new().expect("Unable to create tokio runtime");
+                    rt.block_on(async { runtime.wallet.broadcast_async(&extracted, None).await })?;
                 }
             }
 

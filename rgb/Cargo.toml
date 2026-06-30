@@ -5,7 +5,7 @@
 name = "rgb-runtime"
 description = "RGB smart contracts wallet runtime"
 version = "0.12.0-rc.3"
-keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+keywords = ["tondi", "p2mr", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://rgb.tech"
@@ -21,12 +21,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 amplify = { workspace = true }
+bech32 = { workspace = true }
 commit_verify = { workspace = true }
 strict_types = { workspace = true }
 bp-std = { workspace = true, features = ["client-side-validation"] }
-bp-electrum = { version = "0.12.0-rc.1", optional = true }
 bp-tondi = { workspace = true, optional = true }
-rgb-std = { workspace = true, features = ["bitcoin"] }
+rgb-std = { workspace = true, features = ["tondi"] }
 rgb-pstt = { workspace = true, features = ["bp"] }
 rgb-descriptors = { workspace = true }
 rgb-persist-fs = { workspace = true, optional = true }
@@ -73,22 +73,15 @@ fs = [
 log = ["dep:log"]
 
 resolvers-all = [
-    "resolver-electrum",
-    #"resolver-bitcoinrpc"
+    "resolver-tondi",
 ]
-resolver-electrum = ["dep:bp-electrum"]
-#resolver-bitcoinrpc = [] # TODO
 
 resolvers-all-async = [
-    #"resolver-electrum-async",
     "resolver-tondi",
-    #"resolver-bitcoinrpc-async"
 ]
-#resolver-electrum-async = ["async", "dep:bp-electrum"] # TODO: ["bp-electrum/async"]
 # Tondi client is async-only
 resolver-tondi = ["async", "bp-tondi/async", "dep:tokio"]
 resolver-tondi-async = ["resolver-tondi"]
-#resolver-bitcoinrpc-async = ["async"] # TODO
 
 serde = [
     "dep:serde", "toml",

@@ -1,7 +1,0 @@
-dump/
-*.contract/
-*.dump/
-/*/**/*.issuer
-*.rgb
-*.pstt
-*.pfab

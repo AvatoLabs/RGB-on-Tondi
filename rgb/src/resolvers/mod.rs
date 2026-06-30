@@ -24,12 +24,8 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#[cfg(feature = "resolver-electrum")]
-mod electrum;
 #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async",))]
 mod tondi;
-// #[cfg(any(feature = "resolver-bitcoinrpc", feature = "resolver-bitcoinrpc-async"))]
-// mod bitcoinrpc;
 
 use core::iter;
 #[cfg(feature = "std")]
@@ -40,10 +36,6 @@ use bpstd::pstt::Utxo;
 use bpstd::{ScriptPubkey, Terminal, Tx, Txid, UnsignedTx};
 use rgb::WitnessStatus;
 
-//#[cfg(feature = "resolver-electrum-async")]
-//pub use self::electrum::ElectrumAsyncResolver;
-#[cfg(feature = "resolver-electrum")]
-pub use self::electrum::ElectrumResolver;
 #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
 pub use self::tondi::TondiResolver;
 
@@ -79,17 +71,10 @@ pub trait Resolver {
 
 #[derive(Default)]
 pub struct MultiResolver {
-    #[cfg(feature = "resolver-electrum")]
-    electrum: Option<ElectrumResolver>,
-    
-    // Tondi resolver (async-only for DAG-based blockchain)
     // Tondi resolver (async-only for DAG-based blockchain)
     // Note: This field is conditionally compiled based on resolver-tondi features
     #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
     tondi: Option<TondiResolver>,
-    // TODO: Implement Bitcoin RPC resolver
-    // #[cfg(feature = "resolver-bitcoinrpc")]
-    // bitcoinrpc: Option<NoResolver>,
 }
 
 #[derive(Copy, Clone)]
@@ -99,10 +84,7 @@ impl NoResolver {
     fn call(&self) -> ! {
         #[cfg(feature = "std")]
         {
-            eprintln!(
-                "Error: no blockchain indexer specified; use either --tondi or --electrum \
-                 argument"
-            );
+            eprintln!("Error: no Tondi blockchain indexer specified; use the --tondi argument");
             exit(1);
         }
         #[cfg(not(feature = "std"))]
@@ -115,8 +97,12 @@ impl NoResolver {
 
 #[cfg(not(feature = "async"))]
 impl Resolver for NoResolver {
-    fn resolve_tx(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> { self.call() }
-    fn resolve_tx_status(&self, _txid: Txid) -> Result<WitnessStatus, ResolverError> { self.call() }
+    fn resolve_tx(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
+        self.call()
+    }
+    fn resolve_tx_status(&self, _txid: Txid) -> Result<WitnessStatus, ResolverError> {
+        self.call()
+    }
     fn resolve_utxos(
         &self,
         _iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
@@ -125,8 +111,12 @@ impl Resolver for NoResolver {
         #[allow(unreachable_code)]
         iter::empty()
     }
-    fn last_block_height(&self) -> Result<u64, ResolverError> { self.call() }
-    fn broadcast(&self, _tx: &Tx) -> Result<(), ResolverError> { self.call() }
+    fn last_block_height(&self) -> Result<u64, ResolverError> {
+        self.call()
+    }
+    fn broadcast(&self, _tx: &Tx) -> Result<(), ResolverError> {
+        self.call()
+    }
 }
 
 #[cfg(feature = "async")]
@@ -145,53 +135,38 @@ impl Resolver for NoResolver {
         #[allow(unreachable_code)]
         iter::empty()
     }
-    async fn last_block_height_async(&self) -> Result<u64, ResolverError> { self.call() }
-    async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> { self.call() }
+    async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
+        self.call()
+    }
+    async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> {
+        self.call()
+    }
 }
 
 impl MultiResolver {
-    #[cfg(feature = "resolver-electrum")]
-    pub fn new_electrum(url: &str) -> Result<Self, ResolverError> {
-        Ok(Self { electrum: Some(ElectrumResolver::new(url)?), ..default!() })
-    }
-
     /// Create a new Tondi resolver (async)
     #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
     pub async fn new_tondi(endpoint: &str) -> Result<Self, ResolverError> {
-        Ok(Self { 
-            tondi: Some(TondiResolver::new(endpoint).await?), 
-            ..default!() 
+        Ok(Self {
+            tondi: Some(TondiResolver::new(endpoint).await?),
+            ..default!()
         })
     }
 
-    // #[cfg(feature = "resolver-bitcoinrpc")]
-    // pub fn new_bitcoinrpc(_url: &str) -> Result<Self, ResolverError> { todo!() }
-    pub fn new_absent() -> Result<Self, ResolverError> { Ok(Self::default()) }
+    pub fn new_absent() -> Result<Self, ResolverError> {
+        Ok(Self::default())
+    }
 }
 
 #[cfg(not(feature = "async"))]
 impl Resolver for MultiResolver {
     fn resolve_tx(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
-        #[cfg(feature = "resolver-electrum")]
-        if let Some(resolver) = &self.electrum {
-            return resolver.resolve_tx(txid);
-        }
-        // #[cfg(feature = "resolver-bitcoinrpc")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.resolve_tx(txid);
-        // }
+        let _ = txid;
         NoResolver.call()
     }
 
     fn resolve_tx_status(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
-        #[cfg(feature = "resolver-electrum")]
-        if let Some(resolver) = &self.electrum {
-            return resolver.resolve_tx_status(txid);
-        }
-        // #[cfg(feature = "resolver-bitcoinrpc")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.resolve_tx_status(txid);
-        // }
+        let _ = txid;
         NoResolver.call()
     }
 
@@ -200,56 +175,30 @@ impl Resolver for MultiResolver {
         &self,
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
-        #[cfg(feature = "resolver-electrum")]
-        if let Some(resolver) = &self.electrum {
-            return resolver.resolve_utxos(iter).collect::<Vec<_>>().into_iter();
-        }
-        // #[cfg(feature = "resolver-bitcoinrpc")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.resolve_utxos(iter).collect::<Vec<_>>().into_iter();
-        // }
+        let _ = iter;
         NoResolver.call();
         vec![].into_iter()
     }
 
     fn last_block_height(&self) -> Result<u64, ResolverError> {
-        #[cfg(feature = "resolver-electrum")]
-        if let Some(resolver) = &self.electrum {
-            return resolver.last_block_height();
-        }
-        // #[cfg(feature = "resolver-bitcoinrpc")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.last_block_height();
-        // }
         NoResolver.call()
     }
 
     fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError> {
-        #[cfg(feature = "resolver-electrum")]
-        if let Some(resolver) = &self.electrum {
-            return resolver.broadcast(tx);
-        }
         #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
         if let Some(resolver) = &self.tondi {
             // Tondi resolver is async-only, so we need to use tokio runtime
             // to run the async broadcast in a sync context
             #[cfg(feature = "tokio")]
             {
-                let rt = tokio::runtime::Runtime::new()
-                    .map_err(|_| ResolverError::Local)?;
-                return rt.block_on(async {
-                    resolver.broadcast_async(tx).await
-                });
+                let rt = tokio::runtime::Runtime::new().map_err(|_| ResolverError::Local)?;
+                return rt.block_on(async { resolver.broadcast_async(tx).await });
             }
             #[cfg(not(feature = "tokio"))]
             {
                 return Err(ResolverError::Local);
             }
         }
-        // #[cfg(feature = "resolver-bitcoinrpc")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.broadcast(tx);
-        // }
         NoResolver.call()
     }
 }
@@ -261,14 +210,7 @@ impl Resolver for MultiResolver {
         if let Some(resolver) = &self.tondi {
             return resolver.resolve_tx_async(txid).await;
         }
-        // #[cfg(feature = "resolver-electrum-async")]
-        // if let Some(resolver) = &self.electrum {
-        //     return resolver.resolve_tx_async(txid).await;
-        // }
-        // #[cfg(feature = "resolver-bitcoinrpc-async")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.resolve_tx_async(txid).await;
-        // }
+        let _ = txid;
         NoResolver.call()
     }
 
@@ -277,14 +219,7 @@ impl Resolver for MultiResolver {
         if let Some(resolver) = &self.tondi {
             return resolver.resolve_tx_status_async(txid).await;
         }
-        // #[cfg(feature = "resolver-electrum-async")]
-        // if let Some(resolver) = &self.electrum {
-        //     return resolver.resolve_tx_status_async(txid).await;
-        // }
-        // #[cfg(feature = "resolver-bitcoinrpc-async")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.resolve_tx_status_async(txid).await;
-        // }
+        let _ = txid;
         NoResolver.call()
     }
 
@@ -301,22 +236,7 @@ impl Resolver for MultiResolver {
                 .collect::<Vec<_>>()
                 .into_iter();
         }
-        // #[cfg(feature = "resolver-electrum-async")]
-        // if let Some(resolver) = &self.electrum {
-        //     return resolver
-        //         .resolve_utxos_async(iter)
-        //         .await
-        //         .collect::<Vec<_>>()
-        //         .into_iter();
-        // }
-        // #[cfg(feature = "resolver-bitcoinrpc-async")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver
-        //         .resolve_utxos_async(iter)
-        //         .await
-        //         .collect::<Vec<_>>()
-        //         .into_iter();
-        // }
+        let _ = iter;
         NoResolver.call();
         vec![].into_iter()
     }
@@ -326,14 +246,6 @@ impl Resolver for MultiResolver {
         if let Some(resolver) = &self.tondi {
             return resolver.last_block_height_async().await;
         }
-        // #[cfg(feature = "resolver-electrum-async")]
-        // if let Some(resolver) = &self.electrum {
-        //     return resolver.last_block_height_async().await;
-        // }
-        // #[cfg(feature = "resolver-bitcoinrpc-async")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.last_block_height_async().await;
-        // }
         NoResolver.call()
     }
 
@@ -342,14 +254,7 @@ impl Resolver for MultiResolver {
         if let Some(resolver) = &self.tondi {
             return resolver.broadcast_async(tx).await;
         }
-        // #[cfg(feature = "resolver-electrum-async")]
-        // if let Some(resolver) = &self.electrum {
-        //     return resolver.broadcast_async(tx).await;
-        // }
-        // #[cfg(feature = "resolver-bitcoinrpc-async")]
-        // if let Some(resolver) = &self.bitcoinrpc {
-        //     return resolver.broadcast_async(tx).await;
-        // }
+        let _ = tx;
         NoResolver.call()
     }
 }

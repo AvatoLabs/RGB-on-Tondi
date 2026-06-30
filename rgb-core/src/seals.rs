@@ -79,7 +79,7 @@ pub trait RgbSeal:
 
 // Below are capabilities constants used in the standard library:
 
-#[cfg(any(feature = "bitcoin", feature = "liquid"))]
+#[cfg(any(feature = "tondi", feature = "liquid"))]
 pub mod bitcoin {
     use bp::seals::{Anchor, TxoSeal, WOutpoint, WTxoSeal};
     use bp::{Outpoint, Tx, Txid};

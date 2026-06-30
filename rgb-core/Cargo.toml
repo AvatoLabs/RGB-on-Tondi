@@ -2,10 +2,10 @@
 name = "rgb-core"
 version = "0.12.0"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
-description = "RGB Core Library: confidential & scalable smart contracts on Bitcoin & Lightning (consensus layer)"
+description = "RGB Core Library: confidential client-side smart contracts for Tondi"
 repository = "https://github.com/RGB-WG/rgb-core"
 homepage = "https://rgb.tech"
-keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+keywords = ["tondi", "p2mr", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 readme = "README.md"
 license = "Apache-2.0"
@@ -27,12 +27,12 @@ bp-core = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 
 [features]
-default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "serde"]
+default = ["std", "tondi"]
+all = ["std", "tondi", "liquid", "prime", "serde"]
 
 std = []
 
-bitcoin = ["bp-core"]
+tondi = ["bp-core"]
 liquid = ["bp-core"]
 prime = []
 

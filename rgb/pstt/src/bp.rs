@@ -24,7 +24,7 @@
 
 use amplify::ByteArray;
 use bpstd::seals::{mmb, mpc};
-use bpstd::{Pstt, Sats, ScriptPubkey, Vout};
+use bpstd::{Pstt, ScriptPubkey, Vout};
 use rgb::popls::bp::{OpRequestSet, PaymentScript, PrefabBundle, PrefabSeal};
 
 use crate::{RgbPstt, RgbPsttCsvError, RgbPsttPrepareError, ScriptResolver};
@@ -35,19 +35,6 @@ impl RgbPstt for Pstt {
         script: PaymentScript,
         change_vout: &mut Option<Vout>,
     ) -> Result<OpRequestSet<PrefabSeal>, RgbPsttPrepareError> {
-        match self.opret_hosts().count() {
-            0 => {
-                let host = self
-                    .insert_output(0, ScriptPubkey::op_return(&[]), Sats::ZERO)
-                    .map_err(|_| RgbPsttPrepareError::Unfinalizable)?;
-                host.set_opret_host().ok();
-                if let Some(vout) = change_vout.as_mut() {
-                    *vout = Vout::from_u32(vout.to_u32() + 1)
-                }
-            }
-            1 => {}
-            _ => return Err(RgbPsttPrepareError::MultipleHosts),
-        }
         self.complete_construction();
 
         script
