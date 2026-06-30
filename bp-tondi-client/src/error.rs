@@ -37,6 +37,10 @@ pub enum Error {
     #[display(doc_comments)]
     Serialization(String),
 
+    /// Invalid Tondi-native RGB transaction: {0}
+    #[display(doc_comments)]
+    InvalidNativeTransaction(String),
+
     /// Invalid number conversion
     #[from]
     IntConversion(TryFromIntError),
@@ -74,4 +78,3 @@ impl From<std::io::Error> for Error {
 
 /// Result type for Tondi RPC operations
 pub type Result<T> = std::result::Result<T, Error>;
-

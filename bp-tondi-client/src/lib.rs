@@ -3,7 +3,7 @@
 //! This crate provides a native Tondi RPC client for the RGB protocol stack,
 //! replacing the Esplora client for Tondi blockchain integration.
 //!
-//! Tondi is a Kaspa fork with Taproot support and BLAKE3 hashing.
+//! Tondi RGB uses native P2MR outputs with BLAKE3 transaction IDs.
 //!
 //! ## Features
 //!
@@ -62,4 +62,3 @@ pub const DEFAULT_GRPC_PORT: u16 = 16210;
 
 /// Default Tondi testnet gRPC port
 pub const DEFAULT_TESTNET_GRPC_PORT: u16 = 16220;
-

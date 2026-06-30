@@ -49,7 +49,7 @@ pub enum WitnessStatus {
     /// Valid public witness included in the current consensus at a specific height, which,
     /// however, may be eventually re-orged.
     ///
-    /// A zero height (used by Bitcoin genesis which can't contain any RGB operation) is used for
+    /// A zero height (used by genesis blocks which can't contain any RGB operation) is used for
     /// the operations which do not have witness (genesis operation) - see [`Self::Genesis`].
     #[display(inner)]
     Mined(NonZeroU64),
@@ -65,7 +65,7 @@ pub enum WitnessStatus {
     Tentative,
 
     /// Indicates past public witness which is no more valid - it is not included in the
-    /// blockchain, not present in the mempool, or belongs to the past Lightning channel state.
+    /// blockDAG, not present in the mempool, or belongs to a past off-chain channel state.
     #[default]
     Archived,
 }
@@ -76,11 +76,21 @@ impl WitnessStatus {
     const OFFCHAIN: u64 = u64::MAX ^ 0x02;
     const ARCHIVED: u64 = u64::MAX;
 
-    pub fn is_mined(&self) -> bool { matches!(self, Self::Mined(_)) }
-    pub fn is_valid(&self) -> bool { !matches!(self, Self::Archived) }
-    pub fn is_tentative(&self) -> bool { matches!(self, Self::Tentative) }
-    pub fn is_archived(&self) -> bool { matches!(self, Self::Archived) }
-    pub fn is_offchain(&self) -> bool { matches!(self, Self::Offchain) }
+    pub fn is_mined(&self) -> bool {
+        matches!(self, Self::Mined(_))
+    }
+    pub fn is_valid(&self) -> bool {
+        !matches!(self, Self::Archived)
+    }
+    pub fn is_tentative(&self) -> bool {
+        matches!(self, Self::Tentative)
+    }
+    pub fn is_archived(&self) -> bool {
+        matches!(self, Self::Archived)
+    }
+    pub fn is_offchain(&self) -> bool {
+        matches!(self, Self::Offchain)
+    }
 
     fn quasi_height(&self) -> u64 {
         match self {
@@ -97,7 +107,9 @@ impl WitnessStatus {
         self.quasi_height() < other.quasi_height()
     }
 
-    pub fn is_worse(self, other: Self) -> bool { !self.is_better(other) }
+    pub fn is_worse(self, other: Self) -> bool {
+        !self.is_better(other)
+    }
 
     pub fn best(self, other: Self) -> Self {
         if self.is_better(other) {
@@ -183,7 +195,8 @@ pub trait Pile {
     ///
     /// This call MAY perform I/O operations.
     fn new(conf: Self::Conf) -> Result<Self, Self::Error>
-    where Self: Sized;
+    where
+        Self: Sized;
 
     /// Loads a contract from persistence using the provided configuration.
     ///
@@ -195,7 +208,8 @@ pub trait Pile {
     ///
     /// This call MAY perform I/O operations.
     fn load(conf: Self::Conf) -> Result<Self, Self::Error>
-    where Self: Sized;
+    where
+        Self: Sized;
 
     fn pub_witness(
         &self,
@@ -285,9 +299,10 @@ mod tests {
             WitnessStatus::Genesis,
             [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].into()
         );
-        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [
-            0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-        ]);
+        assert_eq!(
+            <[u8; 8]>::from(WitnessStatus::Genesis),
+            [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
     }
 
     #[test]

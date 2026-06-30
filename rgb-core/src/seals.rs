@@ -32,7 +32,7 @@ use ultrasonic::AuthToken;
 /// A type which serves as a definition of a single-use seal for RGB contracts.
 ///
 /// The reason why this type is required additionally to the [`RgbSeal`] type: under some protocols
-/// (like bitcoin UTXO-based single-use seals) the seal definition may be defined relatively to a
+/// (like Tondi UTXO-based single-use seals) the seal definition may be defined relatively to a
 /// witness of previously closed seal, whose id is not known during seal definition construction.
 /// In such cases, a seal definition should be converted into a full single-use seal instance using
 /// the [`Self::resolve`] method.
@@ -79,8 +79,8 @@ pub trait RgbSeal:
 
 // Below are capabilities constants used in the standard library:
 
-#[cfg(any(feature = "bitcoin", feature = "liquid"))]
-pub mod bitcoin {
+#[cfg(any(feature = "tondi", feature = "liquid"))]
+pub mod tondi {
     use bp::seals::{Anchor, TxoSeal, WOutpoint, WTxoSeal};
     use bp::{Outpoint, Tx, Txid};
     use commit_verify::CommitId;
@@ -144,7 +144,7 @@ mod tests {
             primary: WOutpoint::Wout(0u32.into()),
             secondary: TxoSealExt::Fallback(Outpoint::coinbase()),
         };
-        assert_eq!(seal.auth_token().to_string(), "at:lIIfSD7P-RQi0r3kA-7gZdmE7Q-S66QSwzG-NCxNnh7V-225u4Q");
+        assert_eq!(seal.auth_token().to_string(), "at:BOmLQufG-NGWvrZNy-ZRqB3TPR-qjD_1mQx-YNhwoOVR-CRISjQ");
     }
 
     #[test]

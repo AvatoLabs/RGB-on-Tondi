@@ -2,7 +2,7 @@
 name = "rgb-interfaces"
 version = "0.12.0"
 description = "Collection of the standard RGB smart contract interface"
-keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+keywords = ["tondi", "p2mr", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"

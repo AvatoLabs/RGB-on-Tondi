@@ -2,7 +2,7 @@
 name = "rgbx"
 description = "RGB command-line toolbox utility"
 version = "0.12.0-rc.3"
-keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+keywords = ["tondi", "p2mr", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://rgb.tech"
@@ -27,10 +27,10 @@ anyhow = "1.0.93"
 clap = { version = "4.5.21", features = ["derive", "env"] }
 
 [features]
-defaul = ["bitcoin"]
-all = ["bitcoin", "liquid", "prime"]
+defaul = ["tondi"]
+all = ["tondi", "liquid", "prime"]
 
-bitcoin = ["rgb-std/bitcoin"]
+tondi = ["rgb-std/tondi"]
 liquid = ["rgb-std/liquid"]
 prime = ["rgb-std/prime"]
 

@@ -1,4 +1,4 @@
-// Bitcoin protocol consensus library.
+// Tondi protocol consensus library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -31,17 +31,13 @@ use crate::{
 };
 
 pub const LIB_ID_BP_TX: &str =
-    "stl:9WwTYiP2-OadKCZP-cR0bJ_Y-qruINYX-bXZFj8Y-fsQoGgo#signal-color-cipher";
+    "stl:htmUXr0Z-~ohcA7N-vxkQMgn-kprfcpj-8~ziNKJ-Hn2wmL8#process-poem-cobalt";
 pub const LIB_ID_BP_CONSENSUS: &str =
-    "stl:CaK1Puml-gQpFSBK-E06s9O3-W27jJMu-fcpa21K-6AQ2FZc#extend-crimson-cable";
-
-#[allow(clippy::result_large_err)]
-#[deprecated(since = "0.10.8", note = "use _bp_tx_stl instead")]
-fn _bitcoin_stl() -> Result<TypeLib, CompileError> { _bp_tx_stl() }
+    "stl:htmUXr0Z-~ohcA7N-vxkQMgn-kprfcpj-8~ziNKJ-Hn2wmL8#process-poem-cobalt";
 
 #[allow(clippy::result_large_err)]
 fn _bp_tx_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_TONDI), None).transpile::<Tx>().compile()
+    _bp_consensus_stl()
 }
 
 #[allow(clippy::result_large_err)]
@@ -90,15 +86,12 @@ fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {
     .compile()
 }
 
-#[deprecated(since = "0.10.8", note = "use bp_tx_stl instead")]
-pub fn bitcoin_stl() -> TypeLib { bp_tx_stl() }
-
 pub fn bp_tx_stl() -> TypeLib {
-    _bp_tx_stl().expect("invalid strict type Bitcoin transaction library")
+    _bp_tx_stl().expect("invalid strict type Tondi transaction library")
 }
 
 pub fn bp_consensus_stl() -> TypeLib {
-    _bp_consensus_stl().expect("invalid strict type Bitcoin consensus library")
+    _bp_consensus_stl().expect("invalid strict type Tondi consensus library")
 }
 
 #[cfg(test)]

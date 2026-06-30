@@ -77,9 +77,13 @@ pub struct MemUtxos {
 
 impl UtxoSet for MemUtxos {
     #[inline]
-    fn len(&self) -> usize { self.set.len() }
+    fn len(&self) -> usize {
+        self.set.len()
+    }
     #[inline]
-    fn has(&self, outpoint: Outpoint) -> bool { self.set.contains_key(&outpoint) }
+    fn has(&self, outpoint: Outpoint) -> bool {
+        self.set.contains_key(&outpoint)
+    }
     #[inline]
     fn get(&self, outpoint: Outpoint) -> Option<(Sats, Terminal)> {
         self.set.get(&outpoint).copied()
@@ -113,10 +117,14 @@ impl UtxoSet for MemUtxos {
 
     #[inline]
     #[cfg(not(feature = "async"))]
-    fn clear(&mut self) { self.set.clear() }
+    fn clear(&mut self) {
+        self.set.clear()
+    }
     #[inline]
     #[cfg(feature = "async")]
-    async fn clear_async(&mut self) { self.set.clear() }
+    async fn clear_async(&mut self) {
+        self.set.clear()
+    }
 
     #[inline]
     #[cfg(not(feature = "async"))]
@@ -145,7 +153,9 @@ impl UtxoSet for MemUtxos {
     }
 
     #[inline]
-    fn outpoints(&self) -> impl Iterator<Item = Outpoint> { self.set.keys().copied() }
+    fn outpoints(&self) -> impl Iterator<Item = Outpoint> {
+        self.set.keys().copied()
+    }
 
     fn next_index_noshift(&self, keychain: impl Into<Keychain>) -> NormalIndex {
         self.next_index

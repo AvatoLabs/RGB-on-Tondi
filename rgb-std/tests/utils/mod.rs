@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use amplify::confinement::Confined;
 use amplify::none;
 use bp::seals::{Anchor, TxoSeal, WTxoSeal};
-use bp::{LockTime, Tx};
-use commit_verify::{Digest, DigestExt, Sha256};
+use bp::{LockTime, Tx, VarIntBytes};
+use commit_verify::{DigestExt, TondiBlake3};
 use hypersonic::CallParams;
 use rand::prelude::SliceRandom;
 use rand::rng;
@@ -18,7 +18,7 @@ use single_use_seals::SealWitness;
 use strict_encoding::{vname, StrictDumb};
 
 pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
-    let mut noise_engine = Sha256::new();
+    let mut noise_engine = TondiBlake3::default();
     noise_engine.input_raw(b"test");
 
     let issuer = Issuer::load("tests/data/Test.issuer", |_, _, _| -> Result<_, Infallible> {
@@ -72,6 +72,10 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
         inputs: Confined::from_checked(vec![]),
         outputs: Confined::from_checked(vec![]),
         lock_time: default!(),
+        subnetwork_id: [0u8; 20],
+        gas: 0,
+        payload: VarIntBytes::new(),
+        mass: 0,
     };
     let anchor = Anchor::strict_dumb();
     for round in 0u16..10 {

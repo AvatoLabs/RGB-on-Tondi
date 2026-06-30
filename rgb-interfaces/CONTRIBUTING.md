@@ -184,13 +184,10 @@ an issue on GitHub.
 
 Going further
 -------------
-You may be interested in Jon Atack guide on
-[How to review Bitcoin Core PRs][Review] and [How to make Bitcoin Core PRs][PR].
-While there are differences between the projects in terms of context and
-maturity, many of the suggestions offered apply to this project.
+For RGB-on-Tondi changes, keep review focused on Tondi P2MR publication
+semantics, client-side privacy, and the absence of on-chain RGB metadata
+carriers outside P2MR output roots.
 
 Overall, have fun :)
 
 [1]: http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
-[Review]: https://github.com/jonatack/bitcoin-development/blob/master/how-to-review-bitcoin-core-prs.md
-[PR]: https://github.com/jonatack/bitcoin-development/blob/master/how-to-make-bitcoin-core-prs.md

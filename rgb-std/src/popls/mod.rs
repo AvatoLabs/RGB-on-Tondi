@@ -24,7 +24,7 @@
 
 //! Proof of publication layers supported by RGB.
 
-#[cfg(any(feature = "bitcoin", feature = "liquid"))]
+#[cfg(any(feature = "tondi", feature = "liquid"))]
 pub mod bp;
 #[cfg(feature = "prime")]
 pub mod prime;

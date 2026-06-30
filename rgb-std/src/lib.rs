@@ -48,10 +48,10 @@ extern crate alloc;
 extern crate amplify;
 extern crate rgbcore as rgb;
 
-#[cfg(feature = "bitcoin")]
+#[cfg(feature = "tondi")]
 #[macro_use]
 extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
+#[cfg(all(feature = "serde", feature = "tondi"))]
 #[macro_use]
 extern crate serde;
 
@@ -68,7 +68,7 @@ mod util;
 #[cfg(feature = "stl")]
 pub mod stl;
 
-#[cfg(feature = "bitcoin")]
+#[cfg(feature = "tondi")]
 pub use bp::{Outpoint, Txid};
 pub use consignment::{parse_consignment, Consignment, MAX_CONSIGNMENT_OPS};
 pub use contract::{

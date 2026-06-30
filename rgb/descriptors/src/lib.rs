@@ -4,12 +4,14 @@
 //
 // Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 // Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Adapted for Tondi by AvatoLabs.
 //
 // Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
 // Copyright (C) 2024-2025 LNP/BP Laboratories,
 //                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
 // Copyright (C) 2025 RGB Consortium, Switzerland.
 // Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+// Copyright (C) 2025 AvatoLabs.
 // All rights under the above copyrights are reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -33,22 +35,28 @@ extern crate amplify;
 extern crate serde;
 extern crate core;
 
-use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::collections::BTreeSet;
 use core::fmt::{self, Display, Formatter};
+use core::iter;
 
-use amplify::{Bytes32, Wrapper, WrapperMut};
-use bpstd::dbc::tapret::TapretCommitment;
-use bpstd::seals::WTxoSeal;
+use amplify::{ByteArray, Bytes32, Wrapper, WrapperMut};
+use bp::seals::WTxoSeal;
 use bpstd::{
-    ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet, DeriveXOnly,
+    CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet, DeriveXOnly,
     DerivedScript, Descriptor, KeyOrigin, Keychain, LegacyKeySig, LegacyPk, NormalIndex,
-    RedeemScript, SigScript, SpkClass, StdDescr, TapDerivation, TapScript, TapTree, TaprootKeySig,
-    Terminal, Tr, TrKey, Witness, WitnessScript, XOnlyPk, XpubAccount, XpubDerivable,
+    RedeemScript, ScriptPubkey, SigScript, SpkClass, StdDescr, TapDerivation, TapLeafHash,
+    TapScript, TaprootKeySig, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
+    XpubDerivable,
 };
-use commit_verify::CommitVerify;
 use indexmap::IndexMap;
 
-pub trait DescriptorRgb<K = XpubDerivable, V = ()>: Descriptor<K, V> {
+const OP_PUSHBYTES_32: u8 = 0x20;
+const OP_CHECKSIG: u8 = 0xac;
+
+pub trait DescriptorRgb<K = XpubDerivable, V = ()>: Descriptor<K, V>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
     fn add_seal(&self, seal: WTxoSeal);
 }
 
@@ -72,72 +80,72 @@ impl Display for SealDescr {
     }
 }
 
-#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Debug, Default, From)]
-#[wrapper(Deref)]
-#[wrapper_mut(DerefMut)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-pub struct TapretWeaks(BTreeMap<Terminal, BTreeSet<TapretCommitment>>);
-
-impl Display for TapretWeaks {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("tweaks(")?;
-        let mut iter1 = self.iter().peekable();
-        while let Some((term, tweaks)) = iter1.next() {
-            write!(f, "{term}=")?;
-            let mut iter2 = tweaks.iter().peekable();
-            while let Some(tweak) = iter2.next() {
-                write!(f, "{tweak}")?;
-                if iter2.peek().is_some() {
-                    f.write_str(",")?;
-                }
-            }
-            if iter1.peek().is_some() {
-                f.write_str(";")?;
-            }
-        }
-        f.write_str(")")
-    }
-}
-
-#[derive(Clone, Debug, Display, From)]
+#[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(
         rename_all = "camelCase",
-        bound(
-            serialize = "K::Legacy: serde::Serialize, K::Compr: serde::Serialize, K::XOnly: \
-                         serde::Serialize",
-            deserialize = "K::Legacy: serde::Deserialize<'de>, K::Compr: serde::Deserialize<'de>, \
-                           K::XOnly: serde::Deserialize<'de>"
-        )
+        bound(serialize = "K: serde::Serialize", deserialize = "K: serde::Deserialize<'de>")
     )
 )]
-enum RgbDeriver<K: DeriveSet = XpubDerivable> {
-    #[from]
-    #[display(inner)]
-    OpretOnly(StdDescr<K>),
-
-    #[display("{tr},{tweaks}")]
-    Universal {
-        tr: Tr<K::XOnly>,
-        tweaks: TapretWeaks,
-    },
+enum RgbDeriver<K: DeriveSet<XOnly = K> + DeriveXOnly = XpubDerivable> {
+    TondiP2mr { key: K },
 }
 
-impl<K: DeriveSet> Derive<DerivedScript> for RgbDeriver<K> {
-    fn default_keychain(&self) -> Keychain {
+impl<K> RgbDeriver<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
+    fn p2mr(key: K) -> Self {
+        Self::TondiP2mr { key }
+    }
+
+    fn key(&self) -> &K {
         match self {
-            RgbDeriver::OpretOnly(d) => d.default_keychain(),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.default_keychain(),
+            RgbDeriver::TondiP2mr { key } => key,
         }
+    }
+}
+
+impl<K> Display for RgbDeriver<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            RgbDeriver::TondiP2mr { key } => write!(f, "p2mr({key})"),
+        }
+    }
+}
+
+/// Computes the Tondi standard single-key P2MR root.
+///
+/// This mirrors Tondi's `p2mr_single_key_root`: the committed leaf is
+/// `<x-only-pubkey> OP_CHECKSIG`, and the P2MR output payload is the one-leaf
+/// TapLeaf hash.
+pub fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] {
+    let mut script = Vec::with_capacity(34);
+    script.push(OP_PUSHBYTES_32);
+    script.extend_from_slice(&xonly.to_byte_array());
+    script.push(OP_CHECKSIG);
+    TapLeafHash::with_tap_script(&TapScript::from_checked(script)).to_byte_array()
+}
+
+fn p2mr_script_pubkey(xonly: XOnlyPk) -> ScriptPubkey {
+    ScriptPubkey::from_checked(p2mr_single_key_root(xonly).to_vec())
+}
+
+impl<K> Derive<DerivedScript> for RgbDeriver<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
+    fn default_keychain(&self) -> Keychain {
+        self.key().default_keychain()
     }
 
     fn keychains(&self) -> BTreeSet<Keychain> {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.keychains(),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.keychains(),
-        }
+        self.key().keychains()
     }
 
     fn derive(
@@ -145,142 +153,125 @@ impl<K: DeriveSet> Derive<DerivedScript> for RgbDeriver<K> {
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
+        let keychain = keychain.into();
+        let index = index.into();
         match self {
-            RgbDeriver::OpretOnly(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
-            RgbDeriver::Universal { tr, tweaks } => {
-                let keychain = keychain.into();
-                let index = index.into();
-                let terminal = Terminal::new(keychain, index);
-                let mut vec = Vec::with_capacity(tweaks.0.len());
-                for internal_key in tr.as_internal_key().derive(keychain, index) {
-                    vec.push(DerivedScript::TaprootKeyOnly(internal_key.into()));
-                    for tweak in tweaks.get(&terminal).into_iter().flatten() {
-                        let script_commitment = TapScript::commit(tweak);
-                        let tap_tree = TapTree::with_single_leaf(script_commitment);
-                        let script = DerivedScript::TaprootScript(internal_key.into(), tap_tree);
-                        vec.push(script);
-                    }
-                }
-                vec.into_iter()
-            }
+            RgbDeriver::TondiP2mr { key } => <K as Derive<XOnlyPk>>::derive(key, keychain, index)
+                .map(|xonly| DerivedScript::Bare(p2mr_script_pubkey(xonly)))
+                .collect::<Vec<_>>()
+                .into_iter(),
         }
     }
 }
 
-impl<K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly>
-    Descriptor<K> for RgbDeriver<K>
+impl<K> Descriptor<K> for RgbDeriver<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
 {
     fn class(&self) -> SpkClass {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.class(),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.class(),
-        }
+        SpkClass::Bare
     }
+
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.keys().collect::<Vec<_>>().into_iter(),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.keys().collect::<Vec<_>>().into_iter(),
-        }
+    where
+        K: 'a,
+    {
+        iter::once(self.key())
     }
+
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.vars().collect::<Vec<_>>().into_iter(),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.vars().collect::<Vec<_>>().into_iter(),
-        }
+    where
+        (): 'a,
+    {
+        iter::empty()
     }
+
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.xpubs().collect::<Vec<_>>().into_iter(),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.xpubs().collect::<Vec<_>>().into_iter(),
-        }
+        iter::once(<K as DeriveKey<XOnlyPk>>::xpub_spec(self.key()))
     }
-    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.legacy_keyset(terminal),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.legacy_keyset(terminal),
-        }
+
+    fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        IndexMap::new()
     }
+
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.xonly_keyset(terminal),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.xonly_keyset(terminal),
-        }
+        <K as Derive<XOnlyPk>>::derive(self.key(), terminal.keychain, terminal.index)
+            .map(|key| {
+                (
+                    key,
+                    TapDerivation::with_internal_pk(
+                        <K as DeriveKey<XOnlyPk>>::xpub_spec(self.key())
+                            .origin()
+                            .clone(),
+                        terminal,
+                    ),
+                )
+            })
+            .collect()
     }
+
     fn legacy_witness(
         &self,
-        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
-        redeem_script: Option<RedeemScript>,
-        witness_script: Option<WitnessScript>,
+        _keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
-            RgbDeriver::Universal { tr, tweaks: _ } => {
-                tr.legacy_witness(keysigs, redeem_script, witness_script)
-            }
-        }
+        None
     }
+
     fn taproot_witness(
         &self,
-        cb: Option<&ControlBlock>,
-        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
+        _cb: Option<&ControlBlock>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
-        match self {
-            RgbDeriver::OpretOnly(d) => d.taproot_witness(cb, keysigs),
-            RgbDeriver::Universal { tr, tweaks: _ } => tr.taproot_witness(cb, keysigs),
-        }
+        None
     }
 }
 
-#[derive(Clone, Debug, Display)]
-#[display("rgb({deriver},{seals},noise({noise:x}))")]
+#[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(
         rename_all = "camelCase",
-        bound(
-            serialize = "K::Legacy: serde::Serialize, K::Compr: serde::Serialize, K::XOnly: \
-                         serde::Serialize",
-            deserialize = "K::Legacy: serde::Deserialize<'de>, K::Compr: serde::Deserialize<'de>, \
-                           K::XOnly: serde::Deserialize<'de>"
-        )
+        bound(serialize = "K: serde::Serialize", deserialize = "K: serde::Deserialize<'de>")
     )
 )]
-pub struct RgbDescr<K: DeriveSet = XpubDerivable> {
+pub struct RgbDescr<K: DeriveSet<XOnly = K> + DeriveXOnly = XpubDerivable> {
     deriver: RgbDeriver<K>,
     seals: SealDescr,
     noise: Bytes32,
     nonce: u64,
 }
 
-impl<K: DeriveSet> RgbDescr<K> {
-    pub fn new_unfunded(deriver: impl Into<StdDescr<K>>, noise: impl Into<[u8; 32]>) -> Self {
-        let deriver = match deriver.into() {
-            StdDescr::Wpkh(d) => RgbDeriver::OpretOnly(StdDescr::Wpkh(d)),
-            StdDescr::TrKey(tr) => RgbDeriver::Universal { tr: Tr::KeyOnly(tr), tweaks: empty!() },
-            _ => unreachable!(),
-        };
+impl<K> Display for RgbDescr<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "rgb({},{},noise({:x}))", self.deriver, self.seals, self.noise)
+    }
+}
+
+impl<K> RgbDescr<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
+    pub fn p2mr_unfunded(key: K, noise: impl Into<[u8; 32]>) -> Self {
         Self {
-            deriver,
+            deriver: RgbDeriver::p2mr(key),
             seals: empty!(),
             noise: noise.into().into(),
             nonce: 0,
         }
     }
 
-    pub fn key_only_unfunded(internal_key: K, noise: impl Into<[u8; 32]>) -> Self
-    where K: DeriveSet<XOnly = K> + DeriveKey<XOnlyPk> {
-        Self {
-            deriver: RgbDeriver::Universal {
-                tr: Tr::KeyOnly(TrKey::from(internal_key)),
-                tweaks: empty!(),
-            },
-            seals: empty!(),
-            noise: noise.into().into(),
-            nonce: 0,
-        }
+    pub fn new_unfunded(_deriver: impl Into<StdDescr<K>>, _noise: impl Into<[u8; 32]>) -> Self {
+        panic!("legacy RGB descriptor paths are disabled; use RgbDescr::p2mr_unfunded")
+    }
+
+    pub fn key_only_unfunded(internal_key: K, noise: impl Into<[u8; 32]>) -> Self {
+        Self::p2mr_unfunded(internal_key, noise)
     }
 
     pub fn next_nonce(&mut self) -> u64 {
@@ -289,29 +280,46 @@ impl<K: DeriveSet> RgbDescr<K> {
         nonce
     }
 
-    pub fn noise(&self) -> Bytes32 { self.noise }
-
-    pub fn seals(&self) -> impl Iterator<Item = WTxoSeal> + use<'_, K> {
-        self.seals.iter().copied()
+    pub fn noise(&self) -> Bytes32 {
+        self.noise
     }
 
-    pub fn add_seal(&mut self, seal: WTxoSeal) { self.seals.insert(seal); }
-
-    pub fn add_tweak(&mut self, terminal: Terminal, tweak: TapretCommitment) {
-        match &mut self.deriver {
-            RgbDeriver::OpretOnly(_) => {
-                panic!("attempting to add tapret tweaks to an opret-only wallet")
-            }
-            RgbDeriver::Universal { tr: _, tweaks } => {
-                tweaks.entry(terminal).or_default().insert(tweak);
+    pub fn derive_p2mr_compressed_key(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> Option<CompressedPk>
+    where
+        K: Derive<CompressedPk> + DeriveCompr,
+    {
+        match &self.deriver {
+            RgbDeriver::TondiP2mr { key } => {
+                <K as Derive<CompressedPk>>::derive(key, keychain, index).next()
             }
         }
     }
+
+    pub fn seals(&self) -> impl Iterator<Item = WTxoSeal> + use<'_, K> {
+        self.seals.0.iter().copied()
+    }
+
+    pub fn add_seal(&mut self, seal: WTxoSeal) {
+        self.seals.0.insert(seal);
+    }
 }
 
-impl<K: DeriveSet> Derive<DerivedScript> for RgbDescr<K> {
-    fn default_keychain(&self) -> Keychain { self.deriver.default_keychain() }
-    fn keychains(&self) -> BTreeSet<Keychain> { self.deriver.keychains() }
+impl<K> Derive<DerivedScript> for RgbDescr<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveXOnly,
+{
+    fn default_keychain(&self) -> Keychain {
+        self.deriver.default_keychain()
+    }
+
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        self.deriver.keychains()
+    }
+
     fn derive(
         &self,
         keychain: impl Into<Keychain>,
@@ -321,25 +329,40 @@ impl<K: DeriveSet> Derive<DerivedScript> for RgbDescr<K> {
     }
 }
 
-impl<K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly>
-    Descriptor<K> for RgbDescr<K>
+impl<K> Descriptor<K> for RgbDescr<K>
+where
+    K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
 {
-    fn class(&self) -> SpkClass { self.deriver.class() }
+    fn class(&self) -> SpkClass {
+        self.deriver.class()
+    }
+
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where K: 'a {
+    where
+        K: 'a,
+    {
         self.deriver.keys()
     }
+
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where (): 'a {
+    where
+        (): 'a,
+    {
         self.deriver.vars()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.deriver.xpubs() }
+
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        self.deriver.xpubs()
+    }
+
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.deriver.legacy_keyset(terminal)
     }
+
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         self.deriver.xonly_keyset(terminal)
     }
+
     fn legacy_witness(
         &self,
         keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
@@ -349,6 +372,7 @@ impl<K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr
         self.deriver
             .legacy_witness(keysigs, redeem_script, witness_script)
     }
+
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
@@ -360,31 +384,28 @@ impl<K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr
 
 #[cfg(test)]
 mod test {
-    use core::str::FromStr;
-
-    use bpstd::Wpkh;
+    use bpstd::{h, Derive, Idx, Keychain, NormalIndex, XprivAccount};
 
     use super::*;
 
     #[test]
     fn descr_serde() {
-        let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1;9;10>/*";
-        let xpub = XpubDerivable::from_str(s).unwrap();
-        let descr = RgbDescr::<XpubDerivable>::new_unfunded(Wpkh::from(xpub), [0u8; 32]);
+        let seed = [7u8; 64];
+        let xpriv = XprivAccount::with_seed(true, &seed).derive(h![86, 1, 0]);
+        let xpub = XpubDerivable::from(xpriv.to_xpub_account());
+        let descr = RgbDescr::<XpubDerivable>::p2mr_unfunded(xpub, [0u8; 32]);
 
         let toml = toml::to_string(&descr).unwrap();
         let descr2: RgbDescr<XpubDerivable> = toml::from_str(&toml).unwrap();
 
         assert_eq!(descr.to_string(), descr2.to_string());
-        assert_eq!(
-            toml,
-            r#"seals = []
-noise = "0000000000000000000000000000000000000000000000000000000000000000"
-nonce = 0
 
-[deriver.opretOnly]
-wpkh = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1;9;10>/*"
-"#
-        );
+        let script = descr
+            .derive(Keychain::OUTER, NormalIndex::ZERO)
+            .next()
+            .expect("P2MR descriptor must derive")
+            .to_script_pubkey();
+        assert_eq!(script.as_slice().len(), 32);
+        assert!(script.as_slice().iter().any(|byte| *byte != 0));
     }
 }

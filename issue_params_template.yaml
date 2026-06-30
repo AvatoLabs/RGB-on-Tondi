@@ -1,5 +1,6 @@
-# RGB20 资产发行参数模板
-# 使用 Tondi 测试网共识
+# Tondi-native RGB20 asset issue parameters.
+# RGB commitments are carried by P2MR output roots; do not put RGB data in payloads,
+# signature_script, witness, Annex, or sidecar pointers on-chain.
 
 consensus: tondi-testnet
 testnet: true
@@ -23,14 +24,15 @@ global:
 
 owned:
   - name: balance
-    seal: <REPLACE_WITH_UTXO>  # 例如: "b7116550736fbe5d3e234d0141c6bc8d1825f94da78514a3cede5674e9a5eae9:1"
+    seal: <REPLACE_WITH_TONDI_OUTPOINT>
     data: 1000000
 
-# 使用说明:
-# 1. 将 <REPLACE_WITH_UTXO> 替换为实际的 UTXO（从 `rgb --wallet <name> seals` 获取）
-# 2. 根据需要修改 ticker、name、issued 等字段
-# 3. 保存文件后使用: rgb --wallet <name> issue <this-file>.yaml
-
+# Usage:
+# 1. Replace <REPLACE_WITH_TONDI_OUTPOINT> with a seal from:
+#    RGB_WALLET=<name> rgb --tondi=<grpc-endpoint> seals
+# 2. Adjust ticker, name, precision, and issued amount.
+# 3. Issue with:
+#    RGB_WALLET=<name> rgb --tondi=<grpc-endpoint> issue <this-file>.yaml
 
 
 

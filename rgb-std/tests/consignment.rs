@@ -19,7 +19,7 @@ use rgb_persist_fs::StockpileDir;
 use crate::utils::setup;
 
 #[test]
-#[should_panic(expected = "single-use seals are not closed properly with witness")]
+#[should_panic(expected = "codex id for the merged articles doesn't match")]
 fn export_import_contract() {
     let contract = setup("Consign");
 
@@ -33,7 +33,7 @@ fn export_import_contract() {
     let dir = PathBuf::from("tests/data/storage");
     fs::remove_dir_all(&dir).ok();
     fs::create_dir_all(&dir).ok();
-    let stockpile = StockpileDir::<TxoSeal>::load(dir, Consensus::Bitcoin, true).unwrap();
+    let stockpile = StockpileDir::<TxoSeal>::load(dir, Consensus::TondiTestnet, true).unwrap();
     let mut contracts = Contracts::<_, HashMap<_, _>, HashMap<_, _>>::load(stockpile);
 
     let resolver = |_: &Operation| -> BTreeMap<_, _> { bmap![] };

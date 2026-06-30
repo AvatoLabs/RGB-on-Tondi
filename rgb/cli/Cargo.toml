@@ -5,7 +5,7 @@ version = "0.12.0-rc.3"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 repository = "https://github.com/RGB-WG/rgb"
 homepage = "https://rgb.tech"
-keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+keywords = ["tondi", "p2mr", "rgb", "smart-contracts", "lnp-bp"]
 readme = "README.md"
 license = "Apache-2.0"
 edition = "2021"
@@ -20,7 +20,6 @@ amplify.workspace = true
 strict_encoding.workspace = true
 strict_types.workspace = true
 bp-std = { workspace = true }
-bp-electrum = { workspace = true }
 bp-tondi = { workspace = true }
 rgb-std = { workspace = true, features = ["binfile", "uri", "serde"] }
 rgb-runtime = { workspace = true, features = ["resolvers-all", "resolver-tondi", "fs", "serde"] }
@@ -35,8 +34,5 @@ tokio = { version = "1.40", features = ["rt", "macros"] }
 default = []
 all = ["log"]
 log = ["rgb-runtime/log"]
-# These features are passed through from rgb-runtime
-# They are defined in rgb-runtime but used in rgb-cli code
-resolver-electrum = ["rgb-runtime/resolver-electrum"]
 resolver-tondi = ["rgb-runtime/resolver-tondi"]
 resolver-tondi-async = ["rgb-runtime/resolver-tondi-async"]

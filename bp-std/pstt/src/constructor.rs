@@ -64,6 +64,9 @@ pub enum ConstructionError {
 
     /// network for address {0} mismatches the one used by the wallet.
     NetworkMismatch(Address),
+
+    /// external RGB beneficiaries are disabled for Tondi-native P2MR.
+    ExternalOutputDisabled,
 }
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -317,14 +320,14 @@ pub trait PsttConstructor {
             size: 0,
             change,
         };
-        self.after_construct_pstt(&pstt, &meta);
+        self.after_construct_pstt(&mut pstt, &meta);
 
         Ok((pstt, meta))
     }
 
     /// A hook which is called by the default `Self::construct_pstt` before returning the newly
     /// constructed PSTT to the caller.
-    fn after_construct_pstt(&mut self, _pstt: &Pstt, _meta: &PsttMeta) {
+    fn after_construct_pstt(&mut self, _pstt: &mut Pstt, _meta: &PsttMeta) {
         // By default, we do not use the hook
     }
 }

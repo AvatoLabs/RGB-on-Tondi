@@ -16,13 +16,13 @@ name = "rgpstt"
 
 [dependencies]
 amplify = { workspace = true }
-rgb-std = { workspace = true, features = ["bitcoin"] }
+rgb-std = { workspace = true, features = ["tondi"] }
 bp-core = { workspace = true }
 bp-std = { workspace = true, optional = true }
 
 [features]
 default = []
-all = ["bp", "rust-bitcoin"]
+all = ["bp", "rust-tondi"]
 
-bp = ["bp-std"]
-rust-bitcoin = []
+bp = ["bp-std", "bp-std/client-side-validation"]
+rust-tondi = []

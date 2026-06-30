@@ -38,12 +38,10 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! RGB is confidential and scalable client-validated smart contracts for Bitcoin & Lightning.
-//! To learn more about the RGB please check [RGB website][Site].
+//! RGB is confidential and scalable client-validated smart contracts for Tondi.
 //!
 //! RGB Core library provides consensus-critical and validation code for RGB. It is a standard
-//! implementation, jointly with [LNP/BP Standards][LNPBPs] defining RGB consensus and validation
-//! rules.
+//! implementation defining RGB consensus and validation rules for the Tondi-native runtime.
 
 extern crate alloc;
 #[macro_use]

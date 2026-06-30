@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["AvatoLabs"]
 license = "MIT"
 description = "Tondi RPC client library for RGB/BP integration"
-keywords = ["tondi", "rgb", "kaspa", "taproot", "blake3"]
+keywords = ["tondi", "rgb", "kaspa", "p2mr", "blake3"]
 readme = "README.md"
 rust-version = "1.82.0"
 
@@ -61,4 +61,3 @@ default = ["async"]
 async = ["dep:async-trait", "dep:tokio", "dep:tokio-stream"]
 grpc = ["dep:tonic", "dep:prost"]
 wrpc = ["dep:workflow-rpc"]
-
