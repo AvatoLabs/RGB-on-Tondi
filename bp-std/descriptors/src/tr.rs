@@ -95,9 +95,7 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
     }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         match self {
             Tr::KeyOnly(d) => d.keys().collect::<Vec<_>>(),
             Tr::Script(d) => d.keys().collect::<Vec<_>>(),
@@ -106,9 +104,7 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
     }
 
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         match self {
             Tr::KeyOnly(d) => d.vars().collect::<Vec<_>>(),
             Tr::Script(d) => d.vars().collect::<Vec<_>>(),
@@ -176,24 +172,16 @@ impl<K: DeriveXOnly> Display for Tr<K> {
 pub struct TrKey<K: DeriveXOnly = XpubDerivable>(K);
 
 impl<K: DeriveXOnly> TrKey<K> {
-    pub fn as_internal_key(&self) -> &K {
-        &self.0
-    }
-    pub fn into_internal_key(self) -> K {
-        self.0
-    }
+    pub fn as_internal_key(&self) -> &K { &self.0 }
+    pub fn into_internal_key(self) -> K { self.0 }
 }
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.0.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.0.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
 
     fn derive(
         &self,
@@ -207,25 +195,17 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
 }
 
 impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2tr
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(&self.0)
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        iter::once(self.0.xpub_spec())
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         IndexMap::new()
@@ -269,9 +249,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
 }
 
 impl<K: DeriveXOnly> Display for TrKey<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "tr({})", self.0)
-    }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "tr({})", self.0) }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -284,14 +262,10 @@ pub struct TrMulti<K: DeriveXOnly> {
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrMulti<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.internal_key.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.internal_key.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.internal_key.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.internal_key.keychains() }
 
     fn derive(
         &self,
@@ -313,25 +287,17 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrMulti<K> {
 }
 
 impl<K: DeriveXOnly> Descriptor<K> for TrMulti<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2tr
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(&self.internal_key).chain(&self.script_keys)
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        self.keys().map(K::xpub_spec)
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
 
     fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         IndexMap::new()
@@ -360,8 +326,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrMulti<K> {
 }
 
 impl<K: DeriveXOnly> Display for TrMulti<K>
-where
-    K: Display,
+where K: Display
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         fmt(&self.internal_key, self.threshold, &self.script_keys, false, f)
@@ -378,14 +343,10 @@ pub struct TrSortedMulti<K: DeriveXOnly> {
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrSortedMulti<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.internal_key.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.internal_key.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.internal_key.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.internal_key.keychains() }
 
     fn derive(
         &self,
@@ -409,25 +370,17 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrSortedMulti<K> {
 }
 
 impl<K: DeriveXOnly> Descriptor<K> for TrSortedMulti<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2tr
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(&self.internal_key).chain(&self.script_keys)
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        self.keys().map(K::xpub_spec)
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
 
     fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         IndexMap::new()
@@ -457,8 +410,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrSortedMulti<K> {
 }
 
 impl<K: DeriveXOnly> Display for TrSortedMulti<K>
-where
-    K: Display,
+where K: Display
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         fmt(&self.internal_key, self.threshold, &self.script_keys, true, f)
@@ -479,24 +431,16 @@ impl<K: DeriveXOnly> TrScript<K> {
             tap_tree,
         }
     }
-    pub fn as_internal_key(&self) -> &K {
-        &self.internal_key
-    }
-    pub fn into_internal_key(self) -> K {
-        self.internal_key
-    }
+    pub fn as_internal_key(&self) -> &K { &self.internal_key }
+    pub fn into_internal_key(self) -> K { self.internal_key }
 }
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrScript<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.internal_key.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.internal_key.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.internal_key.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.internal_key.keychains() }
 
     fn derive(
         &self,
@@ -516,14 +460,10 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrScript<K> {
 }
 
 impl<K: DeriveXOnly> Descriptor<K> for TrScript<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2tr
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         let mut keys = set![&self.internal_key];
         for leaf in &self.tap_tree {
             keys.extend(leaf.script.keys());
@@ -531,14 +471,10 @@ impl<K: DeriveXOnly> Descriptor<K> for TrScript<K> {
         keys.into_iter()
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        self.keys().map(K::xpub_spec)
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
 
     fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         IndexMap::new()
@@ -626,8 +562,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrScript<K> {
 }
 
 impl<K: DeriveXOnly> Display for TrScript<K>
-where
-    K: Display,
+where K: Display
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "tr({}, {})", self.internal_key, self.tap_tree)

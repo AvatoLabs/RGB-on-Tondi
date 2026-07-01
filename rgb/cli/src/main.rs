@@ -31,6 +31,8 @@ pub mod opts;
 pub mod args;
 pub mod cmd;
 mod exec;
+pub mod http_contract;
+mod http_server;
 
 use std::backtrace::Backtrace;
 use std::fmt::Display;

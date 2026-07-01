@@ -72,10 +72,49 @@ message RpcTransaction {
 
 message RpcTransactionInput {
   RpcOutpoint previousOutpoint = 1;
-  string signatureScript = 2;
-  uint64 sequence = 3;
-  uint32 sigOpCount = 5;
   RpcTransactionInputVerboseData verboseData = 4;
+  oneof input {
+    RpcStandardInput standard = 2;
+    RpcChannelStateSpendInput channelStateSpend = 5;
+    RpcChannelFundSpendInput channelFundSpend = 6;
+    RpcChannelFundRefInput channelFundRef = 7;
+    RpcIngotSpendInput ingotSpend = 8;
+    RpcIngotRefInput ingotRef = 9;
+    RpcChannelOpenSpendInput channelOpenSpend = 10;
+  }
+}
+
+message RpcStandardInput {
+  string signatureScript = 1;
+  uint64 sequence = 2;
+  uint32 sigOpCount = 3;
+}
+
+message RpcChannelStateSpendInput {
+  uint64 sequence = 1;
+  string signatureScript = 2;
+}
+
+message RpcChannelFundSpendInput {
+  uint64 sequence = 1;
+  string signatureScript = 2;
+}
+
+message RpcChannelFundRefInput {
+}
+
+message RpcChannelOpenSpendInput {
+  uint64 sequence = 1;
+  string signatureScript = 2;
+  optional uint32 sigOpCount = 3;
+}
+
+message RpcIngotSpendInput {
+  uint64 sequence = 1;
+  string signatureScript = 2;
+}
+
+message RpcIngotRefInput {
 }
 
 message RpcScriptPublicKey {
@@ -85,8 +124,75 @@ message RpcScriptPublicKey {
 
 message RpcTransactionOutput {
   uint64 amount = 1;
-  RpcScriptPublicKey scriptPublicKey = 2;
-  RpcTransactionOutputVerboseData verboseData = 3;
+  RpcTransactionOutputVerboseData verboseData = 2;
+  oneof output {
+    RpcStandardOutput standard = 3;
+    RpcChannelFundOutput channelFund = 4;
+    RpcChannelStateOutput channelState = 5;
+    RpcIngotOutputData ingot = 6;
+  }
+}
+
+message RpcStandardOutput {
+  RpcScriptPublicKey scriptPublicKey = 1;
+}
+
+message RpcChannelFundOutput {
+  string channelId = 1;
+  bytes aggVk = 2;
+  string participantsRoot = 3;
+  uint32 policyFlags = 4;
+  uint32 csvDelay = 5;
+  bytes settlementDescriptorRoot = 6;
+  uint32 stateLayoutVersion = 7;
+  bytes assetTotalsRoot = 8;
+  bytes assetTotals = 9;
+  optional string parentChannelId = 10;
+  uint32 depth = 11;
+}
+
+message RpcChannelStateOutput {
+  string channelId = 1;
+  uint64 stateNumber = 2;
+  bytes balancesRoot = 3;
+  bytes ptlcsRoot = 4;
+  uint64 creationDaaScore = 5;
+}
+
+message RpcIngotOutputData {
+  uint32 version = 1;
+  string schemaId = 2;
+  RpcIngotLock lock = 3;
+  RpcIngotState state = 4;
+  string mastRoot = 5;
+}
+
+message RpcIngotLock {
+  oneof lock {
+    RpcIngotLockNone none = 1;
+    RpcIngotLockPubKey pubKey = 2;
+    RpcIngotLockScriptHash scriptHash = 3;
+    RpcIngotLockMastOnly mastOnly = 4;
+  }
+}
+
+message RpcIngotLockNone {
+}
+
+message RpcIngotLockPubKey {
+  bytes pubKey = 1;
+}
+
+message RpcIngotLockScriptHash {
+  string scriptHash = 1;
+}
+
+message RpcIngotLockMastOnly {
+}
+
+message RpcIngotState {
+  uint64 amount = 1;
+  bytes metadata = 2;
 }
 
 message RpcOutpoint {
@@ -387,6 +493,33 @@ message GetTransactionResponseMessage{
   RPCError error = 1000;
 }
 
+message GetTransactionStatusRequestMessage{
+  string transactionId = 1;
+}
+
+enum RpcTransactionStatusKind {
+  UNKNOWN = 0;
+  MEMPOOL = 1;
+  ACCEPTED = 2;
+  REMOVED = 3;
+}
+
+message RpcTransactionStatus{
+  string transactionId = 1;
+  RpcTransactionStatusKind status = 2;
+  optional string acceptingBlockHash = 3;
+  optional uint64 acceptingBlockDaaScore = 4;
+  uint64 currentDaaScore = 5;
+  optional uint64 depth = 6;
+  bool inMempool = 7;
+  bool inOrphanPool = 8;
+}
+
+message GetTransactionStatusResponseMessage{
+  RpcTransactionStatus status = 1;
+  RPCError error = 1000;
+}
+
 // GetSubnetworkRequestMessage requests information about a specific subnetwork
 //
 // Currently unimplemented
@@ -415,6 +548,7 @@ message GetVirtualChainFromBlockRequestMessage{
 message RpcAcceptedTransactionIds{
   string acceptingBlockHash = 1;
   repeated string acceptedTransactionIds = 2;
+  optional uint64 acceptingBlockDaaScore = 3;
 }
 
 message GetVirtualChainFromBlockResponseMessage{

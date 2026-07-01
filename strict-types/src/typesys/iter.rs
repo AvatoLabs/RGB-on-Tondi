@@ -39,13 +39,9 @@ pub struct TypeTree<'sys> {
 }
 
 impl<'sys> TypeTree<'sys> {
-    pub(super) fn new(sem_id: SemId, sys: &'sys SymbolicSys) -> Self {
-        Self { sem_id, sys }
-    }
+    pub(super) fn new(sem_id: SemId, sys: &'sys SymbolicSys) -> Self { Self { sem_id, sys } }
 
-    pub fn get(&self) -> &Ty<SemId> {
-        self.sys.get(self.sem_id).expect("inconsistent type tree")
-    }
+    pub fn get(&self) -> &Ty<SemId> { self.sys.get(self.sem_id).expect("inconsistent type tree") }
 
     pub fn iter(&'sys self) -> TypeTreeIter<'sys> {
         TypeTreeIter {
@@ -60,9 +56,7 @@ impl<'sys> TypeTree<'sys> {
     }
 
     #[inline]
-    pub fn to_layout(&self) -> MemoryLayout {
-        MemoryLayout::from(self)
-    }
+    pub fn to_layout(&self) -> MemoryLayout { MemoryLayout::from(self) }
 }
 
 /*
@@ -75,15 +69,12 @@ impl<'sys> IntoIterator for TypeTree<'sys> {
  */
 
 impl<'tree, 'sys> IntoIterator for &'tree TypeTree<'sys>
-where
-    'tree: 'sys,
+where 'tree: 'sys
 {
     type Item = TypeInfo;
     type IntoIter = TypeTreeIter<'sys>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
 #[cfg(feature = "vesper")]

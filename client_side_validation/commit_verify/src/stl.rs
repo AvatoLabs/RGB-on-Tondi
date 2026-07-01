@@ -31,14 +31,13 @@ use crate::{mpc, MerkleHash, MerkleNode, ReservedBytes, StrictHash, LIB_NAME_COM
 
 /// Strict type library ID for the CommitVerify types.
 pub const LIB_ID_COMMIT_VERIFY: &str =
-    "stl:wH1wmGy2-0vBNWxL-MK~_eQb-Ayskv~e-oFmDrzI-O_IW_P0#biology-news-adam";
+    "stl:ZQLrsV6E-2kfeFpl-1earNY7-3LbU56c-YgiDQP6-T_tK8FM#clark-blonde-karma";
 
 #[allow(clippy::result_large_err)]
 fn _commit_verify_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(
-        libname!(LIB_NAME_COMMIT_VERIFY),
-        [strict_types::stl::std_stl().to_dependency_types()],
-    )
+    LibBuilder::with(libname!(LIB_NAME_COMMIT_VERIFY), [
+        strict_types::stl::std_stl().to_dependency_types()
+    ])
     .transpile::<ReservedBytes<1>>()
     .transpile::<ReservedBytes<2>>()
     .transpile::<ReservedBytes<3>>()

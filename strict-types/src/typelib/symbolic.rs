@@ -88,9 +88,7 @@ impl SymbolRef {
 }
 
 impl From<SymbolRef> for ExternRef {
-    fn from(r: SymbolRef) -> Self {
-        ExternRef::with(r.lib_id, r.sem_id)
-    }
+    fn from(r: SymbolRef) -> Self { ExternRef::with(r.lib_id, r.sem_id) }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, From)]
@@ -106,15 +104,11 @@ pub enum TranspileRef {
 }
 
 impl StrictDumb for Box<Ty<TranspileRef>> {
-    fn strict_dumb() -> Self {
-        Box::new(Ty::UNIT)
-    }
+    fn strict_dumb() -> Self { Box::new(Ty::UNIT) }
 }
 
 impl TranspileRef {
-    pub fn unit() -> Self {
-        Ty::UNIT.into()
-    }
+    pub fn unit() -> Self { Ty::UNIT.into() }
 
     pub fn id(&self) -> SemId {
         if let TranspileRef::Extern(r) = self {
@@ -159,12 +153,8 @@ impl TypeRef for TranspileRef {
 }
 
 impl PrimitiveRef for TranspileRef {
-    fn byte() -> Self {
-        TranspileRef::Embedded(Box::new(Ty::BYTE))
-    }
-    fn unicode_char() -> Self {
-        TranspileRef::Embedded(Box::new(Ty::UNICODE))
-    }
+    fn byte() -> Self { TranspileRef::Embedded(Box::new(Ty::BYTE)) }
+    fn unicode_char() -> Self { TranspileRef::Embedded(Box::new(Ty::UNICODE)) }
 }
 
 impl Display for TranspileRef {
@@ -281,9 +271,7 @@ impl LibBuilder {
         })
     }
 
-    pub fn compile(self) -> Result<TypeLib, CompileError> {
-        self.compile_symbols()?.compile()
-    }
+    pub fn compile(self) -> Result<TypeLib, CompileError> { self.compile_symbols()?.compile() }
 }
 
 impl SymbolicLib {

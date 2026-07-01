@@ -28,15 +28,10 @@ impl ConvolveCommitProof<mpc::Commitment, TxOut, TapretFirst> for TapretProof {
     type Suppl = Self;
 
     fn restore_original(&self, commitment: &TxOut) -> TxOut {
-        TxOut {
-            value: commitment.value,
-            script_pubkey: self.original_pubkey_script(),
-        }
+        TxOut::new(self.original_pubkey_script(), commitment.value)
     }
 
-    fn extract_supplement(&self) -> &Self::Suppl {
-        self
-    }
+    fn extract_supplement(&self) -> &Self::Suppl { self }
 }
 
 impl ConvolveCommit<mpc::Commitment, TapretProof, TapretFirst> for TxOut {
@@ -53,10 +48,7 @@ impl ConvolveCommit<mpc::Commitment, TapretProof, TapretFirst> for TxOut {
 
         let script_pubkey = ScriptPubkey::p2tr_tweaked(output_key);
 
-        let commitment = TxOut {
-            value: self.value,
-            script_pubkey,
-        };
+        let commitment = TxOut::new(script_pubkey, self.value);
 
         Ok((commitment, supplement.clone()))
     }

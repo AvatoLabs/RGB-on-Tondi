@@ -35,13 +35,9 @@ const CONFIG: CoreConfig = CoreConfig {
     complexity_lim: None,
 };
 
-fn stand(code: Vec<Instr<LibId>>) -> Vm<Instr<LibId>> {
-    stand_check(code, true)
-}
+fn stand(code: Vec<Instr<LibId>>) -> Vm<Instr<LibId>> { stand_check(code, true) }
 
-fn stand_fail(code: Vec<Instr<LibId>>) -> Vm<Instr<LibId>> {
-    stand_check(code, false)
-}
+fn stand_fail(code: Vec<Instr<LibId>>) -> Vm<Instr<LibId>> { stand_check(code, false) }
 
 fn stand_check(code: Vec<Instr<LibId>>, expect: bool) -> Vm<Instr<LibId>> {
     let lib = Lib::assemble(&code).unwrap();

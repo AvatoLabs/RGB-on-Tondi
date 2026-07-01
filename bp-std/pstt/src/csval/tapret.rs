@@ -247,9 +247,7 @@ impl Output {
     /// become a standard and non-custom key, PSTTs with invalid key values
     /// will error at deserialization and this function will return `false`
     /// only in cases when the output does not have `PSTT_OUT_TAPRET_PROOF`.
-    pub fn has_tapret_proof(&self) -> bool {
-        self.tapret_proof().is_some()
-    }
+    pub fn has_tapret_proof(&self) -> bool { self.tapret_proof().is_some() }
 
     /// Returns valid tapret commitment proof from the [`PSTT_OUT_TAPRET_PROOF`]
     /// key, if present. If the commitment is absent or invalid, returns `None`.

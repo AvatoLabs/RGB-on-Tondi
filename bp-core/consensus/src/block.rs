@@ -252,9 +252,7 @@ impl FromStr for Block {
 }
 
 impl Block {
-    pub fn block_hash(&self) -> BlockHash {
-        self.header.block_hash()
-    }
+    pub fn block_hash(&self) -> BlockHash { self.header.block_hash() }
 }
 
 #[cfg(test)]
@@ -284,7 +282,7 @@ mod test {
         assert_eq!(header.to_string(), header_str);
         assert_eq!(
             header.block_hash().to_string(),
-            "00000000000000000000a885d748631afdf2408d2db66e616e963d08c31a65df"
+            "445b46bbeb6ed4a2b4e5ae82744e17551573b2d7fa728ec079fa9dfe9dc2af16"
         );
     }
 

@@ -81,9 +81,10 @@ pub use sigcache::{PrevoutMismatch, SighashCache, SighashError};
 pub use sigtypes::{Bip340Sig, LegacySig, ScriptCode, SigError, Sighash, SighashFlag, SighashType};
 pub use tapcode::TapCode;
 pub use taproot::{
-    Annex, AnnexError, ControlBlock, FutureLeafVer, InternalKeypair, InternalPk, IntoTapHash,
-    InvalidLeafVer, InvalidParityValue, LeafScript, LeafVer, OutputPk, Parity, TapBranchHash,
-    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, COPPEROOT_SIGHASH_TAG,
+    tondi_p2mr_root_from_tapscript, tondi_tapleaf_hash_from_tapscript, Annex, AnnexError,
+    ControlBlock, FutureLeafVer, InternalKeypair, InternalPk, IntoTapHash, InvalidLeafVer,
+    InvalidParityValue, LeafScript, LeafVer, OutputPk, Parity, TapBranchHash, TapLeafHash,
+    TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, COPPEROOT_SIGHASH_TAG,
     TAPROOT_ANNEX_PREFIX, TAPROOT_LEAF_MASK, TAPROOT_LEAF_TAPSCRIPT,
 };
 pub use timelocks::{
@@ -92,7 +93,7 @@ pub use timelocks::{
 };
 pub use tx::{
     BlockDataParseError, Outpoint, OutpointParseError, Sats, TondiOutpoint, TondiTxid, Tx, TxIn,
-    TxOut, TxVer, Txid, Vout,
+    TxOut, TxVer, Txid, Vout, TONDI_CLASSIC_SCRIPT_VERSION, TONDI_P2MR_SCRIPT_VERSION,
 };
 pub use util::NonStandardValue;
 pub use weights::{VBytes, Weight, WeightUnits};

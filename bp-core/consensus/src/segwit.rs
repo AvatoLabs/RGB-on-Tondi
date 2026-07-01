@@ -224,9 +224,7 @@ pub struct WitnessProgram {
 }
 
 impl WitnessProgram {
-    fn dumb() -> Self {
-        Self::new(strict_dumb!(), vec![0; 32]).unwrap()
-    }
+    fn dumb() -> Self { Self::new(strict_dumb!(), vec![0; 32]).unwrap() }
 
     /// Creates a new witness program.
     pub fn new(version: WitnessVer, program: Vec<u8>) -> Result<Self, SegwitError> {
@@ -244,14 +242,10 @@ impl WitnessProgram {
     }
 
     /// Returns the witness program version.
-    pub fn version(&self) -> WitnessVer {
-        self.version
-    }
+    pub fn version(&self) -> WitnessVer { self.version }
 
     /// Returns the witness program.
-    pub fn program(&self) -> &[u8] {
-        &self.program
-    }
+    pub fn program(&self) -> &[u8] { &self.program }
 }
 
 impl ScriptPubkey {
@@ -326,9 +320,7 @@ impl TryFrom<Vec<u8>> for WitnessScript {
 
 impl WitnessScript {
     #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -344,23 +336,17 @@ impl WitnessScript {
 
     /// Adds a single opcode to the script.
     #[inline]
-    pub fn push_opcode(&mut self, op_code: OpCode) {
-        self.0.push(op_code as u8);
-    }
+    pub fn push_opcode(&mut self, op_code: OpCode) { self.0.push(op_code as u8); }
 
     pub fn to_redeem_script(&self) -> RedeemScript {
         let script = ScriptPubkey::p2wsh(WScriptHash::from(self));
         RedeemScript::from_inner(script.into_inner())
     }
 
-    pub fn to_script_pubkey(&self) -> ScriptPubkey {
-        ScriptPubkey::p2wsh(WScriptHash::from(self))
-    }
+    pub fn to_script_pubkey(&self) -> ScriptPubkey { ScriptPubkey::p2wsh(WScriptHash::from(self)) }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes {
-        &self.0
-    }
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 #[derive(Wrapper, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, From)]
@@ -384,16 +370,12 @@ impl IntoIterator for Witness {
     type Item = ByteStr;
     type IntoIter = vec::IntoIter<ByteStr>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 impl Witness {
     #[inline]
-    pub fn new() -> Self {
-        default!()
-    }
+    pub fn new() -> Self { default!() }
 
     #[inline]
     pub fn elements(&self) -> impl Iterator<Item = &'_ [u8]> {
@@ -408,9 +390,7 @@ impl Witness {
     }
 
     #[inline]
-    pub(crate) fn as_var_int_array(&self) -> &VarIntArray<ByteStr> {
-        &self.0
-    }
+    pub(crate) fn as_var_int_array(&self) -> &VarIntArray<ByteStr> { &self.0 }
 }
 
 #[cfg(feature = "serde")]
@@ -422,9 +402,7 @@ mod _serde {
 
     impl Serialize for Witness {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
+        where S: Serializer {
             let mut ser = serializer.serialize_seq(Some(self.len()))?;
             for el in &self.0 {
                 ser.serialize_element(&el)?;
@@ -435,9 +413,7 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for Witness {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
+        where D: Deserializer<'de> {
             let data = Vec::<ByteStr>::deserialize(deserializer)?;
             Ok(Witness::from_consensus_stack(data.into_iter().map(ByteStr::into_vec)))
         }

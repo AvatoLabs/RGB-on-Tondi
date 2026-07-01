@@ -107,9 +107,7 @@ impl Payment {
     }
 
     #[inline]
-    pub fn is_max(&self) -> bool {
-        *self == Payment::Max
-    }
+    pub fn is_max(&self) -> bool { *self == Payment::Max }
 }
 
 impl FromStr for Payment {
@@ -147,13 +145,9 @@ impl Beneficiary {
         }
     }
     #[inline]
-    pub fn is_max(&self) -> bool {
-        self.amount.is_max()
-    }
+    pub fn is_max(&self) -> bool { self.amount.is_max() }
     #[inline]
-    pub fn script_pubkey(&self) -> ScriptPubkey {
-        self.address.script_pubkey()
-    }
+    pub fn script_pubkey(&self) -> ScriptPubkey { self.address.script_pubkey() }
 }
 
 impl FromStr for Beneficiary {
@@ -213,9 +207,7 @@ pub struct Utxo {
 
 impl Utxo {
     #[inline]
-    pub fn to_prevout(&self) -> Prevout {
-        Prevout::new(self.outpoint, self.value)
-    }
+    pub fn to_prevout(&self) -> Prevout { Prevout::new(self.outpoint, self.value) }
 }
 
 pub trait PsttConstructor {

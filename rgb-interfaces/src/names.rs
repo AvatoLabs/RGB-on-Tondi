@@ -43,18 +43,14 @@ impl PartialEq for Ticker {
 }
 
 impl Hash for Ticker {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_str().to_uppercase().hash(state)
-    }
+    fn hash<H: Hasher>(&self, state: &mut H) { self.as_str().to_uppercase().hash(state) }
 }
 
 impl_ident_type!(Ticker);
 impl_ident_subtype!(Ticker);
 
 impl Ticker {
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        Self::from_str(&value.unwrap_string()).unwrap()
-    }
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self::from_str(&value.unwrap_string()).unwrap() }
 }
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
@@ -68,9 +64,7 @@ impl_ident_type!(AssetName);
 impl_ident_subtype!(AssetName);
 
 impl AssetName {
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        Self::from_str(&value.unwrap_string()).unwrap()
-    }
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self::from_str(&value.unwrap_string()).unwrap() }
 }
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, PartialEq, Eq, Hash, Debug, From)]

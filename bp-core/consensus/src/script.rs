@@ -42,14 +42,10 @@ impl TryFrom<Vec<u8>> for SigScript {
 
 impl SigScript {
     #[inline]
-    pub fn empty() -> Self {
-        SigScript::default()
-    }
+    pub fn empty() -> Self { SigScript::default() }
 
     #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -64,9 +60,7 @@ impl SigScript {
     }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes {
-        &self.0
-    }
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From, Default)]
@@ -86,9 +80,7 @@ impl TryFrom<Vec<u8>> for ScriptPubkey {
 
 impl ScriptPubkey {
     #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -148,20 +140,14 @@ impl ScriptPubkey {
     }
 
     #[inline]
-    pub fn is_op_return(&self) -> bool {
-        !self.is_empty() && self[0] == OpCode::Return as u8
-    }
+    pub fn is_op_return(&self) -> bool { !self.is_empty() && self[0] == OpCode::Return as u8 }
 
     /// Adds a single opcode to the script.
     #[inline]
-    pub fn push_opcode(&mut self, op_code: OpCode) {
-        self.0.push(op_code as u8)
-    }
+    pub fn push_opcode(&mut self, op_code: OpCode) { self.0.push(op_code as u8) }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes {
-        &self.0
-    }
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From, Default)]
@@ -181,9 +167,7 @@ impl TryFrom<Vec<u8>> for RedeemScript {
 
 impl RedeemScript {
     #[inline]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -222,18 +206,12 @@ impl RedeemScript {
 
     /// Adds a single opcode to the script.
     #[inline]
-    pub fn push_opcode(&mut self, op_code: OpCode) {
-        self.0.push(op_code as u8);
-    }
+    pub fn push_opcode(&mut self, op_code: OpCode) { self.0.push(op_code as u8); }
 
-    pub fn to_script_pubkey(&self) -> ScriptPubkey {
-        ScriptPubkey::p2sh(ScriptHash::from(self))
-    }
+    pub fn to_script_pubkey(&self) -> ScriptPubkey { ScriptPubkey::p2sh(ScriptHash::from(self)) }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes {
-        &self.0
-    }
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
@@ -352,9 +330,7 @@ impl ScriptBytes {
     }
 
     #[inline]
-    pub(crate) fn push(&mut self, data: u8) {
-        self.0.push(data).expect("script exceeds 4GB")
-    }
+    pub(crate) fn push(&mut self, data: u8) { self.0.push(data).expect("script exceeds 4GB") }
 
     #[inline]
     pub(crate) fn extend(&mut self, data: &[u8]) {
@@ -373,17 +349,11 @@ impl ScriptBytes {
         }
     }
 
-    pub fn len_var_int(&self) -> VarInt {
-        VarInt(self.len() as u64)
-    }
+    pub fn len_var_int(&self) -> VarInt { VarInt(self.len() as u64) }
 
-    pub fn into_vec(self) -> Vec<u8> {
-        self.0.release()
-    }
+    pub fn into_vec(self) -> Vec<u8> { self.0.release() }
 
-    pub(crate) fn as_var_int_bytes(&self) -> &VarIntBytes {
-        &self.0
-    }
+    pub(crate) fn as_var_int_bytes(&self) -> &VarIntBytes { &self.0 }
 }
 
 #[cfg(feature = "serde")]
@@ -396,9 +366,7 @@ mod _serde {
 
     impl Serialize for ScriptBytes {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
+        where S: Serializer {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_hex())
             } else {
@@ -409,9 +377,7 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for ScriptBytes {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
+        where D: Deserializer<'de> {
             if deserializer.is_human_readable() {
                 String::deserialize(deserializer).and_then(|string| {
                     Self::from_hex(&string).map_err(|_| D::Error::custom("wrong hex data"))

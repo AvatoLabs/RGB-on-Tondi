@@ -44,9 +44,7 @@ pub struct MediaType {
     pub charset: Option<MediaRegName>,
 }
 impl StrictDumb for MediaType {
-    fn strict_dumb() -> Self {
-        MediaType::with("text/plain")
-    }
+    fn strict_dumb() -> Self { MediaType::with("text/plain") }
 }
 impl StrictSerialize for MediaType {}
 impl StrictDeserialize for MediaType {}
@@ -250,20 +248,12 @@ pub struct TokenFractions(u64);
 impl TokenFractions {
     pub const ZERO: Self = TokenFractions(0);
 
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        value.unwrap_uint::<u64>().into()
-    }
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_uint::<u64>().into() }
 
-    pub fn value(self) -> u64 {
-        self.0
-    }
+    pub fn value(self) -> u64 { self.0 }
 
-    pub fn saturating_add(&self, other: impl Into<Self>) -> Self {
-        self.0.saturating_add(other.into().0).into()
-    }
-    pub fn saturating_sub(&self, other: impl Into<Self>) -> Self {
-        self.0.saturating_sub(other.into().0).into()
-    }
+    pub fn saturating_add(&self, other: impl Into<Self>) -> Self { self.0.saturating_add(other.into().0).into() }
+    pub fn saturating_sub(&self, other: impl Into<Self>) -> Self { self.0.saturating_sub(other.into().0).into() }
 
     pub fn saturating_add_assign(&mut self, other: impl Into<Self>) {
         *self = self.0.saturating_add(other.into().0).into();
@@ -273,13 +263,9 @@ impl TokenFractions {
     }
 
     #[must_use]
-    pub fn checked_add(&self, other: impl Into<Self>) -> Option<Self> {
-        self.0.checked_add(other.into().0).map(Self)
-    }
+    pub fn checked_add(&self, other: impl Into<Self>) -> Option<Self> { self.0.checked_add(other.into().0).map(Self) }
     #[must_use]
-    pub fn checked_sub(&self, other: impl Into<Self>) -> Option<Self> {
-        self.0.checked_sub(other.into().0).map(Self)
-    }
+    pub fn checked_sub(&self, other: impl Into<Self>) -> Option<Self> { self.0.checked_sub(other.into().0).map(Self) }
 
     #[must_use]
     pub fn checked_add_assign(&mut self, other: impl Into<Self>) -> Option<()> {

@@ -24,6 +24,10 @@ use std::io::{self, Cursor, Read, Write};
 use amplify::confinement::{Confined, MediumBlob, SmallBlob, TinyBlob, U32};
 use amplify::{confinement, ByteArray, Bytes32, IoError, Wrapper};
 
+use crate::tx::{
+    bp_sequence_from_tondi, bp_txid_from_tondi_native_bytes, tondi_native_txid_bytes,
+    tondi_sequence_from_bp,
+};
 use crate::{
     Annex, Block, BlockHash, BlockHeader, BlockMerkleRoot, ControlBlock, InternalPk,
     InvalidLeafVer, LeafVer, LockTime, Outpoint, Parity, RedeemScript, Sats, ScriptBytes,
@@ -49,13 +53,9 @@ pub struct VarInt(pub u64);
 
 #[allow(clippy::len_without_is_empty)] // VarInt has no concept of 'is_empty'.
 impl VarInt {
-    pub const fn new(u: u64) -> Self {
-        VarInt(u)
-    }
+    pub const fn new(u: u64) -> Self { VarInt(u) }
 
-    pub fn with(u: impl Into<usize>) -> Self {
-        VarInt(u.into() as u64)
-    }
+    pub fn with(u: impl Into<usize>) -> Self { VarInt(u.into() as u64) }
 
     /// Gets the length of this VarInt when encoded.
     ///
@@ -71,24 +71,16 @@ impl VarInt {
         }
     }
 
-    pub const fn to_u64(&self) -> u64 {
-        self.0
-    }
-    pub const fn into_u64(self) -> u64 {
-        self.0
-    }
+    pub const fn to_u64(&self) -> u64 { self.0 }
+    pub const fn into_u64(self) -> u64 { self.0 }
     pub fn to_usize(&self) -> usize {
         usize::try_from(self.0).expect("transaction too large for a non-64 bit platform")
     }
-    pub fn into_usize(self) -> usize {
-        self.to_usize()
-    }
+    pub fn into_usize(self) -> usize { self.to_usize() }
 }
 
 impl<U: Into<u64> + Copy> PartialEq<U> for VarInt {
-    fn eq(&self, other: &U) -> bool {
-        self.0.eq(&(*other).into())
-    }
+    fn eq(&self, other: &U) -> bool { self.0.eq(&(*other).into()) }
 }
 
 pub trait LenVarInt {
@@ -96,9 +88,7 @@ pub trait LenVarInt {
 }
 
 impl<T, const MIN_LEN: usize> LenVarInt for VarIntArray<T, MIN_LEN> {
-    fn len_var_int(&self) -> VarInt {
-        VarInt::with(self.len())
-    }
+    fn len_var_int(&self) -> VarInt { VarInt::with(self.len()) }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
@@ -109,9 +99,7 @@ impl<T, const MIN_LEN: usize> LenVarInt for VarIntArray<T, MIN_LEN> {
 pub struct ByteStr(VarIntBytes);
 
 impl AsRef<[u8]> for ByteStr {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
-    }
+    fn as_ref(&self) -> &[u8] { self.0.as_slice() }
 }
 
 impl From<Vec<u8>> for ByteStr {
@@ -121,31 +109,21 @@ impl From<Vec<u8>> for ByteStr {
 }
 
 impl From<TinyBlob> for ByteStr {
-    fn from(vec: TinyBlob) -> Self {
-        ByteStr(Confined::from_checked(vec.release()))
-    }
+    fn from(vec: TinyBlob) -> Self { ByteStr(Confined::from_checked(vec.release())) }
 }
 
 impl From<SmallBlob> for ByteStr {
-    fn from(vec: SmallBlob) -> Self {
-        ByteStr(Confined::from_checked(vec.release()))
-    }
+    fn from(vec: SmallBlob) -> Self { ByteStr(Confined::from_checked(vec.release())) }
 }
 
 impl From<MediumBlob> for ByteStr {
-    fn from(vec: MediumBlob) -> Self {
-        ByteStr(Confined::from_checked(vec.release()))
-    }
+    fn from(vec: MediumBlob) -> Self { ByteStr(Confined::from_checked(vec.release())) }
 }
 
 impl ByteStr {
-    pub fn len_var_int(&self) -> VarInt {
-        VarInt(self.len() as u64)
-    }
+    pub fn len_var_int(&self) -> VarInt { VarInt(self.len() as u64) }
 
-    pub fn into_vec(self) -> Vec<u8> {
-        self.0.release()
-    }
+    pub fn into_vec(self) -> Vec<u8> { self.0.release() }
 }
 
 #[cfg(feature = "serde")]
@@ -158,9 +136,7 @@ mod _serde {
 
     impl Serialize for ByteStr {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
+        where S: Serializer {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_hex())
             } else {
@@ -171,9 +147,7 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for ByteStr {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
+        where D: Deserializer<'de> {
             if deserializer.is_human_readable() {
                 String::deserialize(deserializer).and_then(|string| {
                     Self::from_hex(&string).map_err(|_| D::Error::custom("wrong hex data"))
@@ -232,6 +206,9 @@ pub enum ConsensusDataError {
 
     /// unsupported Segwit flag {0}.
     UnsupportedSegwitFlag(u8),
+
+    /// unsupported Tondi input sequence {0}; only u32 values and u64::MAX are representable.
+    InvalidTondiSequence(u64),
 }
 
 pub trait ConsensusEncode {
@@ -244,8 +221,7 @@ pub trait ConsensusEncode {
 }
 
 pub trait ConsensusDecode
-where
-    Self: Sized,
+where Self: Sized
 {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError>;
     fn consensus_deserialize(bytes: impl AsRef<[u8]>) -> Result<Self, ConsensusDecodeError> {
@@ -357,7 +333,7 @@ impl ConsensusEncode for Tx {
 
             // Input: Previous Outpoint
             // Txid (32 bytes)
-            writer.write_all(&input.prev_output.txid.to_byte_array())?;
+            writer.write_all(&tondi_native_txid_bytes(input.prev_output.txid))?;
             counter += 32;
             // Vout (u32, 4 bytes)
             writer.write_all(&input.prev_output.vout.to_u32().to_le_bytes())?;
@@ -374,7 +350,7 @@ impl ConsensusEncode for Tx {
             }
 
             // Input: Sequence (u64, 8 bytes)
-            let seq = input.sequence.to_consensus_u32() as u64;
+            let seq = tondi_sequence_from_bp(input.sequence);
             writer.write_all(&seq.to_le_bytes())?;
             counter += 8;
 
@@ -398,8 +374,7 @@ impl ConsensusEncode for Tx {
             counter += 8;
 
             // Output: ScriptPublicKey
-            // Version (u16, 2 bytes) - Tondi uses version 0 for standard scripts
-            writer.write_all(&0u16.to_le_bytes())?;
+            writer.write_all(&output.script_pubkey_version.to_le_bytes())?;
             counter += 2;
 
             // Script length (u32, 4 bytes) + Script bytes - Borsh uses u32 for lengths
@@ -473,7 +448,7 @@ impl ConsensusDecode for Tx {
             // Txid (32 bytes)
             let mut txid_buf = [0u8; 32];
             reader.read_exact(&mut txid_buf)?;
-            let txid = Txid::from_byte_array(txid_buf);
+            let txid = bp_txid_from_tondi_native_bytes(txid_buf);
 
             // Vout (u32, 4 bytes)
             let mut vout_buf = [0u8; 4];
@@ -494,7 +469,8 @@ impl ConsensusDecode for Tx {
             let mut seq_buf = [0u8; 8];
             reader.read_exact(&mut seq_buf)?;
             let seq_u64 = u64::from_le_bytes(seq_buf);
-            let sequence = SeqNo::from_consensus_u32(seq_u64 as u32); // ⚠️ Potential data loss if > u32::MAX
+            let sequence = bp_sequence_from_tondi(seq_u64)
+                .ok_or(ConsensusDataError::InvalidTondiSequence(seq_u64))?;
 
             // Input: SigOpCount (u8, 1 byte) - Read and discard (we don't store it in TxIn)
             let mut sig_op_buf = [0u8; 1];
@@ -532,10 +508,9 @@ impl ConsensusDecode for Tx {
             let value = Sats(u64::from_le_bytes(value_buf));
 
             // Output: ScriptPublicKey
-            // Version (u16, 2 bytes) - Read and discard (we don't store it)
             let mut version_buf = [0u8; 2];
             reader.read_exact(&mut version_buf)?;
-            let _script_version = u16::from_le_bytes(version_buf);
+            let script_pubkey_version = u16::from_le_bytes(version_buf);
 
             // Script length (u32, 4 bytes) + Script bytes - Borsh uses u32 for lengths
             let mut script_len_buf = [0u8; 4];
@@ -549,6 +524,7 @@ impl ConsensusDecode for Tx {
 
             outputs.push(TxOut {
                 value,
+                script_pubkey_version,
                 script_pubkey: ScriptPubkey::from_checked(script),
             });
         }
@@ -638,6 +614,7 @@ impl ConsensusDecode for TxIn {
 impl ConsensusEncode for TxOut {
     fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = self.value.consensus_encode(writer)?;
+        counter += self.script_pubkey_version.consensus_encode(writer)?;
         counter += self.script_pubkey.consensus_encode(writer)?;
         Ok(counter)
     }
@@ -646,9 +623,11 @@ impl ConsensusEncode for TxOut {
 impl ConsensusDecode for TxOut {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
         let value = Sats::consensus_decode(reader)?;
+        let script_pubkey_version = u16::consensus_decode(reader)?;
         let script_pubkey = ScriptPubkey::consensus_decode(reader)?;
         Ok(TxOut {
             value,
+            script_pubkey_version,
             script_pubkey,
         })
     }
@@ -1209,10 +1188,9 @@ mod tests {
         assert_eq!(serialize(&VarInt(0xFD)), vec![0xFDu8, 0xFD, 0]);
         assert_eq!(serialize(&VarInt(0xFFF)), vec![0xFDu8, 0xFF, 0xF]);
         assert_eq!(serialize(&VarInt(0xF0F0F0F)), vec![0xFEu8, 0xF, 0xF, 0xF, 0xF]);
-        assert_eq!(
-            serialize(&VarInt(0xF0F0F0F0F0E0)),
-            vec![0xFFu8, 0xE0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0, 0]
-        );
+        assert_eq!(serialize(&VarInt(0xF0F0F0F0F0E0)), vec![
+            0xFFu8, 0xE0, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0, 0, 0
+        ]);
         assert_eq!(
             test_varint_encode(0xFF, &0x100000000_u64.to_le_bytes()).unwrap(),
             VarInt(0x100000000)

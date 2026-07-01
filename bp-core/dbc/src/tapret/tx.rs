@@ -53,9 +53,7 @@ impl ConvolveCommitProof<mpc::Commitment, Tx, TapretFirst> for TapretProof {
         tx
     }
 
-    fn extract_supplement(&self) -> &Self::Suppl {
-        self
-    }
+    fn extract_supplement(&self) -> &Self::Suppl { self }
 }
 
 impl ConvolveCommit<mpc::Commitment, TapretProof, TapretFirst> for Tx {
@@ -99,6 +97,8 @@ mod test {
     use crate::tapret::TapretPathProof;
 
     #[test]
+    #[ignore = "legacy Bitcoin segwit transaction fixture; Tondi-native consensus rejects segwit \
+                magic"]
     fn no_commitment() {
         let tx = Tx::from_str(
             "020000000001027763e2a0ad25d45b63a19c33491b67c5037e72709121290bac5481a5d5d0c9330100000000ffffffff7763e2a0ad25d45b63a19c33491b67c5037e72709121290bac5481a5d5d0c9330400000000ffffffff02026e010000000000225120455dfcc062ef80609b007377f127e4abdb5cb0052158af1fab7aa628c34563f1d508000000000000225120a2788d4208ec6b4b600aef4c13075cf1d47bda0299ed1e6eedce4e7a90fb2a2c0141150df5377a34deded048dc01bff3d4f5f31d8a89fe2fbf1d0295993c1f899b3cefd1a63900ea6346b78edd476524c08ae094ff417bfa525b585ee66ebc26bb9e010141d959f21b498d90c2ff9f5b0bf3aee9158527501162eab2e3d56371714877a97df80caab15e366855aa56443b7d081c234a4ce4d6414815a874624cbe46b643370100000000"

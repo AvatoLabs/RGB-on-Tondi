@@ -27,8 +27,8 @@
 
 //! Annex Return (AnnexRet) commitment mechanism for Tondi transactions.
 //!
-//! This module provides functionality to embed RGB's MPC Root (32-byte commitment hash)
-//! into Tondi transaction's Annex field using TLV format.
+//! This module provides functionality to embed RGB's MPC Root (32-byte
+//! commitment hash) into Tondi transaction's Annex field using TLV format.
 //!
 //! # Format
 //!
@@ -112,7 +112,8 @@ pub fn create_annex_with_commitment(commitment: &[u8; 32]) -> Vec<u8> {
 ///
 /// # Returns
 ///
-/// The 32-byte commitment hash if found, or an error if the Annex format is invalid.
+/// The 32-byte commitment hash if found, or an error if the Annex format is
+/// invalid.
 ///
 /// # Errors
 ///
@@ -155,7 +156,8 @@ pub fn extract_commitment_from_annex(annex_bytes: &[u8]) -> Result<[u8; 32], Ann
     Ok(commitment)
 }
 
-/// Verifies that Annex contains a valid RGB commitment matching the expected hash.
+/// Verifies that Annex contains a valid RGB commitment matching the expected
+/// hash.
 ///
 /// # Arguments
 ///
@@ -164,7 +166,8 @@ pub fn extract_commitment_from_annex(annex_bytes: &[u8]) -> Result<[u8; 32], Ann
 ///
 /// # Returns
 ///
-/// `Ok(())` if the Annex contains the expected commitment, or an error otherwise.
+/// `Ok(())` if the Annex contains the expected commitment, or an error
+/// otherwise.
 pub fn verify_annex_commitment(
     annex_bytes: &[u8],
     expected_commitment: &[u8; 32],

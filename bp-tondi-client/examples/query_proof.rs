@@ -6,7 +6,7 @@
 //! cargo run --example query_proof --features grpc
 //! ```
 
-use amplify::{hex::ToHex, ByteArray};
+use amplify::hex::ToHex;
 use tondi::{TondiClient, TondiConfig, TondiTxid};
 
 #[tokio::main]
@@ -14,19 +14,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Tondi transaction query test ===\n");
 
     let endpoint = std::env::var("TONDI_RPC").unwrap_or_else(|_| "38.190.226.7:16210".to_owned());
-    let txid_hex = std::env::var("TONDI_TXID").map_err(|_| "TONDI_TXID is required and must be a 32-byte hex transaction ID")?;
+    let txid_hex = std::env::var("TONDI_TXID")
+        .map_err(|_| "TONDI_TXID is required and must be a 32-byte hex transaction ID")?;
 
     println!("Connecting to node: {}", endpoint);
     println!("Querying transaction: {}", txid_hex);
 
     let client = TondiClient::connect(TondiConfig::new(endpoint)).await?;
 
-    let txid_bytes = hex::decode(&txid_hex).map_err(|e| format!("Failed to decode transaction ID: {}", e))?;
+    let txid_bytes =
+        hex::decode(&txid_hex).map_err(|e| format!("Failed to decode transaction ID: {}", e))?;
     if txid_bytes.len() != 32 {
-        return Err(format!("Invalid transaction ID length: {} (expected 32)", txid_bytes.len()).into());
+        return Err(format!(
+            "Invalid transaction ID length: {} (expected 32)",
+            txid_bytes.len()
+        )
+        .into());
     }
 
-    let txid_array: [u8; 32] = txid_bytes.try_into().map_err(|_| "Failed to convert transaction ID into a byte array")?;
+    let txid_array: [u8; 32] = txid_bytes
+        .try_into()
+        .map_err(|_| "Failed to convert transaction ID into a byte array")?;
     let txid = TondiTxid::from_byte_array(txid_array);
 
     println!("  - Transaction ID (Bytes32): {}\n", txid.to_hex());

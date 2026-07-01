@@ -40,9 +40,7 @@ pub struct PubkeyHash(
 );
 
 impl From<PubkeyHash> for [u8; 20] {
-    fn from(value: PubkeyHash) -> Self {
-        value.0.into_inner()
-    }
+    fn from(value: PubkeyHash) -> Self { value.0.into_inner() }
 }
 
 impl From<CompressedPk> for PubkeyHash {
@@ -90,9 +88,7 @@ pub struct ScriptHash(
 );
 
 impl From<ScriptHash> for [u8; 20] {
-    fn from(value: ScriptHash) -> Self {
-        value.0.into_inner()
-    }
+    fn from(value: ScriptHash) -> Self { value.0.into_inner() }
 }
 
 impl From<&RedeemScript> for ScriptHash {
@@ -120,9 +116,7 @@ pub struct WPubkeyHash(
 );
 
 impl From<WPubkeyHash> for [u8; 20] {
-    fn from(value: WPubkeyHash) -> Self {
-        value.0.into_inner()
-    }
+    fn from(value: WPubkeyHash) -> Self { value.0.into_inner() }
 }
 
 impl From<CompressedPk> for WPubkeyHash {
@@ -150,9 +144,7 @@ pub struct WScriptHash(
 );
 
 impl From<WScriptHash> for [u8; 32] {
-    fn from(value: WScriptHash) -> Self {
-        value.0.into_inner()
-    }
+    fn from(value: WScriptHash) -> Self { value.0.into_inner() }
 }
 
 impl From<&WitnessScript> for WScriptHash {

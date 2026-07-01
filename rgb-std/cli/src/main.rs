@@ -37,6 +37,4 @@ use clap::Parser;
 
 use crate::cmd::Args;
 
-fn main() -> anyhow::Result<()> {
-    Args::parse().exec()
-}
+fn main() -> anyhow::Result<()> { Args::parse().exec() }

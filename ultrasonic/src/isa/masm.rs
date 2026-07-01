@@ -27,6 +27,8 @@
 ///
 /// ```
 /// ##![cfg_attr(coverage_nightly, feature(coverage_attribute), coverage(off))]
+/// extern crate alloc;
+///
 /// use ultrasonic::{uasm, Instr, StateValue, VmContext};
 /// use zkaluvm::alu::regs::Status;
 /// use zkaluvm::alu::{Lib, LibId, LibSite, Vm};

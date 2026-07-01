@@ -56,9 +56,7 @@ impl UsonicInstr {
 }
 
 impl<Id: SiteId> Bytecode<Id> for UsonicInstr {
-    fn op_range() -> RangeInclusive<u8> {
-        Self::START..=Self::END
-    }
+    fn op_range() -> RangeInclusive<u8> { Self::START..=Self::END }
 
     fn opcode_byte(&self) -> u8 {
         Self::START
@@ -82,18 +80,12 @@ impl<Id: SiteId> Bytecode<Id> for UsonicInstr {
             }
     }
 
-    fn code_byte_len(&self) -> u16 {
-        1
-    }
+    fn code_byte_len(&self) -> u16 { 1 }
 
-    fn external_ref(&self) -> Option<Id> {
-        None
-    }
+    fn external_ref(&self) -> Option<Id> { None }
 
     fn encode_operands<W>(&self, _writer: &mut W) -> Result<(), W::Error>
-    where
-        W: BytecodeWrite<Id>,
-    {
+    where W: BytecodeWrite<Id> {
         match *self {
             UsonicInstr::CkNxIRo
             | UsonicInstr::CkNxIAo
@@ -142,9 +134,7 @@ impl<Id: SiteId> Bytecode<Id> for UsonicInstr {
 }
 
 impl<Id: SiteId> Bytecode<Id> for Instr<Id> {
-    fn op_range() -> RangeInclusive<u8> {
-        0..=0xFF
-    }
+    fn op_range() -> RangeInclusive<u8> { 0..=0xFF }
 
     fn opcode_byte(&self) -> u8 {
         match self {
@@ -174,9 +164,7 @@ impl<Id: SiteId> Bytecode<Id> for Instr<Id> {
     }
 
     fn encode_operands<W>(&self, writer: &mut W) -> Result<(), W::Error>
-    where
-        W: BytecodeWrite<Id>,
-    {
+    where W: BytecodeWrite<Id> {
         match self {
             Instr::Ctrl(instr) => instr.encode_operands(writer),
             Instr::Gfa(instr) => instr.encode_operands(writer),

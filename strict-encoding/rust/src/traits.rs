@@ -79,8 +79,7 @@ pub trait TypedWrite: Sized {
         inner: impl FnOnce(Self::UnionDefiner) -> io::Result<Self>,
     ) -> io::Result<Self>;
     fn write_enum<T: StrictEnum>(self, value: T) -> io::Result<Self>
-    where
-        u8: From<T>;
+    where u8: From<T>;
     fn write_tuple<T: StrictTuple>(
         self,
         inner: impl FnOnce(Self::TupleWriter) -> io::Result<Self>,
@@ -94,17 +93,11 @@ pub trait TypedWrite: Sized {
     }
 
     #[doc(hidden)]
-    unsafe fn register_primitive(self, prim: Primitive) -> Self {
-        self
-    }
+    unsafe fn register_primitive(self, prim: Primitive) -> Self { self }
     #[doc(hidden)]
-    unsafe fn register_array(self, ty: &impl StrictEncode, len: u16) -> Self {
-        self
-    }
+    unsafe fn register_array(self, ty: &impl StrictEncode, len: u16) -> Self { self }
     #[doc(hidden)]
-    unsafe fn register_unicode(self, sizing: Sizing) -> Self {
-        self
-    }
+    unsafe fn register_unicode(self, sizing: Sizing) -> Self { self }
     #[doc(hidden)]
     #[deprecated(since = "2.3.1", note = "use register_rstring")]
     unsafe fn register_ascii(self, sizing: Sizing) -> Self {
@@ -120,13 +113,9 @@ pub trait TypedWrite: Sized {
         self
     }
     #[doc(hidden)]
-    unsafe fn register_list(self, ty: &impl StrictEncode, sizing: Sizing) -> Self {
-        self
-    }
+    unsafe fn register_list(self, ty: &impl StrictEncode, sizing: Sizing) -> Self { self }
     #[doc(hidden)]
-    unsafe fn register_set(self, ty: &impl StrictEncode, sizing: Sizing) -> Self {
-        self
-    }
+    unsafe fn register_set(self, ty: &impl StrictEncode, sizing: Sizing) -> Self { self }
     #[doc(hidden)]
     unsafe fn register_map(
         self,
@@ -197,11 +186,9 @@ impl<T: ReadRaw> ReadRaw for &mut T {
 
 pub trait TypedRead {
     type TupleReader<'parent>: ReadTuple
-    where
-        Self: 'parent;
+    where Self: 'parent;
     type StructReader<'parent>: ReadStruct
-    where
-        Self: 'parent;
+    where Self: 'parent;
     type UnionReader: ReadUnion;
     type RawReader: ReadRaw;
 
@@ -214,8 +201,7 @@ pub trait TypedRead {
     ) -> Result<T, DecodeError>;
 
     fn read_enum<T: StrictEnum>(&mut self) -> Result<T, DecodeError>
-    where
-        u8: From<T>;
+    where u8: From<T>;
 
     fn read_tuple<'parent, 'me, T: StrictTuple>(
         &'me mut self,
@@ -234,9 +220,7 @@ pub trait TypedRead {
         'me: 'parent;
 
     fn read_newtype<T: StrictTuple + Wrapper>(&mut self) -> Result<T, DecodeError>
-    where
-        T::Inner: StrictDecode,
-    {
+    where T::Inner: StrictDecode {
         self.read_tuple(|reader| reader.read_field().map(T::from_inner))
     }
 
@@ -341,11 +325,9 @@ pub trait WriteUnion: Sized {
 
 pub trait ReadUnion: Sized {
     type TupleReader<'parent>: ReadTuple
-    where
-        Self: 'parent;
+    where Self: 'parent;
     type StructReader<'parent>: ReadStruct
-    where
-        Self: 'parent;
+    where Self: 'parent;
 
     fn read_tuple<'parent, 'me, T: StrictSum>(
         &'me mut self,
@@ -392,15 +374,11 @@ impl<T: StrictEncode> StrictEncode for &T {
 }
 
 impl<T> StrictEncode for PhantomData<T> {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> {
-        Ok(writer)
-    }
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> { Ok(writer) }
 }
 
 impl<T> StrictDecode for PhantomData<T> {
-    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
-        Ok(default!())
-    }
+    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> { Ok(default!()) }
 }
 
 // TODO: Provide max length as a trait-level const

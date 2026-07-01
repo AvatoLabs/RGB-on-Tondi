@@ -11,7 +11,7 @@
 //! - UTXO queries by address
 //! - Transaction submission
 //! - Block and DAG information queries
-//! - Real-time notifications via WebSocket
+//! - Paginated virtual-chain replay for wallet reorg recovery
 //!
 //! ## Example
 //!

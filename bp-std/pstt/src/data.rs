@@ -71,9 +71,7 @@ impl Prevout {
         }
     }
 
-    pub fn outpoint(&self) -> Outpoint {
-        Outpoint::new(self.txid, self.vout)
-    }
+    pub fn outpoint(&self) -> Outpoint { Outpoint::new(self.txid, self.vout) }
 }
 
 /// Structure representing data on unsigned transaction the way it is stored in PSTTv1 global key.
@@ -102,9 +100,7 @@ pub struct UnsignedTx {
 
 impl From<Tx> for UnsignedTx {
     #[inline]
-    fn from(tx: Tx) -> UnsignedTx {
-        UnsignedTx::with_sigs_removed(tx)
-    }
+    fn from(tx: Tx) -> UnsignedTx { UnsignedTx::with_sigs_removed(tx) }
 }
 
 impl From<UnsignedTx> for Tx {
@@ -138,9 +134,7 @@ impl UnsignedTx {
         }
     }
 
-    pub fn txid(&self) -> Txid {
-        Tx::from(self.clone()).txid()
-    }
+    pub fn txid(&self) -> Txid { Tx::from(self.clone()).txid() }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -157,9 +151,7 @@ pub struct UnsignedTxIn {
 
 impl From<TxIn> for UnsignedTxIn {
     #[inline]
-    fn from(txin: TxIn) -> UnsignedTxIn {
-        UnsignedTxIn::with_sigs_removed(txin)
-    }
+    fn from(txin: TxIn) -> UnsignedTxIn { UnsignedTxIn::with_sigs_removed(txin) }
 }
 
 impl From<UnsignedTxIn> for TxIn {
@@ -225,16 +217,14 @@ pub struct Pstt {
 }
 
 impl Default for Pstt {
-    fn default() -> Self {
-        Pstt::create(PsttVer::V2)
-    }
+    fn default() -> Self { Pstt::create(PsttVer::V2) }
 }
 
 impl Pstt {
     pub fn create(version: PsttVer) -> Pstt {
         Pstt {
             version,
-            tx_version: TxVer::V2,
+            tx_version: TxVer::V0,
             fallback_locktime: None,
             inputs: vec![],
             outputs: vec![],
@@ -259,14 +249,10 @@ impl Pstt {
     }
 
     /// Gets the payload if present.
-    pub fn payload(&self) -> Option<&ByteStr> {
-        self.payload.as_ref()
-    }
+    pub fn payload(&self) -> Option<&ByteStr> { self.payload.as_ref() }
 
     /// Takes the payload, leaving None in its place.
-    pub fn take_payload(&mut self) -> Option<ByteStr> {
-        self.payload.take()
-    }
+    pub fn take_payload(&mut self) -> Option<ByteStr> { self.payload.take() }
 
     pub fn from_tx(tx: impl Into<UnsignedTx>) -> Self {
         let unsigned_tx = tx.into();
@@ -302,41 +288,25 @@ impl Pstt {
         }
     }
 
-    pub fn txid(&self) -> Txid {
-        self.to_unsigned_tx().txid()
-    }
+    pub fn txid(&self) -> Txid { self.to_unsigned_tx().txid() }
 
-    pub fn input(&self, index: usize) -> Option<&Input> {
-        self.inputs.get(index)
-    }
+    pub fn input(&self, index: usize) -> Option<&Input> { self.inputs.get(index) }
 
-    pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> {
-        self.inputs.get_mut(index)
-    }
+    pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> { self.inputs.get_mut(index) }
 
-    pub fn inputs(&self) -> impl Iterator<Item = &Input> {
-        self.inputs.iter()
-    }
+    pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
 
-    pub fn inputs_mut(&mut self) -> impl Iterator<Item = &mut Input> {
-        self.inputs.iter_mut()
-    }
+    pub fn inputs_mut(&mut self) -> impl Iterator<Item = &mut Input> { self.inputs.iter_mut() }
 
-    pub fn output(&self, index: usize) -> Option<&Output> {
-        self.outputs.get(index)
-    }
+    pub fn output(&self, index: usize) -> Option<&Output> { self.outputs.get(index) }
 
     pub fn output_mut(&mut self, index: usize) -> Option<&mut Output> {
         self.outputs.get_mut(index)
     }
 
-    pub fn outputs(&self) -> impl Iterator<Item = &Output> {
-        self.outputs.iter()
-    }
+    pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
 
-    pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> {
-        self.outputs.iter_mut()
-    }
+    pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> { self.outputs.iter_mut() }
 
     pub fn lock_time(&self) -> LockTime {
         // TODO #45: Compute correct LockTime
@@ -344,23 +314,15 @@ impl Pstt {
     }
 
     #[inline]
-    pub fn input_sum(&self) -> Sats {
-        self.inputs().map(Input::value).sum()
-    }
+    pub fn input_sum(&self) -> Sats { self.inputs().map(Input::value).sum() }
 
     #[inline]
-    pub fn output_sum(&self) -> Sats {
-        self.outputs().map(Output::value).sum()
-    }
+    pub fn output_sum(&self) -> Sats { self.outputs().map(Output::value).sum() }
 
     #[inline]
-    pub fn fee(&self) -> Option<Sats> {
-        self.input_sum().checked_sub(self.output_sum())
-    }
+    pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
 
-    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XkeyOrigin)> {
-        self.xpubs.iter()
-    }
+    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XkeyOrigin)> { self.xpubs.iter() }
 
     pub fn is_modifiable(&self) -> bool {
         self.tx_modifiable.as_ref().map(ModifiableFlags::is_modifiable).unwrap_or_default()
@@ -560,9 +522,7 @@ impl Pstt {
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
     }
 
-    pub fn is_finalized(&self) -> bool {
-        self.inputs.iter().all(Input::is_finalized)
-    }
+    pub fn is_finalized(&self) -> bool { self.inputs.iter().all(Input::is_finalized) }
 
     pub fn finalize<D: Descriptor<K, V>, K, V>(&mut self, descriptor: &D) -> usize {
         self.inputs.iter_mut().map(|input| input.finalize(descriptor) as usize).sum()
@@ -622,21 +582,15 @@ mod display_from_str {
             Pstt::deserialize(data).map_err(PsttParseError::from)
         }
 
-        pub fn to_base64(&self) -> String {
-            self.to_base64_ver(self.version)
-        }
+        pub fn to_base64(&self) -> String { self.to_base64_ver(self.version) }
 
         pub fn to_base64_ver(&self, version: PsttVer) -> String {
             BASE64_STANDARD.encode(self.serialize(version))
         }
 
-        pub fn to_base16(&self) -> String {
-            self.to_base16_ver(self.version)
-        }
+        pub fn to_base16(&self) -> String { self.to_base16_ver(self.version) }
 
-        pub fn to_base16_ver(&self, version: PsttVer) -> String {
-            self.serialize(version).to_hex()
-        }
+        pub fn to_base16_ver(&self, version: PsttVer) -> String { self.serialize(version).to_hex() }
     }
 
     /// FromStr implementation parses both Base64 and Hex (Base16) encodings.
@@ -924,14 +878,10 @@ impl Input {
     }
 
     #[inline]
-    pub fn value(&self) -> Sats {
-        self.prev_txout().value
-    }
+    pub fn value(&self) -> Sats { self.prev_txout().value }
 
     #[inline]
-    pub fn index(&self) -> usize {
-        self.index
-    }
+    pub fn index(&self) -> usize { self.index }
 
     /// Computes script code, used in SegWit v0 signing algorithm (BIP143).
     ///
@@ -966,9 +916,7 @@ impl Input {
     }
 
     #[must_use]
-    pub fn is_bip340(&self) -> bool {
-        self.tap_internal_key.is_some()
-    }
+    pub fn is_bip340(&self) -> bool { self.tap_internal_key.is_some() }
 
     #[must_use]
     pub fn is_finalized(&self) -> bool {
@@ -1139,31 +1087,18 @@ impl Output {
         output
     }
 
-    pub fn from_txout((index, txout): (usize, TxOut)) -> Self {
-        Output::with_txout(txout, index)
-    }
+    pub fn from_txout((index, txout): (usize, TxOut)) -> Self { Output::with_txout(txout, index) }
 
-    pub fn to_txout(&self) -> TxOut {
-        TxOut {
-            value: self.amount,
-            script_pubkey: self.script.clone(),
-        }
-    }
+    pub fn to_txout(&self) -> TxOut { TxOut::new(self.script.clone(), self.amount) }
 
     #[inline]
-    pub fn value(&self) -> Sats {
-        self.amount
-    }
+    pub fn value(&self) -> Sats { self.amount }
 
     #[inline]
-    pub fn index(&self) -> usize {
-        self.index
-    }
+    pub fn index(&self) -> usize { self.index }
 
     #[inline]
-    pub fn vout(&self) -> Vout {
-        Vout::from_u32(self.index as u32)
-    }
+    pub fn vout(&self) -> Vout { Vout::from_u32(self.index as u32) }
 
     pub fn terminal_derivation(&self) -> Option<Terminal> {
         if self.bip32_derivation.is_empty() && self.tap_bip32_derivation.is_empty() {
@@ -1261,6 +1196,7 @@ mod test {
             outputs: Vec::new(),
             xpubs: IndexMap::new(),
             tx_modifiable: None,
+            payload: None,
             proprietary: IndexMap::new(),
             unknown: IndexMap::new(),
         };
@@ -1272,40 +1208,41 @@ mod test {
             outputs: Vec::new(),
             xpubs: IndexMap::new(),
             tx_modifiable: None,
+            payload: None,
             proprietary: IndexMap::new(),
             unknown: IndexMap::new(),
         };
 
-        assert_eq!(format!("{v0_pstt}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v2_pstt}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+        assert_eq!(format!("{v0_pstt}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v2_pstt}"), "cHN0dP8BAgIAAAEEAQABBQEAAfsEAgAAAAA=");
 
-        assert_eq!(format!("{v0_pstt:#}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v2_pstt:#}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+        assert_eq!(format!("{v0_pstt:#}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v2_pstt:#}"), "cHN0dP8BAgIAAAEEAQABBQEAAfsEAgAAAAA=");
 
-        assert_eq!(format!("{v0_pstt:x}"), "70736274ff01000a0200000000000000000001fb040000000000");
         assert_eq!(
-            format!("{v2_pstt:x}"),
-            "70736274ff01020402000000010401000105010001fb040200000000"
+            format!("{v0_pstt:x}"),
+            "70737474ff01000c00000000000000000000000001fb040000000000"
         );
+        assert_eq!(format!("{v2_pstt:x}"), "70737474ff0102020000010401000105010001fb040200000000");
 
-        assert_eq!(format!("{v0_pstt:#x}"), "70736274ff01000a0200000000000000000001fb040000000000");
         assert_eq!(
-            format!("{v2_pstt:#x}"),
-            "70736274ff01020402000000010401000105010001fb040200000000"
+            format!("{v0_pstt:#x}"),
+            "70737474ff01000c00000000000000000000000001fb040000000000"
         );
+        assert_eq!(format!("{v2_pstt:#x}"), "70737474ff0102020000010401000105010001fb040200000000");
 
         // format with a specific version
-        assert_eq!(format!("{v2_pstt:00}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v2_pstt:01}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v0_pstt:02}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+        assert_eq!(format!("{v2_pstt:00}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v2_pstt:01}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v0_pstt:02}"), "cHN0dP8BAgIAAAEEAQABBQEAAfsEAgAAAAA=");
 
-        assert_eq!(format!("{v2_pstt:0}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v2_pstt:1}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v0_pstt:2}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+        assert_eq!(format!("{v2_pstt:0}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v2_pstt:1}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v0_pstt:2}"), "cHN0dP8BAgIAAAEEAQABBQEAAfsEAgAAAAA=");
 
-        assert_eq!(format!("{v2_pstt:#0}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v2_pstt:#1}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
-        assert_eq!(format!("{v0_pstt:#2}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+        assert_eq!(format!("{v2_pstt:#0}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v2_pstt:#1}"), "cHN0dP8BAAwAAAAAAAAAAAAAAAAB+wQAAAAAAA==");
+        assert_eq!(format!("{v0_pstt:#2}"), "cHN0dP8BAgIAAAEEAQABBQEAAfsEAgAAAAA=");
 
         // error formats
         let result = std::panic::catch_unwind(|| format!("{v0_pstt:03}"));

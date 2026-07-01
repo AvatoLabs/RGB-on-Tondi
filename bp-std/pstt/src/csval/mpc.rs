@@ -291,7 +291,5 @@ impl From<&mpc::MerkleBlock> for ValueData {
 }
 
 impl From<Commitment> for ValueData {
-    fn from(value: Commitment) -> Self {
-        ValueData::from(value.to_vec())
-    }
+    fn from(value: Commitment) -> Self { ValueData::from(value.to_vec()) }
 }

@@ -34,9 +34,7 @@ pub trait KeyType: Copy + Ord + Eq + Hash + Debug + 'static {
     fn unknown_unchecked(val: u8) -> Self;
     fn from_u8(val: u8) -> Self;
     fn into_u8(self) -> u8;
-    fn to_u8(&self) -> u8 {
-        self.into_u8()
-    }
+    fn to_u8(&self) -> u8 { self.into_u8() }
     fn has_key_data(self) -> bool;
     fn present_since(self) -> PsttVer;
     fn deprecated_since(self) -> Option<PsttVer>;
@@ -106,9 +104,7 @@ impl KeyType for GlobalKey {
     ];
 
     #[inline]
-    fn unknown_unchecked(val: u8) -> Self {
-        Self::Unknown(val)
-    }
+    fn unknown_unchecked(val: u8) -> Self { Self::Unknown(val) }
 
     fn from_u8(val: u8) -> Self {
         match val {
@@ -201,9 +197,7 @@ impl KeyType for GlobalKey {
         }
     }
 
-    fn is_proprietary(self) -> bool {
-        self == Self::Proprietary
-    }
+    fn is_proprietary(self) -> bool { self == Self::Proprietary }
 }
 
 const PSTT_IN_NON_WITNESS_UTXO: u8 = 0x00;
@@ -348,9 +342,7 @@ impl KeyType for InputKey {
     ];
 
     #[inline]
-    fn unknown_unchecked(val: u8) -> Self {
-        Self::Unknown(val)
-    }
+    fn unknown_unchecked(val: u8) -> Self { Self::Unknown(val) }
 
     fn from_u8(val: u8) -> Self {
         match val {
@@ -553,9 +545,7 @@ impl KeyType for InputKey {
         }
     }
 
-    fn is_proprietary(self) -> bool {
-        self == Self::Proprietary
-    }
+    fn is_proprietary(self) -> bool { self == Self::Proprietary }
 }
 
 const PSTT_OUT_REDEEM_SCRIPT: u8 = 0x00;
@@ -615,9 +605,7 @@ impl KeyType for OutputKey {
     ];
 
     #[inline]
-    fn unknown_unchecked(val: u8) -> Self {
-        Self::Unknown(val)
-    }
+    fn unknown_unchecked(val: u8) -> Self { Self::Unknown(val) }
 
     fn from_u8(val: u8) -> Self {
         match val {
@@ -708,9 +696,7 @@ impl KeyType for OutputKey {
         }
     }
 
-    fn is_proprietary(self) -> bool {
-        self == Self::Proprietary
-    }
+    fn is_proprietary(self) -> bool { self == Self::Proprietary }
 }
 
 pub enum KeyValue<T: KeyType> {

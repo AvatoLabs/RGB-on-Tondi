@@ -27,7 +27,8 @@ use core::fmt::Debug;
 
 use amplify::{ByteArray, Bytes, Bytes32};
 use bc::{
-    secp256k1, CompressedPk, Outpoint, ScriptPubkey, TapLeafHash, TapScript, Tx, Txid, XOnlyPk,
+    secp256k1, tondi_p2mr_root_from_tapscript, CompressedPk, Outpoint, ScriptPubkey, Tx, Txid,
+    XOnlyPk,
 };
 use commit_verify::{
     CommitId, ConvolveVerifyError, DigestExt, EmbedVerifyError, ReservedBytes, TondiBlake3,
@@ -48,7 +49,7 @@ fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] {
     script.push(OP_PUSHBYTES_32);
     script.extend_from_slice(&xonly.to_byte_array());
     script.push(OP_CHECKSIG);
-    TapLeafHash::with_tap_script(&TapScript::from_checked(script)).to_byte_array()
+    tondi_p2mr_root_from_tapscript(&script)
 }
 
 fn is_tondi_p2mr_root(script: &ScriptPubkey) -> bool {
@@ -68,9 +69,7 @@ pub struct TondiP2mrProof {
 
 impl TondiP2mrProof {
     /// Construct a proof from the untweaked compressed public key.
-    pub fn new(original_pubkey: CompressedPk) -> Self {
-        Self { original_pubkey }
-    }
+    pub fn new(original_pubkey: CompressedPk) -> Self { Self { original_pubkey } }
 
     /// Computes the RGB tweak used by Tondi PSTT RGB outputs.
     pub fn rgb_tweak(
@@ -194,15 +193,11 @@ pub mod mmb {
         const TAG: &'static str = "urn:tondi:mmb:bundle#2025-01-01";
     }
     impl From<TondiBlake3> for Commitment {
-        fn from(hasher: TondiBlake3) -> Self {
-            hasher.finish().into()
-        }
+        fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
     }
 
     impl From<Commitment> for mpc::Message {
-        fn from(msg: Commitment) -> Self {
-            mpc::Message::from_byte_array(msg.to_byte_array())
-        }
+        fn from(msg: Commitment) -> Self { mpc::Message::from_byte_array(msg.to_byte_array()) }
     }
 
     /// The proof that each message is associated with a separate subset of witness transaction
@@ -364,9 +359,7 @@ impl Anchor {
     /// In the current version fallback proofs are not implemented, and this method always returns
     /// `false`.
     // TODO: (v0.13) Change when the fallback proofs are ready
-    pub fn is_fallback(&self) -> bool {
-        false
-    }
+    pub fn is_fallback(&self) -> bool { false }
 
     /// Verify the fallback proof.
     ///
@@ -375,9 +368,7 @@ impl Anchor {
     /// In the current version fallback proofs are not implemented, and this method always returns
     /// `Ok(()) `(since if there is no fallback proof defined, it is a case of a valid situation).
     // TODO: (v0.13) Change when the fallback proofs are ready
-    pub fn verify_fallback(&self) -> Result<(), AnchorError> {
-        Ok(())
-    }
+    pub fn verify_fallback(&self) -> Result<(), AnchorError> { Ok(()) }
 }
 
 /// Proof data for verification of deterministic tondi commitment produced from anchor.
@@ -414,9 +405,7 @@ pub enum TxoSealExt {
 }
 
 impl StrictDumb for TxoSealExt {
-    fn strict_dumb() -> Self {
-        TxoSealExt::Noise(Noise::from(Bytes::from_byte_array([0u8; 40])))
-    }
+    fn strict_dumb() -> Self { TxoSealExt::Noise(Noise::from(Bytes::from_byte_array([0u8; 40]))) }
 }
 
 /// The tondi TxO-based single-use seal protocol (see [`SingleUseSeal`]).
@@ -461,9 +450,7 @@ impl PublishedWitness<TxoSeal> for Tx {
     type PubId = Txid;
     type Error = TxoSealError;
 
-    fn pub_id(&self) -> Txid {
-        self.txid()
-    }
+    fn pub_id(&self) -> Txid { self.txid() }
 
     fn verify_commitment(&self, proof: Proof) -> Result<(), Self::Error> {
         let out = self
@@ -519,9 +506,7 @@ impl ClientSideWitness for Anchor {
     }
 
     fn merge(&mut self, other: Self) -> Result<(), impl Error>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         if self.mpc_protocol != other.mpc_protocol
             || self.mpc_proof != other.mpc_proof
             || self.dbc_proof != other.dbc_proof
@@ -718,18 +703,23 @@ mod test {
                 sequence: SeqNo::ZERO,
                 witness: none!(),
             })),
-            outputs: Confined::from_checked(vec![TxOut {
-                value: Sats::ZERO,
-                script_pubkey: if tapret {
-                    ScriptPubkey::p2tr(
-                        internal_pk,
-                        Some(TapLeafHash::with_leaf_script(&script_commitment.into()).into()),
-                    )
-                } else if p2mr {
-                    ScriptPubkey::from_checked(p2mr_proof.p2mr_root(mpc).unwrap().to_vec())
-                } else {
-                    ScriptPubkey::op_return(mpc.as_slice())
-                },
+            outputs: Confined::from_checked(vec![if p2mr {
+                TxOut::p2mr(
+                    ScriptPubkey::from_checked(p2mr_proof.p2mr_root(mpc).unwrap().to_vec()),
+                    Sats::ZERO,
+                )
+            } else {
+                TxOut::new(
+                    if tapret {
+                        ScriptPubkey::p2tr(
+                            internal_pk,
+                            Some(TapLeafHash::with_leaf_script(&script_commitment.into()).into()),
+                        )
+                    } else {
+                        ScriptPubkey::op_return(mpc.as_slice())
+                    },
+                    Sats::ZERO,
+                )
             }]),
             lock_time: default!(),
             subnetwork_id: [0u8; 20],

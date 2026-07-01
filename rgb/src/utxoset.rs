@@ -26,16 +26,33 @@ use bpstd::pstt::Utxo;
 use bpstd::{Idx, Keychain, NormalIndex, Outpoint, Sats, Terminal};
 use indexmap::IndexMap;
 
+pub type P2mrTweak = [u8; 32];
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+struct StoredUtxo {
+    value: Sats,
+    terminal: Terminal,
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    p2mr_tweak: Option<P2mrTweak>,
+}
+
 #[allow(clippy::len_without_is_empty)]
 pub trait UtxoSet {
     fn len(&self) -> usize;
     fn has(&self, outpoint: Outpoint) -> bool;
     fn get(&self, outpoint: Outpoint) -> Option<(Sats, Terminal)>;
+    fn p2mr_tweak(&self, _outpoint: Outpoint) -> Option<P2mrTweak> { None }
 
     #[cfg(not(feature = "async"))]
     fn insert(&mut self, outpoint: Outpoint, value: Sats, terminal: Terminal);
     #[cfg(feature = "async")]
     async fn insert_async(&mut self, outpoint: Outpoint, value: Sats, terminal: Terminal);
+
+    #[cfg(not(feature = "async"))]
+    fn set_p2mr_tweak(&mut self, _outpoint: Outpoint, _tweak: Option<P2mrTweak>) {}
+    #[cfg(feature = "async")]
+    async fn set_p2mr_tweak_async(&mut self, _outpoint: Outpoint, _tweak: Option<P2mrTweak>) {}
 
     #[cfg(not(feature = "async"))]
     fn insert_all(&mut self, utxos: impl IntoIterator<Item = Utxo>);
@@ -71,70 +88,100 @@ pub trait UtxoSet {
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct MemUtxos {
-    set: IndexMap<Outpoint, (Sats, Terminal)>,
+    #[cfg_attr(feature = "serde", serde(default))]
+    set: IndexMap<Outpoint, StoredUtxo>,
+    #[cfg_attr(feature = "serde", serde(default))]
     next_index: IndexMap<Keychain, NormalIndex>,
 }
 
 impl UtxoSet for MemUtxos {
     #[inline]
-    fn len(&self) -> usize {
-        self.set.len()
-    }
+    fn len(&self) -> usize { self.set.len() }
     #[inline]
-    fn has(&self, outpoint: Outpoint) -> bool {
-        self.set.contains_key(&outpoint)
-    }
+    fn has(&self, outpoint: Outpoint) -> bool { self.set.contains_key(&outpoint) }
     #[inline]
     fn get(&self, outpoint: Outpoint) -> Option<(Sats, Terminal)> {
-        self.set.get(&outpoint).copied()
+        self.set
+            .get(&outpoint)
+            .map(|utxo| (utxo.value, utxo.terminal))
+    }
+
+    #[inline]
+    fn p2mr_tweak(&self, outpoint: Outpoint) -> Option<P2mrTweak> {
+        self.set.get(&outpoint).and_then(|utxo| utxo.p2mr_tweak)
     }
 
     #[inline]
     #[cfg(not(feature = "async"))]
     fn insert(&mut self, outpoint: Outpoint, value: Sats, terminal: Terminal) {
-        self.set.insert(outpoint, (value, terminal));
+        self.set
+            .insert(outpoint, StoredUtxo { value, terminal, p2mr_tweak: None });
     }
     #[inline]
     #[cfg(feature = "async")]
     async fn insert_async(&mut self, outpoint: Outpoint, value: Sats, terminal: Terminal) {
-        self.set.insert(outpoint, (value, terminal));
+        self.set
+            .insert(outpoint, StoredUtxo { value, terminal, p2mr_tweak: None });
+    }
+
+    #[inline]
+    #[cfg(not(feature = "async"))]
+    fn set_p2mr_tweak(&mut self, outpoint: Outpoint, tweak: Option<P2mrTweak>) {
+        if let Some(utxo) = self.set.get_mut(&outpoint) {
+            utxo.p2mr_tweak = tweak;
+        }
+    }
+    #[inline]
+    #[cfg(feature = "async")]
+    async fn set_p2mr_tweak_async(&mut self, outpoint: Outpoint, tweak: Option<P2mrTweak>) {
+        if let Some(utxo) = self.set.get_mut(&outpoint) {
+            utxo.p2mr_tweak = tweak;
+        }
     }
 
     #[inline]
     #[cfg(not(feature = "async"))]
     fn insert_all(&mut self, utxos: impl IntoIterator<Item = Utxo>) {
         for utxo in utxos {
-            self.set.insert(utxo.outpoint, (utxo.value, utxo.terminal));
+            self.set.insert(utxo.outpoint, StoredUtxo {
+                value: utxo.value,
+                terminal: utxo.terminal,
+                p2mr_tweak: None,
+            });
         }
     }
     #[inline]
     #[cfg(feature = "async")]
     async fn insert_all_async(&mut self, utxos: impl IntoIterator<Item = Utxo>) {
         for utxo in utxos {
-            self.set.insert(utxo.outpoint, (utxo.value, utxo.terminal));
+            self.set.insert(utxo.outpoint, StoredUtxo {
+                value: utxo.value,
+                terminal: utxo.terminal,
+                p2mr_tweak: None,
+            });
         }
     }
 
     #[inline]
     #[cfg(not(feature = "async"))]
-    fn clear(&mut self) {
-        self.set.clear()
-    }
+    fn clear(&mut self) { self.set.clear() }
     #[inline]
     #[cfg(feature = "async")]
-    async fn clear_async(&mut self) {
-        self.set.clear()
-    }
+    async fn clear_async(&mut self) { self.set.clear() }
 
     #[inline]
     #[cfg(not(feature = "async"))]
     fn remove(&mut self, outpoint: Outpoint) -> Option<(Sats, Terminal)> {
-        self.set.shift_remove(&outpoint)
+        self.set
+            .shift_remove(&outpoint)
+            .map(|utxo| (utxo.value, utxo.terminal))
     }
     #[inline]
     #[cfg(feature = "async")]
     async fn remove_async(&mut self, outpoint: Outpoint) -> Option<(Sats, Terminal)> {
-        self.set.shift_remove(&outpoint)
+        self.set
+            .shift_remove(&outpoint)
+            .map(|utxo| (utxo.value, utxo.terminal))
     }
 
     #[inline]
@@ -153,9 +200,7 @@ impl UtxoSet for MemUtxos {
     }
 
     #[inline]
-    fn outpoints(&self) -> impl Iterator<Item = Outpoint> {
-        self.set.keys().copied()
-    }
+    fn outpoints(&self) -> impl Iterator<Item = Outpoint> { self.set.keys().copied() }
 
     fn next_index_noshift(&self, keychain: impl Into<Keychain>) -> NormalIndex {
         self.next_index

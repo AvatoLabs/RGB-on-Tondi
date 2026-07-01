@@ -97,9 +97,7 @@ impl LockTime {
     /// Create zero time lock
     #[inline]
     #[deprecated(since = "0.10.8", note = "use LockTime::ZERO")]
-    pub const fn zero() -> Self {
-        Self(0)
-    }
+    pub const fn zero() -> Self { Self(0) }
 
     /// Creates absolute time lock with the given block height.
     ///
@@ -130,28 +128,20 @@ impl LockTime {
     /// Converts into full u64 representation of `nLockTime` value as it is
     /// serialized in Tondi transaction.
     #[inline]
-    pub const fn from_consensus_u64(lock_time: u64) -> Self {
-        LockTime(lock_time)
-    }
+    pub const fn from_consensus_u64(lock_time: u64) -> Self { LockTime(lock_time) }
 
     #[inline]
-    pub const fn to_consensus_u64(&self) -> u64 {
-        self.0
-    }
+    pub const fn to_consensus_u64(&self) -> u64 { self.0 }
 
     #[inline]
-    pub const fn into_consensus_u64(self) -> u64 {
-        self.0
-    }
+    pub const fn into_consensus_u64(self) -> u64 { self.0 }
 
     /// Legacy method: Convert from u32 (for backward compatibility)
     ///
     /// # Warning
     /// This is safe as u32 can always fit in u64, but use `from_consensus_u64` for new code.
     #[inline]
-    pub const fn from_consensus_u32(lock_time: u32) -> Self {
-        LockTime(lock_time as u64)
-    }
+    pub const fn from_consensus_u32(lock_time: u32) -> Self { LockTime(lock_time as u64) }
 
     /// Legacy method: Convert to u32 (for backward compatibility)
     ///
@@ -168,23 +158,17 @@ impl LockTime {
 
     /// Legacy method: Convert to u32 (for backward compatibility)
     #[inline]
-    pub const fn into_consensus_u32(self) -> u32 {
-        self.to_consensus_u32()
-    }
+    pub const fn into_consensus_u32(self) -> u32 { self.to_consensus_u32() }
 
     /// Checks if the absolute timelock provided by the `nLockTime` value
     /// specifies height-based lock
     #[inline]
-    pub const fn is_height_based(self) -> bool {
-        self.0 < LOCKTIME_THRESHOLD
-    }
+    pub const fn is_height_based(self) -> bool { self.0 < LOCKTIME_THRESHOLD }
 
     /// Checks if the absolute timelock provided by the `nLockTime` value
     /// specifies time-based lock
     #[inline]
-    pub const fn is_time_based(self) -> bool {
-        !self.is_height_based()
-    }
+    pub const fn is_time_based(self) -> bool { !self.is_height_based() }
 }
 
 /// Value for a transaction `nTimeLock` field which is guaranteed to represent a
@@ -197,23 +181,17 @@ impl LockTime {
 pub struct LockTimestamp(u32);
 
 impl From<LockTimestamp> for u32 {
-    fn from(lock_timestamp: LockTimestamp) -> Self {
-        lock_timestamp.into_consensus_u32()
-    }
+    fn from(lock_timestamp: LockTimestamp) -> Self { lock_timestamp.into_consensus_u32() }
 }
 
 impl From<LockTimestamp> for LockTime {
-    fn from(lock: LockTimestamp) -> Self {
-        LockTime::from_consensus_u32(lock.into_consensus_u32())
-    }
+    fn from(lock: LockTimestamp) -> Self { LockTime::from_consensus_u32(lock.into_consensus_u32()) }
 }
 
 impl TryFrom<u32> for LockTimestamp {
     type Error = InvalidTimelock;
 
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        Self::try_from_consensus_u32(value)
-    }
+    fn try_from(value: u32) -> Result<Self, Self::Error> { Self::try_from_consensus_u32(value) }
 }
 
 impl TryFrom<LockTime> for LockTimestamp {
@@ -227,9 +205,7 @@ impl TryFrom<LockTime> for LockTimestamp {
 impl LockTimestamp {
     /// Create zero time lock
     #[inline]
-    pub fn anytime() -> Self {
-        Self(0)
-    }
+    pub fn anytime() -> Self { Self(0) }
 
     #[cfg(feature = "chrono")]
     /// Creates absolute time lock valid since the current timestamp.
@@ -272,28 +248,20 @@ impl LockTimestamp {
     /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in tondi transaction.
     #[inline]
-    pub const fn to_consensus_u32(&self) -> u32 {
-        self.0
-    }
+    pub const fn to_consensus_u32(&self) -> u32 { self.0 }
 
     /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in tondi transaction.
     #[inline]
-    pub const fn into_consensus_u32(self) -> u32 {
-        self.0
-    }
+    pub const fn into_consensus_u32(self) -> u32 { self.0 }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
-    pub fn into_lock_time(self) -> LockTime {
-        self.into()
-    }
+    pub fn into_lock_time(self) -> LockTime { self.into() }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
-    pub fn to_lock_time(self) -> LockTime {
-        self.into_lock_time()
-    }
+    pub fn to_lock_time(self) -> LockTime { self.into_lock_time() }
 }
 
 impl Display for LockTimestamp {
@@ -329,23 +297,17 @@ impl FromStr for LockTimestamp {
 pub struct LockHeight(u32);
 
 impl From<LockHeight> for u32 {
-    fn from(lock_height: LockHeight) -> Self {
-        lock_height.into_consensus_u32()
-    }
+    fn from(lock_height: LockHeight) -> Self { lock_height.into_consensus_u32() }
 }
 
 impl From<LockHeight> for LockTime {
-    fn from(lock: LockHeight) -> Self {
-        LockTime::from_consensus_u32(lock.into_consensus_u32())
-    }
+    fn from(lock: LockHeight) -> Self { LockTime::from_consensus_u32(lock.into_consensus_u32()) }
 }
 
 impl TryFrom<u32> for LockHeight {
     type Error = InvalidTimelock;
 
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        Self::try_from_consensus_u32(value)
-    }
+    fn try_from(value: u32) -> Result<Self, Self::Error> { Self::try_from_consensus_u32(value) }
 }
 
 impl TryFrom<LockTime> for LockHeight {
@@ -359,9 +321,7 @@ impl TryFrom<LockTime> for LockHeight {
 impl LockHeight {
     /// Create zero time lock
     #[inline]
-    pub fn anytime() -> Self {
-        Self(0)
-    }
+    pub fn anytime() -> Self { Self(0) }
 
     /// Creates absolute time lock with the given block height.
     ///
@@ -396,28 +356,20 @@ impl LockHeight {
     /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in tondi transaction.
     #[inline]
-    pub const fn to_consensus_u32(&self) -> u32 {
-        self.0
-    }
+    pub const fn to_consensus_u32(&self) -> u32 { self.0 }
 
     /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in tondi transaction.
     #[inline]
-    pub const fn into_consensus_u32(self) -> u32 {
-        self.0
-    }
+    pub const fn into_consensus_u32(self) -> u32 { self.0 }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
-    pub fn to_lock_time(&self) -> LockTime {
-        self.into_lock_time()
-    }
+    pub fn to_lock_time(&self) -> LockTime { self.into_lock_time() }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
-    pub fn into_lock_time(self) -> LockTime {
-        self.into()
-    }
+    pub fn into_lock_time(self) -> LockTime { self.into() }
 }
 
 impl Display for LockHeight {
@@ -454,20 +406,14 @@ impl SeqNo {
     pub const ZERO: SeqNo = SeqNo(0);
 
     #[inline]
-    pub const fn from_consensus_u32(lock_time: u32) -> Self {
-        SeqNo(lock_time)
-    }
+    pub const fn from_consensus_u32(lock_time: u32) -> Self { SeqNo(lock_time) }
 
     #[inline]
-    pub const fn to_consensus_u32(&self) -> u32 {
-        self.0
-    }
+    pub const fn to_consensus_u32(&self) -> u32 { self.0 }
 
     /// Creates relative time lock measured in number of blocks (implies RBF).
     #[inline]
-    pub const fn from_height(blocks: u16) -> SeqNo {
-        SeqNo(blocks as u32)
-    }
+    pub const fn from_height(blocks: u16) -> SeqNo { SeqNo(blocks as u32) }
 
     /// Creates relative time lock measured in number of 512-second intervals
     /// (implies RBF).
@@ -488,9 +434,7 @@ impl SeqNo {
         }
     }
 
-    pub const fn is_timelock(self) -> bool {
-        self.0 & SEQ_NO_CSV_DISABLE_MASK > 1
-    }
+    pub const fn is_timelock(self) -> bool { self.0 & SEQ_NO_CSV_DISABLE_MASK > 1 }
 }
 
 /// Time lock interval describing both relative (OP_CHECKSEQUENCEVERIFY) and
@@ -510,7 +454,5 @@ pub enum TimeLockInterval {
 }
 
 impl Default for TimeLockInterval {
-    fn default() -> Self {
-        TimeLockInterval::Height(default!())
-    }
+    fn default() -> Self { TimeLockInterval::Height(default!()) }
 }

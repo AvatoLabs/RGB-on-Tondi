@@ -157,18 +157,14 @@ impl SighashType {
     /// The returned value is guaranteed to be a valid according to standardness
     /// rules.
     #[inline]
-    pub const fn into_consensus_u32(self) -> u32 {
-        self.into_consensus_u8() as u32
-    }
+    pub const fn into_consensus_u32(self) -> u32 { self.into_consensus_u8() as u32 }
 
     /// Converts [`SighashType`] to a `u32` sighash flag.
     ///
     /// The returned value is guaranteed to be a valid according to standardness
     /// rules.
     #[inline]
-    pub const fn to_consensus_u32(&self) -> u32 {
-        self.into_consensus_u32()
-    }
+    pub const fn to_consensus_u32(&self) -> u32 { self.into_consensus_u32() }
 
     pub const fn into_consensus_u8(self) -> u8 {
         let flag = self.flag as u8;
@@ -205,29 +201,21 @@ pub struct Sighash(
 );
 
 impl From<Sighash> for [u8; 32] {
-    fn from(value: Sighash) -> Self {
-        value.0.into_inner()
-    }
+    fn from(value: Sighash) -> Self { value.0.into_inner() }
 }
 
 impl From<Sighash> for secp256k1::Message {
-    fn from(sighash: Sighash) -> Self {
-        secp256k1::Message::from_digest(sighash.to_byte_array())
-    }
+    fn from(sighash: Sighash) -> Self { secp256k1::Message::from_digest(sighash.to_byte_array()) }
 }
 
 impl Sighash {
     /// Create a new BLAKE3 engine for sighash computation.
-    pub fn engine() -> TondiBlake3 {
-        TondiBlake3::from_context("tondi.sighash")
-    }
+    pub fn engine() -> TondiBlake3 { TondiBlake3::from_context("tondi.sighash") }
 
     /// Finalize the sighash from a BLAKE3 engine.
     ///
     /// For Tondi, we use a single BLAKE3 hash (no double hashing).
-    pub fn from_engine(engine: TondiBlake3) -> Self {
-        Self(engine.finish().into())
-    }
+    pub fn from_engine(engine: TondiBlake3) -> Self { Self(engine.finish().into()) }
 }
 
 /// Type used for generating sighash in SegWit signing
@@ -237,9 +225,7 @@ impl Sighash {
 pub struct ScriptCode(ScriptBytes);
 
 impl ScriptCode {
-    pub fn with_p2sh_wpkh(script_pubkey: &ScriptPubkey) -> Self {
-        Self::with_p2wpkh(script_pubkey)
-    }
+    pub fn with_p2sh_wpkh(script_pubkey: &ScriptPubkey) -> Self { Self::with_p2wpkh(script_pubkey) }
 
     pub fn with_p2wpkh(script_pubkey: &ScriptPubkey) -> Self {
         let mut pubkey_hash = [0u8; 20];
@@ -258,9 +244,7 @@ impl ScriptCode {
     }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes {
-        &self.0
-    }
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 /// An ECDSA signature-related error.

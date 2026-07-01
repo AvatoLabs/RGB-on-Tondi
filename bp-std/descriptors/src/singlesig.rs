@@ -39,24 +39,16 @@ use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
 pub struct Pkh<K: DeriveLegacy = XpubDerivable>(K);
 
 impl<K: DeriveLegacy> Pkh<K> {
-    pub fn as_key(&self) -> &K {
-        &self.0
-    }
-    pub fn into_key(self) -> K {
-        self.0
-    }
+    pub fn as_key(&self) -> &K { &self.0 }
+    pub fn into_key(self) -> K { self.0 }
 }
 
 impl<K: DeriveLegacy> Derive<DerivedScript> for Pkh<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.0.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.0.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
 
     fn derive(
         &self,
@@ -70,25 +62,17 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for Pkh<K> {
 }
 
 impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2pkh
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2pkh }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(&self.0)
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        iter::once(self.0.xpub_spec())
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.0
@@ -127,9 +111,7 @@ impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
 }
 
 impl<K: DeriveLegacy> Display for Pkh<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "pkh({})", self.0)
-    }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "pkh({})", self.0) }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -137,24 +119,16 @@ impl<K: DeriveLegacy> Display for Pkh<K> {
 pub struct Wpkh<K: DeriveCompr = XpubDerivable>(K);
 
 impl<K: DeriveCompr> Wpkh<K> {
-    pub fn as_key(&self) -> &K {
-        &self.0
-    }
-    pub fn into_key(self) -> K {
-        self.0
-    }
+    pub fn as_key(&self) -> &K { &self.0 }
+    pub fn into_key(self) -> K { self.0 }
 }
 
 impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.0.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.0.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
 
     fn derive(
         &self,
@@ -168,25 +142,17 @@ impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2wpkh
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2wpkh }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(&self.0)
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        iter::once(self.0.xpub_spec())
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.0
@@ -222,9 +188,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
 }
 
 impl<K: DeriveCompr> Display for Wpkh<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "wpkh({})", self.0)
-    }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wpkh({})", self.0) }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -232,24 +196,16 @@ impl<K: DeriveCompr> Display for Wpkh<K> {
 pub struct ShWpkh<K: DeriveCompr = XpubDerivable>(K);
 
 impl<K: DeriveCompr> ShWpkh<K> {
-    pub fn as_key(&self) -> &K {
-        &self.0
-    }
-    pub fn into_key(self) -> K {
-        self.0
-    }
+    pub fn as_key(&self) -> &K { &self.0 }
+    pub fn into_key(self) -> K { self.0 }
 }
 
 impl<K: DeriveCompr> Derive<DerivedScript> for ShWpkh<K> {
     #[inline]
-    fn default_keychain(&self) -> Keychain {
-        self.0.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
     #[inline]
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.0.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
 
     fn derive(
         &self,
@@ -261,25 +217,17 @@ impl<K: DeriveCompr> Derive<DerivedScript> for ShWpkh<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for ShWpkh<K> {
-    fn class(&self) -> SpkClass {
-        SpkClass::P2sh
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(&self.0)
     }
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        iter::once(self.0.xpub_spec())
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.0
@@ -315,7 +263,5 @@ impl<K: DeriveCompr> Descriptor<K> for ShWpkh<K> {
 }
 
 impl<K: DeriveCompr> Display for ShWpkh<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "sh(wpkh({}))", self.0)
-    }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "sh(wpkh({}))", self.0) }
 }

@@ -39,9 +39,7 @@ pub struct TestnetRefSigner<'a> {
 }
 
 impl<'a> TestnetRefSigner<'a> {
-    pub fn new(account: &'a XprivAccount) -> Self {
-        Self::with(true, None, [account])
-    }
+    pub fn new(account: &'a XprivAccount) -> Self { Self::with(true, None, [account]) }
 
     pub fn new_legacy(iter: impl IntoIterator<Item = &'a XprivAccount>) -> Self {
         Self::with(false, None, iter)
@@ -85,12 +83,9 @@ impl<'a> TestnetRefSigner<'a> {
 impl Signer for TestnetRefSigner<'_> {
     type Sign<'s>
         = Self
-    where
-        Self: 's;
+    where Self: 's;
 
-    fn approve(&self, _: &Pstt) -> Result<Self::Sign<'_>, Rejected> {
-        Ok(self.clone())
-    }
+    fn approve(&self, _: &Pstt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
 
 impl TestnetRefSigner<'_> {
@@ -164,9 +159,7 @@ impl Sign for TestnetRefSigner<'_> {
         self.script_path == Some(leaf)
     }
 
-    fn should_sign_key_path(&self, _index: usize) -> bool {
-        self.key_path
-    }
+    fn should_sign_key_path(&self, _index: usize) -> bool { self.key_path }
 }
 
 pub struct TestnetSigner {
@@ -176,9 +169,7 @@ pub struct TestnetSigner {
 }
 
 impl TestnetSigner {
-    pub fn new(account: XprivAccount) -> Self {
-        Self::with(true, None, [account])
-    }
+    pub fn new(account: XprivAccount) -> Self { Self::with(true, None, [account]) }
 
     pub fn new_legacy(iter: impl IntoIterator<Item = XprivAccount>) -> Self {
         Self::with(false, None, iter)

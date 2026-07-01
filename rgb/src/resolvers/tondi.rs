@@ -29,18 +29,18 @@
 
 use core::num::NonZeroU64;
 
-use amplify::ByteArray;
 use bpstd::pstt::Utxo;
-use bpstd::{Address, AddressNetwork};
-use bpstd::{Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout};
+use bpstd::{Address, AddressNetwork, Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout};
 use rgb::{Outpoint, WitnessStatus};
 use tondi::{Error as TondiError, NetworkType, TondiClient, TondiConfig, TondiOutpoint};
 
 use super::{Resolver, ResolverError};
+use crate::tondi_address::encode_p2mr_for_address_network;
 
 /// Tondi async resolver for RGB wallet operations
 pub struct TondiResolver {
-    client: TondiClient,
+    endpoint: String,
+    network_type: NetworkType,
     network: AddressNetwork,
     /// Minimum Blue Score depth for confirmation (default: 10)
     min_blue_score_depth: u64,
@@ -58,22 +58,10 @@ impl TondiResolver {
     /// Returns an error if the client fails to connect to the Tondi node.
     #[cfg(feature = "async")]
     pub async fn new(endpoint: &str) -> Result<Self, ResolverError> {
-        let config = TondiConfig::new(endpoint);
-        let client = TondiClient::connect(config)
-            .await
-            .map_err(|_| ResolverError::Connectivity)?;
-
-        // Determine network from connection
-        let network = match client.get_current_network().await {
-            Ok(NetworkType::Mainnet) => AddressNetwork::TondiMainnet,
-            Ok(NetworkType::Testnet) => AddressNetwork::TondiTestnet,
-            Ok(_) => AddressNetwork::TondiMainnet, // Default to mainnet
-            Err(_) => AddressNetwork::TondiMainnet,
-        };
-
         Ok(Self {
-            client,
-            network,
+            endpoint: endpoint.to_owned(),
+            network_type: NetworkType::Mainnet,
+            network: AddressNetwork::TondiMainnet,
             min_blue_score_depth: 10, // Default: 10 confirmations
         })
     }
@@ -81,12 +69,9 @@ impl TondiResolver {
     /// Creates a new Tondi resolver for mainnet
     #[cfg(feature = "async")]
     pub async fn mainnet(endpoint: &str) -> Result<Self, ResolverError> {
-        let config = TondiConfig::mainnet(endpoint);
-        let client = TondiClient::connect(config)
-            .await
-            .map_err(|_| ResolverError::Connectivity)?;
         Ok(Self {
-            client,
+            endpoint: endpoint.to_owned(),
+            network_type: NetworkType::Mainnet,
             network: AddressNetwork::TondiMainnet,
             min_blue_score_depth: 10,
         })
@@ -95,12 +80,9 @@ impl TondiResolver {
     /// Creates a new Tondi resolver for testnet
     #[cfg(feature = "async")]
     pub async fn testnet(endpoint: &str) -> Result<Self, ResolverError> {
-        let config = TondiConfig::testnet(endpoint);
-        let client = TondiClient::connect(config)
-            .await
-            .map_err(|_| ResolverError::Connectivity)?;
         Ok(Self {
-            client,
+            endpoint: endpoint.to_owned(),
+            network_type: NetworkType::Testnet,
             network: AddressNetwork::TondiTestnet,
             min_blue_score_depth: 10,
         })
@@ -112,10 +94,30 @@ impl TondiResolver {
         self
     }
 
-    /// Get the current network
-    pub fn network(&self) -> AddressNetwork {
-        self.network
+    /// Override the address network selected by the CLI.
+    pub fn with_network(mut self, network: AddressNetwork) -> Self {
+        self.network = network;
+        self.network_type = match network {
+            AddressNetwork::TondiMainnet => NetworkType::Mainnet,
+            AddressNetwork::TondiTestnet => NetworkType::Testnet,
+            AddressNetwork::TondiSimnet => NetworkType::Simnet,
+            AddressNetwork::TondiDevnet => NetworkType::Devnet,
+            _ => self.network_type,
+        };
+        self
     }
+
+    #[cfg(feature = "async")]
+    async fn rpc_client(&self) -> Result<TondiClient, ResolverError> {
+        TondiClient::connect(
+            TondiConfig::new(self.endpoint.clone()).with_network(self.network_type),
+        )
+        .await
+        .map_err(|_| ResolverError::Connectivity)
+    }
+
+    /// Get the current network
+    pub fn network(&self) -> AddressNetwork { self.network }
 
     /// Get a full Tondi-native transaction.
     ///
@@ -124,9 +126,10 @@ impl TondiResolver {
     /// consignment/sidecar layer.
     #[cfg(feature = "async")]
     pub async fn get_full_tx(&self, txid: Txid) -> Result<Option<Tx>, ResolverError> {
-        let tondi_txid = amplify::Bytes32::from_byte_array(txid.to_byte_array());
+        let tondi_txid = tondi_txid_from_bp_txid(txid)?;
+        let client = self.rpc_client().await?;
 
-        match self.client.get_transaction(tondi_txid).await {
+        match client.get_transaction(tondi_txid).await {
             Ok(tondi_tx) => match tondi_tx.to_bp_tx() {
                 Ok(tx) => Ok(Some(tx)),
                 Err(_e) => Err(ResolverError::Protocol),
@@ -150,60 +153,60 @@ impl TondiResolver {
     #[cfg(feature = "async")]
     pub async fn check_utxo(&self, outpoint: Outpoint) -> Result<Option<Utxo>, ResolverError> {
         let tondi_outpoint = TondiOutpoint {
-            transaction_id: amplify::Bytes32::from_byte_array(outpoint.txid.to_byte_array()),
+            transaction_id: tondi_txid_from_bp_txid(outpoint.txid)?,
             index: outpoint.vout.to_u32(),
         };
+        let client = self.rpc_client().await?;
 
-        // Try to get the transaction to check if the output exists
-        match self
-            .client
-            .get_transaction(tondi_outpoint.transaction_id)
+        let tx = match client.get_transaction(tondi_outpoint.transaction_id).await {
+            Ok(tx) => tx,
+            Err(TondiError::TransactionNotFound(_)) => return Ok(None),
+            Err(_) => return Err(ResolverError::Connectivity),
+        };
+
+        if tondi_outpoint.index as usize >= tx.outputs.len() {
+            return Ok(None);
+        }
+
+        let status = match client
+            .get_transaction_status(tondi_outpoint.transaction_id)
             .await
         {
-            Ok(tx) => {
-                // Check if the output index is valid
-                if tondi_outpoint.index as usize >= tx.outputs.len() {
-                    return Ok(None);
-                }
-
-                // Get transaction status to check if it's accepted
-                match self
-                    .client
-                    .get_transaction_status(tondi_outpoint.transaction_id)
-                    .await
-                {
-                    Ok(status) => {
-                        if !status.accepted {
-                            // Transaction not yet accepted, UTXO is tentative
-                            return Ok(None);
-                        }
-
-                        // Check if UTXO is spent by querying the address (if available)
-                        // For now, we assume if the transaction is accepted and output exists,
-                        // the UTXO exists. A more thorough check would require querying spent UTXOs.
-                        let output = &tx.outputs[tondi_outpoint.index as usize];
-                        let value = match output {
-                            tondi::TondiTxOutput::Standard { value, script_public_key } => {
-                                script_public_key
-                                    .validate_p2mr_root()
-                                    .map_err(|_| ResolverError::Protocol)?;
-                                *value
-                            }
-                            _ => return Ok(None), // Non-standard outputs not supported
-                        };
-                        Ok(Some(Utxo {
-                            outpoint,
-                            value: Sats::from_sats(value),
-                            terminal: Terminal::new(0u8, 0u16.into()), // Terminal needs to be determined from context
-                        }))
-                    }
-                    Err(TondiError::TransactionNotFound(_)) => Ok(None),
-                    Err(_) => Err(ResolverError::Connectivity),
-                }
-            }
-            Err(TondiError::TransactionNotFound(_)) => Ok(None),
-            Err(_) => Err(ResolverError::Connectivity),
+            Ok(status) => status,
+            Err(TondiError::TransactionNotFound(_)) => return Ok(None),
+            Err(_) => return Err(ResolverError::Connectivity),
+        };
+        if !status.accepted {
+            return Ok(None);
         }
+
+        let output = &tx.outputs[tondi_outpoint.index as usize];
+        let (expected_value, address) = match output {
+            tondi::TondiTxOutput::Standard { value, script_public_key } => {
+                (*value, tondi_script_public_key_address(self.network, script_public_key)?)
+            }
+            _ => return Ok(None),
+        };
+
+        let live_utxo = client
+            .get_utxos_by_address(&address)
+            .await
+            .map_err(|_| ResolverError::Connectivity)?
+            .into_iter()
+            .find(|entry| entry.outpoint == tondi_outpoint);
+        let Some(live_utxo) = live_utxo else {
+            return Ok(None);
+        };
+        if live_utxo.utxo_entry.amount != expected_value {
+            return Err(ResolverError::Protocol);
+        }
+
+        Ok(Some(Utxo {
+            outpoint,
+            value: Sats::from_sats(live_utxo.utxo_entry.amount),
+            // Terminal needs to be determined from descriptor context.
+            terminal: Terminal::new(0u8, 0u16.into()),
+        }))
     }
 
     /// Extract RGB commitment from a transaction.
@@ -251,11 +254,16 @@ impl TondiResolver {
 /// Uses Blue Score depth check to ensure sufficient confirmation depth
 fn convert_status(
     accepted: bool,
+    in_mempool: bool,
+    removed: bool,
     daa_score: Option<u64>,
     has_sufficient_depth: bool,
 ) -> WitnessStatus {
+    if removed {
+        return WitnessStatus::Archived;
+    }
     if !accepted {
-        return WitnessStatus::Tentative;
+        return if in_mempool { WitnessStatus::Tentative } else { WitnessStatus::Archived };
     }
     if !has_sufficient_depth {
         // Transaction is accepted but doesn't have sufficient Blue Score depth
@@ -274,9 +282,10 @@ fn convert_status(
 #[cfg(feature = "async")]
 impl Resolver for TondiResolver {
     async fn resolve_tx_async(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
-        let tondi_txid = amplify::Bytes32::from_byte_array(txid.to_byte_array());
+        let tondi_txid = tondi_txid_from_bp_txid(txid)?;
+        let client = self.rpc_client().await?;
 
-        match self.client.get_transaction(tondi_txid).await {
+        match client.get_transaction(tondi_txid).await {
             Ok(tondi_tx) => {
                 match tondi_tx.to_bp_tx() {
                     Ok(tx) => {
@@ -294,13 +303,13 @@ impl Resolver for TondiResolver {
     }
 
     async fn resolve_tx_status_async(&self, txid: Txid) -> Result<WitnessStatus, ResolverError> {
-        let tondi_txid = amplify::Bytes32::from_byte_array(txid.to_byte_array());
+        let tondi_txid = tondi_txid_from_bp_txid(txid)?;
+        let client = self.rpc_client().await?;
 
-        match self.client.get_transaction_status(tondi_txid).await {
+        let status = match client.get_transaction_status(tondi_txid).await {
             Ok(status) => {
                 // Get current DAA score for Blue Score depth check
-                let dag_info = self
-                    .client
+                let dag_info = client
                     .get_block_dag_info()
                     .await
                     .map_err(|_| ResolverError::Connectivity)?;
@@ -312,14 +321,22 @@ impl Resolver for TondiResolver {
                     .check_blue_score_depth(&status, current_daa_score)
                     .await;
 
-                Ok(convert_status(
+                convert_status(
                     status.accepted,
+                    status.in_mempool,
+                    status.removed,
                     status.accepting_block_daa_score,
                     has_sufficient_depth,
-                ))
+                )
             }
-            Err(_) => Err(ResolverError::Connectivity),
+            Err(TondiError::TransactionNotFound(_)) => WitnessStatus::Archived,
+            Err(_) => return Err(ResolverError::Connectivity),
+        };
+        if !matches!(status, WitnessStatus::Archived) {
+            return Ok(status);
         }
+
+        self.resolve_bridge_tx_status_async(&client, txid).await
     }
 
     async fn resolve_utxos_async(
@@ -327,23 +344,28 @@ impl Resolver for TondiResolver {
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
         let mut utxos = Vec::new();
+        let client = match self.rpc_client().await {
+            Ok(client) => client,
+            Err(err) => return vec![Err(err)].into_iter(),
+        };
 
         for (terminal, spk) in iter {
-            let address = match Address::with(&spk, self.network) {
-                Ok(addr) => addr.to_string(),
-                Err(_) => {
-                    utxos.push(Err(ResolverError::Protocol));
+            let address = match bp_script_pubkey_address(self.network, &spk) {
+                Ok(addr) => addr,
+                Err(err) => {
+                    utxos.push(Err(err));
                     continue;
                 }
             };
 
-            match self.client.get_utxos_by_address(&address).await {
-                Err(_) => utxos.push(Err(ResolverError::Connectivity)),
+            match client.get_utxos_by_address(&address).await {
+                Err(err) => {
+                    let _ = err;
+                    utxos.push(Err(ResolverError::Connectivity));
+                }
                 Ok(list) => {
                     utxos.extend(list.into_iter().map(|utxo_entry| {
-                        let txid = Txid::from_byte_array(
-                            utxo_entry.outpoint.transaction_id.to_byte_array(),
-                        );
+                        let txid = bp_txid_from_tondi_txid(utxo_entry.outpoint.transaction_id)?;
                         Ok(Utxo {
                             outpoint: Outpoint::new(
                                 txid,
@@ -360,9 +382,14 @@ impl Resolver for TondiResolver {
         utxos.into_iter()
     }
 
+    async fn check_utxo_async(&self, outpoint: Outpoint) -> Result<Option<Utxo>, ResolverError> {
+        self.check_utxo(outpoint).await
+    }
+
     async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
         // In Tondi/Kaspa DAG, we use DAA score instead of block height
-        match self.client.get_block_dag_info().await {
+        let client = self.rpc_client().await?;
+        match client.get_block_dag_info().await {
             Ok(info) => Ok(info.virtual_daa_score),
             Err(_) => Err(ResolverError::Connectivity),
         }
@@ -372,11 +399,80 @@ impl Resolver for TondiResolver {
         // Convert BP transaction to Tondi transaction
         // Note: This is a simplified conversion - full implementation would need proper mapping
         let tondi_tx = convert_bp_to_tondi_tx(tx)?;
+        let client = self.rpc_client().await?;
 
-        match self.client.submit_transaction(tondi_tx, false).await {
-            Ok(_) => Ok(()),
-            Err(_) => Err(ResolverError::Connectivity),
+        match client.submit_transaction(tondi_tx, false).await {
+            Ok(submitted_txid) => {
+                if bp_txid_from_tondi_txid(submitted_txid)? != tx.txid() {
+                    return Err(ResolverError::Protocol);
+                }
+                Ok(())
+            }
+            Err(err) => Err(err.into()),
         }
+    }
+}
+
+impl TondiResolver {
+    async fn resolve_bridge_tx_status_async(
+        &self,
+        client: &TondiClient,
+        txid: Txid,
+    ) -> Result<WitnessStatus, ResolverError> {
+        let dag_info = client
+            .get_block_dag_info()
+            .await
+            .map_err(|_| ResolverError::Connectivity)?;
+        let replay = client
+            .replay_virtual_chain_from_checkpoint(dag_info.pruning_point_hash, true)
+            .await
+            .map_err(|_| ResolverError::Connectivity)?;
+
+        for accepted in replay.chain.accepted_transaction_ids {
+            for accepted_txid in accepted.accepted_transaction_ids {
+                let Ok(tondi_tx) = client.get_transaction(accepted_txid).await else {
+                    continue;
+                };
+                let Ok(bp_tx) = tondi_tx.to_bp_tx() else {
+                    continue;
+                };
+                if bp_tx.txid() != txid {
+                    continue;
+                }
+
+                let accepting_block_daa_score = match accepted.accepting_block_daa_score {
+                    Some(daa_score) => daa_score,
+                    None => {
+                        client
+                            .get_block(accepted.accepting_block_hash, false)
+                            .await
+                            .map_err(|_| ResolverError::Connectivity)?
+                            .header
+                            .daa_score
+                    }
+                };
+                let accepted_status = tondi::TxStatus {
+                    accepted: true,
+                    in_mempool: false,
+                    removed: false,
+                    accepting_block_hash: Some(accepted.accepting_block_hash),
+                    accepting_block_daa_score: Some(accepting_block_daa_score),
+                    block_time: None,
+                };
+                let has_sufficient_depth = self
+                    .check_blue_score_depth(&accepted_status, replay.dag_info.virtual_daa_score)
+                    .await;
+                return Ok(convert_status(
+                    true,
+                    false,
+                    false,
+                    accepted_status.accepting_block_daa_score,
+                    has_sufficient_depth,
+                ));
+            }
+        }
+
+        Ok(WitnessStatus::Archived)
     }
 }
 
@@ -386,10 +482,7 @@ impl Resolver for TondiResolver {
 /// must arrive here with Tondi P2MR roots in every output script and final
 /// Tondi unlock data in `sig_script`; witness and payload must be empty.
 fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverError> {
-    use tondi::{
-        ScriptPublicKey, TondiOutpoint, TondiTransaction, TondiTxInput, TondiTxOutput,
-        TONDI_P2MR_SCRIPT_VERSION,
-    };
+    use tondi::{ScriptPublicKey, TondiOutpoint, TondiTransaction, TondiTxInput, TondiTxOutput};
 
     if !tx.payload.is_empty() {
         return Err(ResolverError::Protocol);
@@ -408,13 +501,11 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
 
             Ok(TondiTxInput::Standard {
                 previous_outpoint: TondiOutpoint {
-                    transaction_id: amplify::Bytes32::from_byte_array(
-                        input.prev_output.txid.to_byte_array(),
-                    ),
+                    transaction_id: tondi_txid_from_bp_txid(input.prev_output.txid)?,
                     index: input.prev_output.vout.to_u32(),
                 },
                 signature_script,
-                sequence: input.sequence.to_consensus_u32() as u64,
+                sequence: tondi_wire_sequence(input.sequence.to_consensus_u32()),
                 sig_op_count,
             })
         })
@@ -425,7 +516,7 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
         .iter()
         .map(|output| {
             let script_public_key = ScriptPublicKey {
-                version: TONDI_P2MR_SCRIPT_VERSION,
+                version: output.script_pubkey_version,
                 script: output.script_pubkey.to_vec(),
             };
             script_public_key
@@ -457,6 +548,50 @@ fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverEr
     Ok(transaction)
 }
 
+fn tondi_wire_sequence(sequence: u32) -> u64 {
+    if sequence == u32::MAX {
+        u64::MAX
+    } else {
+        sequence as u64
+    }
+}
+
+fn tondi_txid_from_bp_txid(txid: Txid) -> Result<amplify::Bytes32, ResolverError> {
+    txid.to_string()
+        .parse::<amplify::Bytes32>()
+        .map_err(|_| ResolverError::Protocol)
+}
+
+fn bp_txid_from_tondi_txid(txid: amplify::Bytes32) -> Result<Txid, ResolverError> {
+    txid.to_string()
+        .parse::<Txid>()
+        .map_err(|_| ResolverError::Protocol)
+}
+
+fn bp_script_pubkey_address(
+    network: AddressNetwork,
+    spk: &ScriptPubkey,
+) -> Result<String, ResolverError> {
+    if spk.as_slice().len() == 32 {
+        return encode_p2mr_for_address_network(network, spk.as_slice())
+            .map_err(|_| ResolverError::Protocol);
+    }
+    Address::with(spk, network)
+        .map(|addr| addr.to_string())
+        .map_err(|_| ResolverError::Protocol)
+}
+
+fn tondi_script_public_key_address(
+    network: AddressNetwork,
+    script_public_key: &tondi::ScriptPublicKey,
+) -> Result<String, ResolverError> {
+    script_public_key
+        .validate_p2mr_root()
+        .map_err(|_| ResolverError::Protocol)?;
+    encode_p2mr_for_address_network(network, &script_public_key.script)
+        .map_err(|_| ResolverError::Protocol)
+}
+
 impl From<TondiError> for ResolverError {
     fn from(err: TondiError) -> Self {
         match err {
@@ -468,7 +603,63 @@ impl From<TondiError> for ResolverError {
                 ResolverError::Protocol
             }
             TondiError::NodeNotSynced | TondiError::UtxoIndexNotEnabled => ResolverError::Logic,
+            TondiError::RpcCall(message) | TondiError::InvalidNativeTransaction(message) => {
+                ResolverError::ServerSide(message)
+            }
             _ => ResolverError::Connectivity,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tondi_status_mapping_distinguishes_archived_from_mempool() {
+        assert_eq!(convert_status(false, true, false, None, false), WitnessStatus::Tentative);
+        assert_eq!(convert_status(false, false, false, None, false), WitnessStatus::Archived);
+        assert_eq!(convert_status(false, false, true, None, false), WitnessStatus::Archived);
+    }
+
+    #[test]
+    fn tondi_status_mapping_requires_sufficient_depth_for_mined() {
+        assert_eq!(convert_status(true, false, false, Some(42), false), WitnessStatus::Tentative);
+        assert_eq!(
+            convert_status(true, false, false, Some(42), true),
+            WitnessStatus::Mined(NonZeroU64::new(42).unwrap())
+        );
+    }
+
+    #[test]
+    fn p2mr_address_helpers_match_for_bp_and_tondi_scripts() {
+        let root = [0x11u8; 32];
+        let bp_script = ScriptPubkey::from_checked(root.to_vec());
+        let tondi_script = tondi::ScriptPublicKey {
+            version: tondi::TONDI_P2MR_SCRIPT_VERSION,
+            script: root.to_vec(),
+        };
+
+        let bp_address = bp_script_pubkey_address(AddressNetwork::TondiDevnet, &bp_script).unwrap();
+        let tondi_address =
+            tondi_script_public_key_address(AddressNetwork::TondiDevnet, &tondi_script).unwrap();
+
+        assert_eq!(bp_address, tondi_address);
+        assert!(bp_address.starts_with("tondidev:"));
+    }
+
+    #[test]
+    fn p2mr_address_helpers_reject_zero_roots() {
+        let zero_root = [0u8; 32];
+        let bp_script = ScriptPubkey::from_checked(zero_root.to_vec());
+        let tondi_script = tondi::ScriptPublicKey {
+            version: tondi::TONDI_P2MR_SCRIPT_VERSION,
+            script: zero_root.to_vec(),
+        };
+
+        assert!(bp_script_pubkey_address(AddressNetwork::TondiDevnet, &bp_script).is_err());
+        assert!(
+            tondi_script_public_key_address(AddressNetwork::TondiDevnet, &tondi_script).is_err()
+        );
     }
 }

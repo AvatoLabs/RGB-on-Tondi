@@ -48,9 +48,7 @@ pub type KeyData = ByteStr;
 pub struct ValueData(ByteStr);
 
 impl From<Vec<u8>> for ValueData {
-    fn from(vec: Vec<u8>) -> Self {
-        ByteStr::from(vec).into()
-    }
+    fn from(vec: Vec<u8>) -> Self { ByteStr::from(vec).into() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
@@ -222,12 +220,8 @@ pub trait KeyMap: Sized {
     #[doc(hidden)]
     fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
 
-    fn has_proprietary(&self, key: &PropKey) -> bool {
-        self.proprietary(key).is_some()
-    }
-    fn proprietary(&self, key: &PropKey) -> Option<&ValueData> {
-        self._proprietary_map().get(key)
-    }
+    fn has_proprietary(&self, key: &PropKey) -> bool { self.proprietary(key).is_some() }
+    fn proprietary(&self, key: &PropKey) -> Option<&ValueData> { self._proprietary_map().get(key) }
     fn proprietary_mut(&mut self, key: &PropKey) -> Option<&mut ValueData> {
         self._proprietary_map_mut().get_mut(key)
     }
@@ -320,12 +314,8 @@ impl KeyMap for Pstt {
     type Keys = GlobalKey;
     const PROPRIETARY_TYPE: Self::Keys = GlobalKey::Proprietary;
 
-    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> {
-        &self.proprietary
-    }
-    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> {
-        &self.unknown
-    }
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
     fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> {
         &mut self.proprietary
     }
@@ -413,12 +403,8 @@ impl KeyMap for Input {
     type Keys = InputKey;
     const PROPRIETARY_TYPE: Self::Keys = InputKey::Proprietary;
 
-    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> {
-        &self.proprietary
-    }
-    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> {
-        &self.unknown
-    }
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
     fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> {
         &mut self.proprietary
     }
@@ -603,16 +589,12 @@ impl KeyMap for Output {
     type Keys = OutputKey;
     const PROPRIETARY_TYPE: Self::Keys = OutputKey::Proprietary;
 
-    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> {
-        &self.proprietary
-    }
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
     fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> {
         &mut self.proprietary
     }
 
-    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> {
-        &self.unknown
-    }
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
     fn _unknown_map_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
         &mut self.unknown
     }

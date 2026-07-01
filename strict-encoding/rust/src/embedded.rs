@@ -68,9 +68,7 @@ macro_rules! encode_num {
     ($ty:ty, $id:ident) => {
         impl $crate::StrictType for $ty {
             const STRICT_LIB_NAME: &'static str = $crate::LIB_EMBEDDED;
-            fn strict_name() -> Option<TypeName> {
-                Some(tn!(stringify!($id)))
-            }
+            fn strict_name() -> Option<TypeName> { Some(tn!(stringify!($id))) }
         }
         impl $crate::StrictEncode for $ty {
             fn strict_encode<W: TypedWrite>(&self, mut writer: W) -> io::Result<W> {
@@ -99,9 +97,7 @@ macro_rules! encode_nonzero {
     ($ty:ty, $p:ty, $id:ident) => {
         impl $crate::StrictType for $ty {
             const STRICT_LIB_NAME: &'static str = $crate::LIB_EMBEDDED;
-            fn strict_name() -> Option<TypeName> {
-                Some(tn!(stringify!($id)))
-            }
+            fn strict_name() -> Option<TypeName> { Some(tn!(stringify!($id))) }
         }
         impl $crate::StrictEncode for $ty {
             fn strict_encode<W: TypedWrite>(&self, mut writer: W) -> io::Result<W> {
@@ -128,9 +124,7 @@ macro_rules! encode_float {
         #[cfg(feature = "float")]
         impl $crate::StrictType for $ty {
             const STRICT_LIB_NAME: &'static str = $crate::LIB_EMBEDDED;
-            fn strict_name() -> Option<TypeName> {
-                Some(tn!(stringify!($id)))
-            }
+            fn strict_name() -> Option<TypeName> { Some(tn!(stringify!($id))) }
         }
         #[cfg(feature = "float")]
         impl $crate::StrictEncode for $ty {
@@ -194,45 +188,37 @@ encode_float!(ieee::Quad, 16, F128);
 encode_float!(ieee::Oct, 32, F256);
 
 impl<T> StrictType for Box<T>
-where
-    T: StrictType,
+where T: StrictType
 {
     const STRICT_LIB_NAME: &'static str = T::STRICT_LIB_NAME;
 }
 impl<T> StrictSum for Box<T>
-where
-    T: StrictSum,
+where T: StrictSum
 {
     const ALL_VARIANTS: &'static [(u8, &'static str)] = T::ALL_VARIANTS;
-    fn variant_name(&self) -> &'static str {
-        self.as_ref().variant_name()
-    }
+    fn variant_name(&self) -> &'static str { self.as_ref().variant_name() }
 }
 impl<T> StrictProduct for Box<T> where T: Default + StrictProduct {}
 impl<T> StrictUnion for Box<T> where T: Default + StrictUnion {}
 impl<T> StrictTuple for Box<T>
-where
-    T: Default + StrictTuple,
+where T: Default + StrictTuple
 {
     const FIELD_COUNT: u8 = T::FIELD_COUNT;
 }
 impl<T> StrictStruct for Box<T>
-where
-    T: Default + StrictStruct,
+where T: Default + StrictStruct
 {
     const ALL_FIELDS: &'static [&'static str] = T::ALL_FIELDS;
 }
 impl<T> StrictEncode for Box<T>
-where
-    T: StrictEncode,
+where T: StrictEncode
 {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> {
         self.as_ref().strict_encode(writer)
     }
 }
 impl<T> StrictDecode for Box<T>
-where
-    T: StrictDecode,
+where T: StrictDecode
 {
     fn strict_decode(reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
         T::strict_decode(reader).map(Box::new)
@@ -240,17 +226,13 @@ where
 }
 
 impl<T> StrictType for Option<T>
-where
-    T: StrictType,
+where T: StrictType
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<T> StrictSum for Option<T>
-where
-    T: StrictType,
+where T: StrictType
 {
     const ALL_VARIANTS: &'static [(u8, &'static str)] = &[(0u8, "none"), (1u8, "some")];
     fn variant_name(&self) -> &'static str {
@@ -286,9 +268,7 @@ impl<T: StrictDecode> StrictDecode for Option<T> {
 
 impl StrictType for () {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl StrictEncode for () {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> {
@@ -296,16 +276,12 @@ impl StrictEncode for () {
     }
 }
 impl StrictDecode for () {
-    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
-        Ok(())
-    }
+    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> { Ok(()) }
 }
 
 impl<A: StrictType, B: StrictType> StrictType for (A, B) {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<A: StrictType + Default, B: StrictType + Default> StrictProduct for (A, B) {}
 impl<A: StrictType + Default, B: StrictType + Default> StrictTuple for (A, B) {
@@ -328,9 +304,7 @@ impl<A: StrictDecode + Default, B: StrictDecode + Default> StrictDecode for (A, 
 
 impl<A: StrictType, B: StrictType, C: StrictType> StrictType for (A, B, C) {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<A: StrictType + Default, B: StrictType + Default, C: StrictType + Default> StrictProduct
     for (A, B, C)
@@ -365,9 +339,7 @@ impl<A: StrictDecode + Default, B: StrictDecode + Default, C: StrictDecode + Def
 
 impl<T: StrictType + Copy + StrictDumb, const LEN: usize> StrictType for [T; LEN] {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<T: StrictEncode + Copy + StrictDumb, const LEN: usize> StrictEncode for [T; LEN] {
     fn strict_encode<W: TypedWrite>(&self, mut writer: W) -> io::Result<W> {
@@ -397,9 +369,7 @@ impl<T: StrictType + StrictDumb + Copy, const LEN: usize, const REVERSE_STR: boo
     for Array<T, LEN, REVERSE_STR>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<T: StrictEncode + StrictDumb + Copy, const LEN: usize, const REVERSE_STR: bool> StrictEncode
     for Array<T, LEN, REVERSE_STR>
@@ -418,9 +388,7 @@ impl<T: StrictDecode + StrictDumb + Copy, const LEN: usize, const REVERSE_STR: b
 
 impl<const MIN_LEN: usize, const MAX_LEN: usize> StrictType for Confined<String, MIN_LEN, MAX_LEN> {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<const MIN_LEN: usize, const MAX_LEN: usize> StrictEncode
     for Confined<String, MIN_LEN, MAX_LEN>
@@ -447,9 +415,7 @@ impl<const MIN_LEN: usize, const MAX_LEN: usize> StrictType
     for Confined<AsciiString, MIN_LEN, MAX_LEN>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<const MIN_LEN: usize, const MAX_LEN: usize> StrictEncode
     for Confined<AsciiString, MIN_LEN, MAX_LEN>
@@ -479,9 +445,7 @@ impl<C1: RestrictedCharSet, C: RestrictedCharSet, const MIN_LEN: usize, const MA
     StrictType for RString<C1, C, MIN_LEN, MAX_LEN>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<C1: RestrictedCharSet, C: RestrictedCharSet, const MIN_LEN: usize, const MAX_LEN: usize>
     StrictDumb for RString<C1, C, MIN_LEN, MAX_LEN>
@@ -524,9 +488,7 @@ impl<T: StrictType, const MIN_LEN: usize, const MAX_LEN: usize> StrictType
     for Confined<Vec<T>, MIN_LEN, MAX_LEN>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<T: StrictEncode + StrictDumb, const MIN_LEN: usize, const MAX_LEN: usize> StrictEncode
     for Confined<Vec<T>, MIN_LEN, MAX_LEN>
@@ -561,9 +523,7 @@ impl<T: StrictType, const MIN_LEN: usize, const MAX_LEN: usize> StrictType
     for Confined<VecDeque<T>, MIN_LEN, MAX_LEN>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<T: StrictEncode + StrictDumb, const MIN_LEN: usize, const MAX_LEN: usize> StrictEncode
     for Confined<VecDeque<T>, MIN_LEN, MAX_LEN>
@@ -598,9 +558,7 @@ impl<T: StrictType + Ord, const MIN_LEN: usize, const MAX_LEN: usize> StrictType
     for Confined<BTreeSet<T>, MIN_LEN, MAX_LEN>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<T: StrictEncode + Ord + StrictDumb, const MIN_LEN: usize, const MAX_LEN: usize> StrictEncode
     for Confined<BTreeSet<T>, MIN_LEN, MAX_LEN>
@@ -637,9 +595,7 @@ impl<K: StrictType + Ord + Hash, V: StrictType, const MIN_LEN: usize, const MAX_
     StrictType for Confined<BTreeMap<K, V>, MIN_LEN, MAX_LEN>
 {
     const STRICT_LIB_NAME: &'static str = LIB_EMBEDDED;
-    fn strict_name() -> Option<TypeName> {
-        None
-    }
+    fn strict_name() -> Option<TypeName> { None }
 }
 impl<
         K: StrictEncode + Ord + Hash + StrictDumb,

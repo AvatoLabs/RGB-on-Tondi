@@ -36,9 +36,7 @@ pub const LIB_ID_BP_CONSENSUS: &str =
     "stl:htmUXr0Z-~ohcA7N-vxkQMgn-kprfcpj-8~ziNKJ-Hn2wmL8#process-poem-cobalt";
 
 #[allow(clippy::result_large_err)]
-fn _bp_tx_stl() -> Result<TypeLib, CompileError> {
-    _bp_consensus_stl()
-}
+fn _bp_tx_stl() -> Result<TypeLib, CompileError> { _bp_consensus_stl() }
 
 #[allow(clippy::result_large_err)]
 fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {

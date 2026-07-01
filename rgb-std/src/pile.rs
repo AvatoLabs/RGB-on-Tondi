@@ -76,21 +76,11 @@ impl WitnessStatus {
     const OFFCHAIN: u64 = u64::MAX ^ 0x02;
     const ARCHIVED: u64 = u64::MAX;
 
-    pub fn is_mined(&self) -> bool {
-        matches!(self, Self::Mined(_))
-    }
-    pub fn is_valid(&self) -> bool {
-        !matches!(self, Self::Archived)
-    }
-    pub fn is_tentative(&self) -> bool {
-        matches!(self, Self::Tentative)
-    }
-    pub fn is_archived(&self) -> bool {
-        matches!(self, Self::Archived)
-    }
-    pub fn is_offchain(&self) -> bool {
-        matches!(self, Self::Offchain)
-    }
+    pub fn is_mined(&self) -> bool { matches!(self, Self::Mined(_)) }
+    pub fn is_valid(&self) -> bool { !matches!(self, Self::Archived) }
+    pub fn is_tentative(&self) -> bool { matches!(self, Self::Tentative) }
+    pub fn is_archived(&self) -> bool { matches!(self, Self::Archived) }
+    pub fn is_offchain(&self) -> bool { matches!(self, Self::Offchain) }
 
     fn quasi_height(&self) -> u64 {
         match self {
@@ -107,9 +97,7 @@ impl WitnessStatus {
         self.quasi_height() < other.quasi_height()
     }
 
-    pub fn is_worse(self, other: Self) -> bool {
-        !self.is_better(other)
-    }
+    pub fn is_worse(self, other: Self) -> bool { !self.is_better(other) }
 
     pub fn best(self, other: Self) -> Self {
         if self.is_better(other) {
@@ -195,8 +183,7 @@ pub trait Pile {
     ///
     /// This call MAY perform I/O operations.
     fn new(conf: Self::Conf) -> Result<Self, Self::Error>
-    where
-        Self: Sized;
+    where Self: Sized;
 
     /// Loads a contract from persistence using the provided configuration.
     ///
@@ -208,8 +195,7 @@ pub trait Pile {
     ///
     /// This call MAY perform I/O operations.
     fn load(conf: Self::Conf) -> Result<Self, Self::Error>
-    where
-        Self: Sized;
+    where Self: Sized;
 
     fn pub_witness(
         &self,
@@ -299,10 +285,9 @@ mod tests {
             WitnessStatus::Genesis,
             [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].into()
         );
-        assert_eq!(
-            <[u8; 8]>::from(WitnessStatus::Genesis),
-            [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
-        );
+        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [
+            0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+        ]);
     }
 
     #[test]

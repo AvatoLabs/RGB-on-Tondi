@@ -122,16 +122,12 @@ impl TapretRightBranch {
     /// Returns hash of the left-side child node of the branch (having smaller
     /// hash value).
     #[inline]
-    pub fn left_node_hash(self) -> TapNodeHash {
-        self.left_node_hash
-    }
+    pub fn left_node_hash(self) -> TapNodeHash { self.left_node_hash }
 
     /// Returns hash of the right-side child node of the branch (having smaller
     /// hash value).
     #[inline]
-    pub fn right_node_hash(self) -> TapNodeHash {
-        self.right_node_hash
-    }
+    pub fn right_node_hash(self) -> TapNodeHash { self.right_node_hash }
 
     /// Computes node hash of the partner node defined by this proof.
     pub fn node_hash(&self) -> TapNodeHash {

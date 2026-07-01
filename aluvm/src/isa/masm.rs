@@ -28,6 +28,8 @@
 ///
 /// ```
 /// ##![cfg_attr(coverage_nightly, feature(coverage_attribute), coverage(off))]
+/// extern crate alloc;
+///
 /// use aluvm::isa::Instr;
 /// use aluvm::regs::Status;
 /// use aluvm::{aluasm, Lib, LibId, LibSite, Vm};

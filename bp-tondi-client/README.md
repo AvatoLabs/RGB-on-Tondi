@@ -13,8 +13,11 @@ Tondi RGB uses native P2MR outputs and BLAKE3 transaction IDs.
 - **Native Tondi RPC API**: Direct integration with Tondi's gRPC and wRPC protocols
 - **UTXO queries**: Query UTXOs by address for wallet operations
 - **Transaction submission**: Submit transactions to the Tondi mempool
+- **Transaction status**: Query accepted, mempool, removed, or unknown status
+  through Tondi `GetTransactionStatus`
+- **Reorg recovery**: Replay paginated virtual-chain deltas from a persisted
+  sink checkpoint, with an explicit pruning-point fallback for full rescans
 - **Block and DAG queries**: Access block data and DAG information
-- **Real-time notifications**: Subscribe to blockchain events via WebSocket
 - **RGB/BP compatibility**: Type conversions for seamless integration with RGB stack
 
 ## Usage

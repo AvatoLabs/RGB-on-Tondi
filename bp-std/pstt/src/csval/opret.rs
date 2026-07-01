@@ -214,7 +214,5 @@ impl Output {
 }
 
 impl From<&OpretProof> for ValueData {
-    fn from(_: &OpretProof) -> Self {
-        ValueData::default()
-    }
+    fn from(_: &OpretProof) -> Self { ValueData::default() }
 }

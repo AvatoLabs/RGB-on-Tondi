@@ -23,9 +23,9 @@
 // the License.
 
 use core::ops::{Deref, DerefMut};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use amplify::confinement::KeyedCollection;
+use amplify::confinement::{self, KeyedCollection};
 use amplify::MultiError;
 use bpstd::pstt::{
     ConstructionError, KeyMap, MmbPsttError, MpcPsttError, PsttConstructor, PsttMeta, TxParams,
@@ -90,9 +90,7 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    fn from(wallet: RgbWallet<W, Sp, S, C>) -> Self {
-        Self(wallet)
-    }
+    fn from(wallet: RgbWallet<W, Sp, S, C>) -> Self { Self(wallet) }
 }
 
 impl<W, Sp, S, C> Deref for RgbRuntime<W, Sp, S, C>
@@ -104,9 +102,7 @@ where
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     type Target = RgbWallet<W, Sp, S, C>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 impl<W, Sp, S, C> DerefMut for RgbRuntime<W, Sp, S, C>
 where
@@ -116,9 +112,7 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
@@ -132,12 +126,8 @@ where
     pub fn with_components(wallet: W, contracts: Contracts<Sp, S, C>) -> Self {
         Self(RgbWallet::with_components(wallet, contracts))
     }
-    pub fn into_rgb_wallet(self) -> RgbWallet<W, Sp, S, C> {
-        self.0
-    }
-    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) {
-        self.0.into_components()
-    }
+    pub fn into_rgb_wallet(self) -> RgbWallet<W, Sp, S, C> { self.0 }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { self.0.into_components() }
 }
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
@@ -176,6 +166,74 @@ where
             RgbBeneficiary::Token(auth) => auth,
         };
         payment.terminals.insert(terminal);
+        Ok((pstt, payment))
+    }
+
+    /// Pay multiple same-contract invoices with one RGB operation and one PSTT.
+    ///
+    /// This is the production path for same-contract MIMO transfers: one aggregate coinselection,
+    /// multiple receiver assignments, and one RGB change assignment.
+    #[allow(clippy::type_complexity)]
+    pub fn pay_same_contract_invoices(
+        &mut self,
+        invoices: &[RgbInvoice<ContractId>],
+        strategy: impl Coinselect,
+        params: TxParams,
+        giveaway: Option<Sats>,
+    ) -> Result<(Pstt, Payment), MultiError<PayError, <Sp::Stock as Stock>::Error>> {
+        let (request, terminals) = self
+            .fulfill_same_contract(invoices, strategy, giveaway)
+            .map_err(MultiError::from_a)?;
+        let script = OpRequestSet::with(request);
+        let (pstt, mut payment) = self
+            .transfer(script, params)
+            .map_err(MultiError::from_other_a)?;
+        payment.terminals.extend(terminals);
+        Ok((pstt, payment))
+    }
+
+    /// Pay invoices across one or more contracts with one payment script and one PSTT.
+    ///
+    /// Invoices are grouped by contract. Each contract still produces a single aggregate RGB
+    /// operation, preserving the same-contract MIMO invariant and avoiding independent
+    /// coinselection over the same owned RGB state.
+    #[allow(clippy::type_complexity)]
+    pub fn pay_invoices(
+        &mut self,
+        invoices: &[RgbInvoice<ContractId>],
+        strategy: CoinselectStrategy,
+        params: TxParams,
+        giveaway: Option<Sats>,
+    ) -> Result<(Pstt, Payment), MultiError<PayError, <Sp::Stock as Stock>::Error>> {
+        if invoices.is_empty() {
+            return Err(MultiError::A(PayError::Fulfill(FulfillError::InvoiceSetEmpty)));
+        }
+
+        let mut by_contract = BTreeMap::<ContractId, Vec<RgbInvoice<ContractId>>>::new();
+        for invoice in invoices {
+            by_contract
+                .entry(invoice.scope)
+                .or_default()
+                .push(invoice.clone());
+        }
+
+        let mut requests = Vec::with_capacity(by_contract.len());
+        let mut terminals = BTreeSet::new();
+        for contract_invoices in by_contract.into_values() {
+            let (request, contract_terminals) = self
+                .fulfill_same_contract(&contract_invoices, strategy, giveaway)
+                .map_err(MultiError::from_a)?;
+            requests.push(request);
+            terminals.extend(contract_terminals);
+        }
+
+        let script = OpRequestSet::try_from_iter(requests)
+            .map_err(PayError::from)
+            .map_err(MultiError::from_a)?;
+        let (pstt, mut payment) = self
+            .transfer(script, params)
+            .map_err(MultiError::from_other_a)?;
+        payment.terminals.extend(terminals);
         Ok((pstt, payment))
     }
 
@@ -328,7 +386,9 @@ where
             .find(|out| out.proprietary(&key).is_some())
             .ok_or_else(|| {
                 TransferError::P2mrAnchor(
-                    "RGB transfer requires a Tondi P2MR change/anchor output carrying the original pubkey".to_string(),
+                    "RGB transfer requires a Tondi P2MR change/anchor output carrying the \
+                     original pubkey"
+                        .to_string(),
                 )
             })?;
         let original_pubkey = output
@@ -400,6 +460,8 @@ pub enum PayError {
     Fulfill(FulfillError),
     #[from]
     Transfer(TransferError),
+    #[from]
+    PaymentScript(confinement::Error),
 }
 
 #[derive(Debug, Display, Error, From)]

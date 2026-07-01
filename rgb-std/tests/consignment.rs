@@ -19,7 +19,7 @@ use rgb_persist_fs::StockpileDir;
 use crate::utils::setup;
 
 #[test]
-#[should_panic(expected = "codex id for the merged articles doesn't match")]
+#[should_panic(expected = "single-use seals are not closed properly with witness")]
 fn export_import_contract() {
     let contract = setup("Consign");
 

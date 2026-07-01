@@ -48,9 +48,7 @@ impl StrictSerialize for ProofOfReserves {}
 impl StrictDeserialize for ProofOfReserves {}
 
 impl ProofOfReserves {
-    pub fn new(utxo: Outpoint, proof: SmallBlob) -> ProofOfReserves {
-        ProofOfReserves { utxo, proof }
-    }
+    pub fn new(utxo: Outpoint, proof: SmallBlob) -> ProofOfReserves { ProofOfReserves { utxo, proof } }
 
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let utxo = value.unwrap_struct("utxo");

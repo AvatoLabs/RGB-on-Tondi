@@ -22,25 +22,42 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+extern crate alloc;
+
 use std::convert::Infallible;
 use std::fs;
 use std::fs::File;
+use std::io::{self, Read};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use aluvm::{aluasm, Lib};
+use amplify::confinement::{SmallOrdSet, U24 as U24MAX};
+use amplify::hex::{FromHex, ToHex};
+use amplify::ByteArray;
 use anyhow::Context;
+use binfile::BinFile;
 use bpstd::pstt::{PsttConstructor, TxParams};
-use bpstd::{ConsensusEncode, Outpoint, Pstt, PsttVer, XpubDerivable};
+use bpstd::{
+    secp256k1, tondi_tapleaf_hash_from_tapscript, ConsensusEncode, Idx, NormalIndex, Outpoint,
+    Pstt, PsttVer, SigScript, Terminal, Tx, TxOut, XprivAccount, XpubDerivable,
+};
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{PaymentScript, PrefabBundle, WalletProvider};
-use rgb::{CallScope, Consensus, CreateParams, Issuer};
+use rgb::{
+    CallScope, Codex, Consensus, CreateParams, Issuer, Semantics, SigBlob, ISSUER_MAGIC_NUMBER,
+    ISSUER_VERSION,
+};
 use rgbp::descriptors::RgbDescr;
-use rgbp::ContractInfo;
-use rgbp::FileHolder;
+use rgbp::{ContractInfo, FileHolder};
+use sha2::{Digest, Sha256};
+use strict_encoding::{StreamReader, StrictDecode};
 use strict_types::StrictVal;
 
 use crate::args::Args;
 use crate::cmd::Cmd;
-use crate::opts::WalletOpts;
+use crate::http_server::HttpServerConfig;
+use crate::opts::{WalletOpts, DEFAULT_TONDI};
 
 impl Args {
     pub fn exec(&self) -> anyhow::Result<()> {
@@ -98,6 +115,43 @@ impl Args {
                 })?;
             }
 
+            Cmd::DevKeys { seed_hex, mainnet } => {
+                let seed = decode_hex(seed_hex, "seed")?;
+                let account = if *mainnet {
+                    XprivAccount::with_seed(false, &seed).derive(bpstd::h![86, 0, 0])
+                } else {
+                    XprivAccount::with_seed(true, &seed).derive(bpstd::h![86, 1, 0])
+                };
+                let xpub = XpubDerivable::from(account.to_xpub_account());
+                let outer0 =
+                    account.derive_terminal_secret_key(Terminal::new(0u8, NormalIndex::ZERO));
+                let inner0 =
+                    account.derive_terminal_secret_key(Terminal::change(NormalIndex::ZERO));
+
+                println!("xpriv={account}");
+                println!("xpub={xpub}");
+                println!("outer0_tondi_p2mr_secret_key={}", outer0.secret_bytes().to_hex());
+                println!("inner0_tondi_p2mr_secret_key={}", inner0.secret_bytes().to_hex());
+            }
+
+            Cmd::DevIssuer { source, force, output } => {
+                let source = source.clone().unwrap_or_else(default_dev_issuer_source);
+                let issuer = load_or_repair_dev_issuer(&source).with_context(|| {
+                    format!("unable to generate development issuer from '{}'", source.display())
+                })?;
+                if output.exists() {
+                    anyhow::ensure!(
+                        *force,
+                        "issuer output '{}' already exists; pass --force to overwrite it",
+                        output.display()
+                    );
+                    fs::remove_file(output)?;
+                }
+                issuer.save(output)?;
+                println!("issuer_file={}", output.display());
+                println!("codex_id={}", issuer.codex_id());
+            }
+
             Cmd::Sync { wallet, resolver } => {
                 let mut runtime = self.runtime(&WalletOpts::with(wallet, resolver));
 
@@ -121,6 +175,21 @@ impl Args {
                 for utxo in runtime.wallet.utxos() {
                     println!("{utxo}");
                 }
+            }
+
+            Cmd::ServeHttp { bind } => {
+                let config = HttpServerConfig {
+                    data_dir: self.data_dir(),
+                    network: self.network,
+                    min_confirmations: self.min_confirmations,
+                    tondi_rpc_endpoint: self
+                        .resolver
+                        .tondi
+                        .clone()
+                        .unwrap_or_else(|| DEFAULT_TONDI.to_owned()),
+                };
+                let rt = tokio::runtime::Runtime::new().expect("Unable to create tokio runtime");
+                rt.block_on(async { crate::http_server::serve(*bind, config).await })?;
             }
 
             // =====================================================================================
@@ -387,6 +456,11 @@ impl Args {
                     invoice = invoice.use_method(method.clone());
                 }
                 if let Some(state) = state {
+                    anyhow::ensure!(
+                        method.is_some(),
+                        "--state requires --method; pass the RGB API method that owns the \
+                         invoiced state"
+                    );
                     invoice = invoice.use_state(state.clone());
                 }
 
@@ -427,6 +501,14 @@ impl Args {
                     pstt.version = ver;
                     println!("{pstt}");
                 }
+                let bundle_filename = consignment_path.with_extension("bundle");
+                if *force {
+                    let _ = fs::remove_file(&bundle_filename);
+                }
+                payment
+                    .bundle
+                    .save(&bundle_filename)
+                    .context("Unable to write prefabricated RGB operation bundle")?;
                 if *force {
                     let _ = fs::remove_file(consignment_path);
                 }
@@ -505,15 +587,20 @@ impl Args {
                     .context("Unable to consign the contract")?;
             }
 
-            Cmd::Finalize { broadcast, wallet, pstt: pstt_filename, tx: tx_filename } => {
+            Cmd::Finalize {
+                broadcast,
+                wallet,
+                tondi_p2mr_secret_key,
+                pstt: pstt_filename,
+                tx: tx_filename,
+            } => {
                 let mut runtime = self.runtime(wallet);
                 let mut pstt_file = File::open(pstt_filename).context("Unable to open PSTT")?;
                 let mut pstt = Pstt::decode(&mut pstt_file)?;
 
-                for input in pstt.inputs_mut() {
-                    if input.final_script_sig.is_none() {
-                        input.final_script_sig = Some(Default::default());
-                    }
+                if let Some(secret_key) = tondi_p2mr_secret_key {
+                    let signed = sign_tondi_p2mr_inputs(&mut pstt, secret_key)?;
+                    eprintln!("{signed} Tondi P2MR inputs signed");
                 }
 
                 let inputs = pstt.finalize(runtime.wallet.descriptor());
@@ -555,6 +642,7 @@ impl Args {
                     let rt =
                         tokio::runtime::Runtime::new().expect("Unable to create tokio runtime");
                     rt.block_on(async { runtime.wallet.broadcast_async(&extracted, None).await })?;
+                    println!("Broadcast transaction ID: {}", extracted.txid());
                 }
             }
 
@@ -566,5 +654,447 @@ impl Args {
             }
         }
         Ok(())
+    }
+}
+
+fn default_dev_issuer_source() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../rgb-std/tests/data/Test.issuer")
+}
+
+fn load_or_repair_dev_issuer(path: &Path) -> anyhow::Result<Issuer> {
+    if let Ok(issuer) = Issuer::load(path, |_, _, _| Result::<_, Infallible>::Ok(())) {
+        return Ok(issuer);
+    }
+
+    let file = BinFile::<ISSUER_MAGIC_NUMBER, ISSUER_VERSION>::open(path)?;
+    let mut reader = StreamReader::new::<U24MAX>(file);
+    let mut codex = Codex::strict_read(&mut reader)?;
+    let mut semantics = Semantics::strict_read(&mut reader)?;
+
+    let verifier = Lib::assemble(&aluasm! { stop; })?;
+    let verifier_id = verifier.lib_id();
+    for site in codex.verifiers.values_mut() {
+        site.lib_id = verifier_id;
+        site.offset = 0;
+    }
+
+    let codex_id = codex.codex_id();
+    semantics.default.codex_id = codex_id;
+    for api in semantics.custom.values_mut() {
+        api.codex_id = codex_id;
+    }
+    semantics.codex_libs =
+        SmallOrdSet::try_from_iter(semantics.codex_libs.iter().cloned().chain([verifier]))?;
+
+    let _sig = Option::<SigBlob>::strict_read(&mut reader)?;
+    match reader.unconfine().read_exact(&mut [0u8; 1]) {
+        Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {}
+        Err(err) => return Err(err.into()),
+        Ok(()) => anyhow::bail!("issuer fixture has trailing data"),
+    }
+
+    Issuer::new(codex, semantics).map_err(Into::into)
+}
+
+const OP_PUSHBYTES_32: u8 = 0x20;
+const OP_CHECKSIG: u8 = 0xac;
+const TONDI_TAPSIGHASH_TAG: &str = "TapSighash";
+const TONDI_TAPROOT_KEY_VERSION_0: u8 = 0;
+const TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF: [u8; 1] = [0xc1];
+
+struct TondiP2mrSigner {
+    keypair: secp256k1::Keypair,
+    leaf_script: Vec<u8>,
+    leaf_hash: bpstd::TapLeafHash,
+    p2mr_root: [u8; 32],
+}
+
+pub(crate) fn sign_tondi_p2mr_inputs(pstt: &mut Pstt, secret_keys: &str) -> anyhow::Result<usize> {
+    let signers = secret_keys
+        .split(',')
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+        .map(tondi_p2mr_signer)
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    anyhow::ensure!(!signers.is_empty(), "at least one Tondi P2MR secret key is required");
+
+    let tx = Tx::from(pstt.to_unsigned_tx());
+    let prevouts = pstt
+        .inputs()
+        .map(|input| input.prev_txout().clone())
+        .collect::<Vec<_>>();
+
+    let mut signed = 0usize;
+    for input in pstt.inputs_mut() {
+        if input.final_script_sig.is_some() {
+            continue;
+        }
+        let prev_script = input.prev_txout().script_pubkey.as_slice();
+        let Some(signer) = signers
+            .iter()
+            .find(|signer| prev_script == signer.p2mr_root.as_slice())
+        else {
+            continue;
+        };
+
+        let sighash = tondi_p2mr_script_sighash(&tx, &prevouts, input.index(), signer.leaf_hash)?;
+        let sig = secp256k1::SECP256K1
+            .sign_schnorr_no_aux_rand(&sighash, &signer.keypair)
+            .to_byte_array();
+        let sig_script = encode_tondi_p2mr_witness_stack([
+            sig.to_vec(),
+            signer.leaf_script.clone(),
+            TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF.to_vec(),
+        ])?;
+
+        input.final_script_sig = Some(SigScript::from_checked(sig_script));
+        input.final_witness = None;
+        signed += 1;
+    }
+
+    Ok(signed)
+}
+
+fn tondi_p2mr_signer(secret_key: &str) -> anyhow::Result<TondiP2mrSigner> {
+    let (secret_key, tweak) = secret_key.split_once(':').unwrap_or((secret_key, ""));
+    let secret_key = decode_secret_key(secret_key)?;
+    let mut secret_key =
+        secp256k1::SecretKey::from_slice(&secret_key).context("invalid Tondi P2MR secret key")?;
+    if !tweak.trim().is_empty() {
+        secret_key = secret_key
+            .add_tweak(&decode_p2mr_tweak(tweak)?)
+            .context("unable to apply RGB P2MR tweak to secret key")?;
+    }
+    let keypair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, &secret_key);
+    let xonly = keypair.public_key().x_only_public_key().0.serialize();
+    let leaf_script = tondi_p2mr_single_key_leaf_script(&xonly);
+    let leaf_hash = tondi_tapleaf_hash_from_tapscript(&leaf_script);
+    Ok(TondiP2mrSigner {
+        keypair,
+        leaf_script,
+        leaf_hash,
+        p2mr_root: leaf_hash.to_byte_array(),
+    })
+}
+
+fn tondi_p2mr_single_key_leaf_script(xonly_public_key: &[u8; 32]) -> Vec<u8> {
+    let mut script = Vec::with_capacity(34);
+    script.push(OP_PUSHBYTES_32);
+    script.extend_from_slice(xonly_public_key);
+    script.push(OP_CHECKSIG);
+    script
+}
+
+fn tondi_p2mr_script_sighash(
+    tx: &Tx,
+    prevouts: &[TxOut],
+    input_index: usize,
+    leaf_hash: bpstd::TapLeafHash,
+) -> anyhow::Result<[u8; 32]> {
+    anyhow::ensure!(
+        tx.inputs.len() == prevouts.len(),
+        "transaction input count ({}) does not match prevout count ({})",
+        tx.inputs.len(),
+        prevouts.len()
+    );
+    anyhow::ensure!(
+        input_index < tx.inputs.len(),
+        "input index {input_index} is out of bounds for {} inputs",
+        tx.inputs.len()
+    );
+
+    let mut preimage = Vec::new();
+
+    // Tondi follows BIP341 TapSighash framing for P2MR script spends.
+    preimage.push(0);
+    preimage.push(0);
+    append_le_u16(&mut preimage, tx.version.to_consensus_u16());
+    append_le_u64(&mut preimage, tx.lock_time.to_consensus_u64());
+
+    preimage.extend_from_slice(&sha256_digest(&encode_tondi_prevouts(tx)?));
+    preimage.extend_from_slice(&sha256_digest(&encode_tondi_prevout_amounts(prevouts)));
+    preimage.extend_from_slice(&sha256_digest(&encode_tondi_prevout_script_pubkeys(prevouts)?));
+    preimage.extend_from_slice(&sha256_digest(&encode_tondi_sequences(tx)));
+    preimage.extend_from_slice(&sha256_digest(&encode_tondi_outputs(tx)?));
+
+    preimage.push(2);
+    append_le_u32(&mut preimage, u32::try_from(input_index).context("input index exceeds u32")?);
+    preimage.extend_from_slice(&leaf_hash.to_byte_array());
+    preimage.push(TONDI_TAPROOT_KEY_VERSION_0);
+    append_le_u32(&mut preimage, u32::MAX);
+
+    Ok(sha256_tagged_hash(TONDI_TAPSIGHASH_TAG, &preimage))
+}
+
+fn encode_tondi_prevouts(tx: &Tx) -> anyhow::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    for input in tx.inputs.iter() {
+        let txid = input
+            .prev_output
+            .txid
+            .to_string()
+            .parse::<amplify::Bytes32>()
+            .context("invalid Tondi transaction id in PSTT input")?;
+        bytes.extend_from_slice(&txid.to_byte_array());
+        append_le_u32(&mut bytes, input.prev_output.vout.to_u32());
+    }
+    Ok(bytes)
+}
+
+fn encode_tondi_prevout_amounts(prevouts: &[TxOut]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for prevout in prevouts {
+        append_le_u64(&mut bytes, prevout.value.sats());
+    }
+    bytes
+}
+
+fn encode_tondi_prevout_script_pubkeys(prevouts: &[TxOut]) -> anyhow::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    for prevout in prevouts {
+        append_tondi_script_public_key(
+            &mut bytes,
+            prevout.script_pubkey_version,
+            prevout.script_pubkey.as_slice(),
+        )?;
+    }
+    Ok(bytes)
+}
+
+fn encode_tondi_sequences(tx: &Tx) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for input in tx.inputs.iter() {
+        append_le_u64(&mut bytes, tondi_wire_sequence(input.sequence.to_consensus_u32()));
+    }
+    bytes
+}
+
+fn tondi_wire_sequence(sequence: u32) -> u64 {
+    if sequence == u32::MAX {
+        u64::MAX
+    } else {
+        sequence as u64
+    }
+}
+
+fn encode_tondi_outputs(tx: &Tx) -> anyhow::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    for output in tx.outputs.iter() {
+        append_le_u64(&mut bytes, output.value.sats());
+        append_tondi_script_public_key(
+            &mut bytes,
+            output.script_pubkey_version,
+            output.script_pubkey.as_slice(),
+        )?;
+    }
+    Ok(bytes)
+}
+
+fn append_tondi_script_public_key(
+    bytes: &mut Vec<u8>,
+    script_pubkey_version: u16,
+    script: &[u8],
+) -> anyhow::Result<()> {
+    append_le_u16(bytes, script_pubkey_version);
+    append_compact_size(bytes, script.len(), "Tondi script public key length")?;
+    bytes.extend_from_slice(script);
+    Ok(())
+}
+
+fn sha256_digest(payload: &[u8]) -> [u8; 32] { Sha256::digest(payload).into() }
+
+fn sha256_tagged_hash(tag: &str, payload: &[u8]) -> [u8; 32] {
+    let tag_hash = Sha256::digest(tag.as_bytes());
+    let mut hasher = Sha256::new();
+    hasher.update(tag_hash);
+    hasher.update(tag_hash);
+    hasher.update(payload);
+    hasher.finalize().into()
+}
+
+fn append_compact_size(bytes: &mut Vec<u8>, len: usize, what: &str) -> anyhow::Result<()> {
+    let len = u64::try_from(len).with_context(|| format!("{what} exceeds u64"))?;
+    match len {
+        0..=0xFC => bytes.push(len as u8),
+        0xFD..=0xFFFF => {
+            bytes.push(0xFD);
+            append_le_u16(bytes, len as u16);
+        }
+        0x10000..=0xFFFF_FFFF => {
+            bytes.push(0xFE);
+            append_le_u32(bytes, len as u32);
+        }
+        _ => {
+            bytes.push(0xFF);
+            append_le_u64(bytes, len);
+        }
+    }
+    Ok(())
+}
+
+fn append_le_u16(bytes: &mut Vec<u8>, value: u16) { bytes.extend_from_slice(&value.to_le_bytes()); }
+
+fn append_le_u32(bytes: &mut Vec<u8>, value: u32) { bytes.extend_from_slice(&value.to_le_bytes()); }
+
+fn append_le_u64(bytes: &mut Vec<u8>, value: u64) { bytes.extend_from_slice(&value.to_le_bytes()); }
+
+fn encode_tondi_p2mr_witness_stack(
+    stack: impl IntoIterator<Item = Vec<u8>>,
+) -> anyhow::Result<Vec<u8>> {
+    let stack = stack.into_iter().collect::<Vec<_>>();
+    let mut bytes = Vec::new();
+    append_borsh_len(&mut bytes, stack.len(), "witness stack item count")?;
+    for item in stack {
+        append_borsh_len(&mut bytes, item.len(), "witness stack item length")?;
+        bytes.extend_from_slice(&item);
+    }
+    Ok(bytes)
+}
+
+fn append_borsh_len(bytes: &mut Vec<u8>, len: usize, what: &str) -> anyhow::Result<()> {
+    let len = u32::try_from(len).with_context(|| format!("{what} exceeds u32"))?;
+    bytes.extend_from_slice(&len.to_le_bytes());
+    Ok(())
+}
+
+fn decode_secret_key(value: &str) -> anyhow::Result<[u8; 32]> {
+    let bytes = decode_hex(value, "Tondi P2MR secret key")?;
+    anyhow::ensure!(
+        bytes.len() == 32,
+        "Tondi P2MR secret key must be 32 bytes, got {}",
+        bytes.len()
+    );
+    let mut secret_key = [0u8; 32];
+    secret_key.copy_from_slice(&bytes);
+    Ok(secret_key)
+}
+
+fn decode_p2mr_tweak(value: &str) -> anyhow::Result<secp256k1::Scalar> {
+    let bytes = decode_hex(value, "RGB P2MR tweak")?;
+    anyhow::ensure!(bytes.len() == 32, "RGB P2MR tweak must be 32 bytes, got {}", bytes.len());
+    let mut tweak = [0u8; 32];
+    tweak.copy_from_slice(&bytes);
+    secp256k1::Scalar::from_be_bytes(tweak).map_err(|_| anyhow::anyhow!("invalid RGB P2MR tweak"))
+}
+
+fn decode_hex(value: &str, what: &str) -> anyhow::Result<Vec<u8>> {
+    let value = value.trim().trim_start_matches("0x");
+    Vec::<u8>::from_hex(value).with_context(|| format!("invalid {what} hex"))
+}
+
+#[cfg(test)]
+mod tests {
+    use bpstd::pstt::{Prevout, UnsignedTx};
+    use bpstd::{
+        Derive, Keychain, LockTime, Sats, ScriptPubkey, SeqNo, TxOut, TxVer, Txid, VarIntArray,
+        VarIntBytes, Vout, TONDI_P2MR_SCRIPT_VERSION,
+    };
+
+    use super::*;
+
+    #[test]
+    fn signer_finalizes_matching_tondi_p2mr_input() {
+        let seed = [9u8; 64];
+        let account = XprivAccount::with_seed(true, &seed).derive(bpstd::h![86, 1, 0]);
+        let descriptor =
+            RgbDescr::p2mr_unfunded(XpubDerivable::from(account.to_xpub_account()), [0u8; 32]);
+        let terminal = Terminal::new(0u8, NormalIndex::ZERO);
+        let input_script = descriptor
+            .derive(Keychain::OUTER, NormalIndex::ZERO)
+            .next()
+            .expect("P2MR descriptor must derive outer/0")
+            .to_script_pubkey();
+        let input_value = Sats::from_sats(10_000u64);
+        let outpoint = Outpoint::new(Txid::from_byte_array([1u8; 32]), Vout::from_u32(0));
+        let prev_tx = Tx {
+            version: TxVer::V0,
+            inputs: VarIntArray::new(),
+            outputs: VarIntArray::from_checked(vec![TxOut::new(input_script.clone(), input_value)]),
+            lock_time: LockTime::ZERO,
+            subnetwork_id: [0u8; 20],
+            gas: 0,
+            payload: VarIntBytes::new(),
+            mass: 0,
+        };
+
+        let mut pstt = Pstt::create(PsttVer::V2);
+        pstt.append_input_expect(
+            UnsignedTx::from(prev_tx),
+            Prevout::new(outpoint, input_value),
+            &descriptor,
+            terminal,
+            input_script,
+            SeqNo::from_consensus_u32(0),
+        );
+        pstt.append_output_expect(
+            ScriptPubkey::from_checked(vec![2u8; 32]),
+            Sats::from_sats(9_000u64),
+        );
+
+        assert!(!pstt.is_finalized());
+        let secret_key = account.derive_terminal_secret_key(terminal);
+        let signed = sign_tondi_p2mr_inputs(&mut pstt, &secret_key.secret_bytes().to_hex())
+            .expect("sign P2MR input");
+
+        assert_eq!(signed, 1);
+        assert!(pstt.is_finalized());
+        let stack = decode_tondi_p2mr_witness_stack(
+            pstt.input(0)
+                .expect("input exists")
+                .final_script_sig
+                .as_ref()
+                .expect("input signed")
+                .as_slice(),
+        );
+        assert_eq!(stack.len(), 3);
+        assert_eq!(stack[0].len(), 64);
+        assert_eq!(
+            stack[1],
+            tondi_p2mr_single_key_leaf_script(&stack[1][1..33].try_into().unwrap())
+        );
+        assert_eq!(stack[2], TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF);
+
+        let tx = Tx::from(pstt.to_unsigned_tx());
+        let prevouts = pstt
+            .inputs()
+            .map(|input| input.prev_txout().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(prevouts[0].script_pubkey_version, TONDI_P2MR_SCRIPT_VERSION);
+        assert_eq!(tx.outputs[0].script_pubkey_version, TONDI_P2MR_SCRIPT_VERSION);
+        let sighash = tondi_p2mr_script_sighash(
+            &tx,
+            &prevouts,
+            0,
+            tondi_tapleaf_hash_from_tapscript(&stack[1]),
+        )
+        .expect("compute sighash");
+        let signature = secp256k1::schnorr::Signature::from_byte_array(
+            stack[0].clone().try_into().expect("64-byte signature"),
+        );
+        let public_key =
+            secp256k1::XOnlyPublicKey::from_slice(&stack[1][1..33]).expect("x-only public key");
+        secp256k1::SECP256K1
+            .verify_schnorr(&signature, &sighash, &public_key)
+            .expect("signature verifies against Tondi P2MR sighash");
+        assert!(pstt.extract().is_ok());
+    }
+
+    fn decode_tondi_p2mr_witness_stack(mut bytes: &[u8]) -> Vec<Vec<u8>> {
+        let count = take_u32(&mut bytes) as usize;
+        let mut stack = Vec::with_capacity(count);
+        for _ in 0..count {
+            let len = take_u32(&mut bytes) as usize;
+            let item = bytes[..len].to_vec();
+            bytes = &bytes[len..];
+            stack.push(item);
+        }
+        assert!(bytes.is_empty(), "witness stack has trailing bytes");
+        stack
+    }
+
+    fn take_u32(bytes: &mut &[u8]) -> u32 {
+        let (head, tail) = bytes.split_at(4);
+        *bytes = tail;
+        u32::from_le_bytes(head.try_into().expect("u32 bytes"))
     }
 }

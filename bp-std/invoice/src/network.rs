@@ -55,9 +55,7 @@ pub enum Network {
 impl Network {
     /// Detects whether the network is a kind of test network (testnet, simnet,
     /// devnet).
-    pub fn is_testnet(self) -> bool {
-        self != Self::Mainnet
-    }
+    pub fn is_testnet(self) -> bool { self != Self::Mainnet }
 
     /// Returns the genesis block hash for the network.
     pub const fn genesis_hash(self) -> BlockHash {

@@ -68,7 +68,7 @@ RGB_WALLET=<receiver-wallet> rgb --data-dir <receiver-store> --network testnet -
 Receiver creates an invoice using an unspent P2MR authority token:
 
 ```bash
-RGB_WALLET=<receiver-wallet> rgb --data-dir <receiver-store> --network testnet --tondi=<grpc-endpoint> invoice --nonce 0 <contract> <state-name> <amount>
+RGB_WALLET=<receiver-wallet> rgb --data-dir <receiver-store> --network testnet --tondi=<grpc-endpoint> invoice --nonce 0 --api <api-name> --method transfer --state <state-name> <contract> <amount>
 ```
 
 Sender pays the invoice:
@@ -113,3 +113,42 @@ Run full local/devnet validation:
 ```bash
 TONDI_DEVNET_RPC=<grpc-endpoint> bash scripts/devnet_p2mr_rgb_verify.sh
 ```
+
+Run the self-contained local proof with a patched sibling Tondi checkout:
+
+```bash
+TONDI_REPO=../Tondi scripts/local_devnet_full_workflow.sh
+```
+
+This starts a local Tondi devnet with `--utxoindex`, funds Alice and Bob through
+a real signed P2MR faucet transaction, mines the funding transaction, broadcasts
+the RGB transfer, and requires the final broadcast transaction to reach
+`accepted` through Tondi `GetTransactionStatus`.
+
+For a manual acceptance-gated run against an already running local devnet:
+
+```bash
+AUTO_BROADCAST=1 \
+REQUIRE_BROADCAST_ACCEPTED=1 \
+MIN_CONFIRMATIONS=1 \
+./test_full_workflow.sh
+```
+
+## Production Chain-State Recovery
+
+The resolver treats accepted-with-depth transactions as mined and mempool or
+orphan transactions as tentative. Retained known transactions reported as
+`removed`, plus absent or pruned transactions, are archived.
+
+Wallet services must persist the last applied Tondi sink hash. On restart or
+disconnect recovery, call `TondiClient::replay_virtual_chain_from_checkpoint`
+with accepted transaction IDs enabled, apply removed-chain and added-chain
+deltas in order, then persist `next_checkpoint`. The helper paginates
+`GetVirtualChainFromBlock`, so long-running devnet and production scans do not
+silently stop at the first RPC batch.
+
+If the checkpoint has fallen outside node retention, replay restarts from the
+current pruning point and returns `PruningPointFallback`. Treat that as a
+mandatory full local wallet/RGB rescan. This keeps reorg handling in the
+general Tondi chain-state/RPC layer and avoids adding RGB-specific consensus
+logic.

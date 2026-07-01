@@ -27,8 +27,7 @@ use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 #[strict_type(lib = dbc::LIB_NAME_BPCORE, tags = custom, dumb = Self::Tondi(strict_dumb!()))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub enum Bp<T>
-where
-    T: StrictDumb + StrictEncode + StrictDecode,
+where T: StrictDumb + StrictEncode + StrictDecode
 {
     /// Deprecated proof-of-work chain slot.
     ///
@@ -52,17 +51,11 @@ where
 
 impl<T: StrictDumb + StrictEncode + StrictDecode> Bp<T> {
     /// Detects if the variant matches the deprecated proof-of-work slot.
-    pub fn is_legacy_pow(&self) -> bool {
-        matches!(self, Bp::LegacyPow(_))
-    }
+    pub fn is_legacy_pow(&self) -> bool { matches!(self, Bp::LegacyPow(_)) }
     /// Detects if the variant matches the deprecated federated slot.
-    pub fn is_legacy_federation(&self) -> bool {
-        matches!(self, Bp::LegacyFederation(_))
-    }
+    pub fn is_legacy_federation(&self) -> bool { matches!(self, Bp::LegacyFederation(_)) }
     /// Detects if the variant matches Tondi blockchain.
-    pub fn is_tondi(&self) -> bool {
-        matches!(self, Bp::Tondi(_))
-    }
+    pub fn is_tondi(&self) -> bool { matches!(self, Bp::Tondi(_)) }
     /// Returns deprecated proof-of-work slot as an optional.
     pub fn as_legacy_pow(&self) -> Option<&T> {
         match self {
@@ -146,8 +139,9 @@ impl<T: StrictDumb + StrictEncode + StrictDecode> Bp<T> {
 mod test {
     #![cfg_attr(coverage_nightly, coverage(off))]
 
-    use super::*;
     use strict_encoding::{StrictDecode, StrictEncode, StrictType};
+
+    use super::*;
 
     #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, StrictType, StrictEncode, StrictDecode)]
     #[strict_type(lib = dbc::LIB_NAME_BPCORE)]

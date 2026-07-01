@@ -39,8 +39,7 @@ pub enum VerifyError {
 
 /// Trait for commit-verify scheme.
 pub trait CommitVerify<Msg, Protocol: CommitmentProtocol>
-where
-    Self: Eq + Sized,
+where Self: Eq + Sized
 {
     // We use `Protocol` as a generic parameter, and not as an associated type
     // to allow downstream to implement the trait on foreign types.
@@ -61,8 +60,7 @@ where
 
 /// Trait for a failable version of commit-verify scheme.
 pub trait TryCommitVerify<Msg, Protocol: CommitmentProtocol>
-where
-    Self: Eq + Sized,
+where Self: Eq + Sized
 {
     /// Error type that may be reported during [`TryCommitVerify::try_commit`].
     type Error: std::error::Error;

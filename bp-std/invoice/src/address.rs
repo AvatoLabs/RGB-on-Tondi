@@ -125,19 +125,13 @@ impl Address {
     }
 
     /// Returns script corresponding to the given address.
-    pub fn script_pubkey(self) -> ScriptPubkey {
-        self.payload.script_pubkey()
-    }
+    pub fn script_pubkey(self) -> ScriptPubkey { self.payload.script_pubkey() }
 
     /// Returns if the address is testnet-, signet- or regtest-specific.
-    pub fn is_testnet(self) -> bool {
-        self.network != AddressNetwork::Mainnet
-    }
+    pub fn is_testnet(self) -> bool { self.network != AddressNetwork::Mainnet }
 
     /// Detects address type.
-    pub fn address_type(self) -> AddressType {
-        self.payload.address_type()
-    }
+    pub fn address_type(self) -> AddressType { self.payload.address_type() }
 }
 
 impl Display for Address {
@@ -437,9 +431,7 @@ impl AddressPayload {
 }
 
 impl From<AddressPayload> for ScriptPubkey {
-    fn from(ap: AddressPayload) -> Self {
-        ap.script_pubkey()
-    }
+    fn from(ap: AddressPayload) -> Self { ap.script_pubkey() }
 }
 
 /// Address type
@@ -490,9 +482,7 @@ impl AddressType {
     }
 
     /// Returns whether this is a Tondi-specific address type.
-    pub fn is_tondi(self) -> bool {
-        matches!(self, AddressType::P2cr | AddressType::P2crv)
-    }
+    pub fn is_tondi(self) -> bool { matches!(self, AddressType::P2cr | AddressType::P2crv) }
 
     /// Returns whether this is a legacy address type.
     pub fn is_legacy(self) -> bool {
@@ -553,9 +543,7 @@ pub enum AddressNetwork {
 impl AddressNetwork {
     /// Detects whether the network is a kind of test network (testnet, signet,
     /// regtest, or Tondi test networks).
-    pub fn is_testnet(self) -> bool {
-        !matches!(self, Self::Mainnet | Self::TondiMainnet)
-    }
+    pub fn is_testnet(self) -> bool { !matches!(self, Self::Mainnet | Self::TondiMainnet) }
 
     /// Detects whether this is a Tondi network.
     pub fn is_tondi(self) -> bool {
@@ -566,9 +554,7 @@ impl AddressNetwork {
     }
 
     /// Detects whether this is a legacy network.
-    pub fn is_legacy(self) -> bool {
-        matches!(self, Self::Mainnet | Self::Testnet | Self::Regtest)
-    }
+    pub fn is_legacy(self) -> bool { matches!(self, Self::Mainnet | Self::Testnet | Self::Regtest) }
 
     /// Returns the bech32/bech32m human-readable part for this network.
     pub fn bech32_hrp(self) -> &'static str {
@@ -610,18 +596,14 @@ mod _serde {
 
     impl Serialize for Address {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
+        where S: Serializer {
             serializer.serialize_str(&self.to_string())
         }
     }
 
     impl<'de> Deserialize<'de> for Address {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
+        where D: Deserializer<'de> {
             let s = String::deserialize(deserializer)?;
             Address::from_str(&s).map_err(|err| {
                 de::Error::custom(format!(

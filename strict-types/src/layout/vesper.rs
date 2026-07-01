@@ -141,9 +141,7 @@ pub struct LenRange(Range<u64>);
 
 impl From<Sizing> for LenRange {
     #[inline]
-    fn from(sizing: Sizing) -> Self {
-        Self(sizing.min..sizing.max)
-    }
+    fn from(sizing: Sizing) -> Self { Self(sizing.min..sizing.max) }
 }
 
 impl Display for LenRange {

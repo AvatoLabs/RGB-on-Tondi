@@ -26,6 +26,8 @@
 ///
 /// ```
 /// ##![cfg_attr(coverage_nightly, feature(coverage_attribute), coverage(off))]
+/// extern crate alloc;
+///
 /// use aluvm::regs::Status;
 /// use aluvm::{Lib, LibId, LibSite, Vm};
 /// use zkaluvm::gfa::Instr;

@@ -38,9 +38,9 @@ use crate::{
 };
 
 pub const LIB_ID_STD: &str =
-    "stl:gonrTQ8L-cFSvdEs-F6MHXnS-MDplxjy-8_lZ5j5-_lY8MWo#delete-roman-hair";
+    "stl:nnbz_oCr-A26nbqr-4o5mdyM-FT8PCpD-bOUZ~yM-d2TJD94#sister-triton-cricket";
 pub const LIB_ID_STRICT_TYPES: &str =
-    "stl:6Z6S5ztA-l3_RfoW-uOIW~K0-04t7R_3-KIiByhE-1W4rPFA#henry-heart-survive";
+    "stl:Be~3JGxn-rEteh9t-55J6PQp-VUiN9FM-ddFfE2w-k7AzCdA#claudia-bambino-organic";
 
 fn _std_sym() -> Result<SymbolicLib, TranspileError> {
     LibBuilder::with(libname!(LIB_NAME_STD), None)
@@ -78,17 +78,11 @@ fn _std_sym() -> Result<SymbolicLib, TranspileError> {
         .compile_symbols()
 }
 
-fn _std_stl() -> Result<TypeLib, CompileError> {
-    _std_sym()?.compile()
-}
+fn _std_stl() -> Result<TypeLib, CompileError> { _std_sym()?.compile() }
 
-pub fn std_sym() -> SymbolicLib {
-    _std_sym().expect("invalid strict type Std library")
-}
+pub fn std_sym() -> SymbolicLib { _std_sym().expect("invalid strict type Std library") }
 
-pub fn std_stl() -> TypeLib {
-    _std_stl().expect("invalid strict type Std library")
-}
+pub fn std_stl() -> TypeLib { _std_stl().expect("invalid strict type Std library") }
 
 fn _strict_types_sym() -> Result<SymbolicLib, TranspileError> {
     LibBuilder::with(libname!(STRICT_TYPES_LIB), [std_stl().to_dependency_types()])
@@ -105,9 +99,7 @@ fn _strict_types_sym() -> Result<SymbolicLib, TranspileError> {
         .transpile::<MemoryLayout>()
         .compile_symbols()
 }
-fn _strict_types_stl() -> Result<TypeLib, CompileError> {
-    _strict_types_sym()?.compile()
-}
+fn _strict_types_stl() -> Result<TypeLib, CompileError> { _strict_types_sym()?.compile() }
 
 pub fn strict_types_sym() -> SymbolicLib {
     _strict_types_sym().expect("invalid strict type StrictTypes library")

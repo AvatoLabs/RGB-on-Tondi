@@ -32,7 +32,5 @@ pub struct NonStandardValue<T: Debug + Display> {
 }
 
 impl<T: Debug + Display> NonStandardValue<T> {
-    pub const fn with(value: T, matter: &'static str) -> Self {
-        NonStandardValue { value, matter }
-    }
+    pub const fn with(value: T, matter: &'static str) -> Self { NonStandardValue { value, matter } }
 }

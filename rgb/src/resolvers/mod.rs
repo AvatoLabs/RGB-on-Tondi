@@ -33,6 +33,8 @@ use std::process::exit;
 
 use amplify::IoError;
 use bpstd::pstt::Utxo;
+#[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+use bpstd::AddressNetwork;
 use bpstd::{ScriptPubkey, Terminal, Tx, Txid, UnsignedTx};
 use rgb::WitnessStatus;
 
@@ -49,6 +51,8 @@ pub trait Resolver {
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>>;
 
+    fn check_utxo(&self, outpoint: bpstd::Outpoint) -> Result<Option<Utxo>, ResolverError>;
+
     fn last_block_height(&self) -> Result<u64, ResolverError>;
 
     fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError>;
@@ -63,6 +67,11 @@ pub trait Resolver {
         &self,
         iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
     ) -> impl Iterator<Item = Result<Utxo, ResolverError>>;
+
+    async fn check_utxo_async(
+        &self,
+        outpoint: bpstd::Outpoint,
+    ) -> Result<Option<Utxo>, ResolverError>;
 
     async fn last_block_height_async(&self) -> Result<u64, ResolverError>;
 
@@ -97,12 +106,8 @@ impl NoResolver {
 
 #[cfg(not(feature = "async"))]
 impl Resolver for NoResolver {
-    fn resolve_tx(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
-        self.call()
-    }
-    fn resolve_tx_status(&self, _txid: Txid) -> Result<WitnessStatus, ResolverError> {
-        self.call()
-    }
+    fn resolve_tx(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> { self.call() }
+    fn resolve_tx_status(&self, _txid: Txid) -> Result<WitnessStatus, ResolverError> { self.call() }
     fn resolve_utxos(
         &self,
         _iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
@@ -111,12 +116,11 @@ impl Resolver for NoResolver {
         #[allow(unreachable_code)]
         iter::empty()
     }
-    fn last_block_height(&self) -> Result<u64, ResolverError> {
+    fn check_utxo(&self, _outpoint: bpstd::Outpoint) -> Result<Option<Utxo>, ResolverError> {
         self.call()
     }
-    fn broadcast(&self, _tx: &Tx) -> Result<(), ResolverError> {
-        self.call()
-    }
+    fn last_block_height(&self) -> Result<u64, ResolverError> { self.call() }
+    fn broadcast(&self, _tx: &Tx) -> Result<(), ResolverError> { self.call() }
 }
 
 #[cfg(feature = "async")]
@@ -135,27 +139,42 @@ impl Resolver for NoResolver {
         #[allow(unreachable_code)]
         iter::empty()
     }
-    async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
+    async fn check_utxo_async(
+        &self,
+        _outpoint: bpstd::Outpoint,
+    ) -> Result<Option<Utxo>, ResolverError> {
         self.call()
     }
-    async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> {
-        self.call()
-    }
+    async fn last_block_height_async(&self) -> Result<u64, ResolverError> { self.call() }
+    async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> { self.call() }
 }
 
 impl MultiResolver {
     /// Create a new Tondi resolver (async)
     #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
-    pub async fn new_tondi(endpoint: &str) -> Result<Self, ResolverError> {
+    pub async fn new_tondi(endpoint: &str, network: AddressNetwork) -> Result<Self, ResolverError> {
+        Self::new_tondi_with_min_blue_score_depth(endpoint, network, 10).await
+    }
+
+    /// Create a new Tondi resolver (async) with a caller-selected DAA depth.
+    #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+    pub async fn new_tondi_with_min_blue_score_depth(
+        endpoint: &str,
+        network: AddressNetwork,
+        min_blue_score_depth: u64,
+    ) -> Result<Self, ResolverError> {
         Ok(Self {
-            tondi: Some(TondiResolver::new(endpoint).await?),
+            tondi: Some(
+                TondiResolver::new(endpoint)
+                    .await?
+                    .with_network(network)
+                    .with_min_blue_score_depth(min_blue_score_depth),
+            ),
             ..default!()
         })
     }
 
-    pub fn new_absent() -> Result<Self, ResolverError> {
-        Ok(Self::default())
-    }
+    pub fn new_absent() -> Result<Self, ResolverError> { Ok(Self::default()) }
 }
 
 #[cfg(not(feature = "async"))]
@@ -180,11 +199,15 @@ impl Resolver for MultiResolver {
         vec![].into_iter()
     }
 
-    fn last_block_height(&self) -> Result<u64, ResolverError> {
+    fn check_utxo(&self, outpoint: bpstd::Outpoint) -> Result<Option<Utxo>, ResolverError> {
+        let _ = outpoint;
         NoResolver.call()
     }
 
+    fn last_block_height(&self) -> Result<u64, ResolverError> { NoResolver.call() }
+
     fn broadcast(&self, tx: &Tx) -> Result<(), ResolverError> {
+        let _ = tx;
         #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
         if let Some(resolver) = &self.tondi {
             // Tondi resolver is async-only, so we need to use tokio runtime
@@ -239,6 +262,18 @@ impl Resolver for MultiResolver {
         let _ = iter;
         NoResolver.call();
         vec![].into_iter()
+    }
+
+    async fn check_utxo_async(
+        &self,
+        outpoint: bpstd::Outpoint,
+    ) -> Result<Option<Utxo>, ResolverError> {
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        if let Some(resolver) = &self.tondi {
+            return resolver.check_utxo(outpoint).await;
+        }
+        let _ = outpoint;
+        NoResolver.call()
     }
 
     async fn last_block_height_async(&self) -> Result<u64, ResolverError> {

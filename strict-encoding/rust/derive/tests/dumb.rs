@@ -40,8 +40,7 @@ fn struct_default() -> common::Result {
     #[derive(StrictType)]
     #[strict_type(lib = TEST_LIB)]
     struct Field<V: StrictEncode + StrictDecode>
-    where
-        V: Default,
+    where V: Default
     {
         name: u8,
         value: V,
@@ -143,13 +142,10 @@ fn dumb_struct() -> common::Result {
         }
     }
 
-    assert_eq!(
-        Dumb::strict_dumb(),
-        Dumb {
-            field1: 1,
-            field2: 2
-        }
-    );
+    assert_eq!(Dumb::strict_dumb(), Dumb {
+        field1: 1,
+        field2: 2
+    });
 
     Ok(())
 }

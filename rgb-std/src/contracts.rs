@@ -81,9 +81,7 @@ pub struct WalletState<Seal> {
 }
 
 impl<Seal> Default for WalletState<Seal> {
-    fn default() -> Self {
-        Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} }
-    }
+    fn default() -> Self { Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} } }
 }
 
 impl<Seal> WalletState<Seal> {
@@ -221,13 +219,9 @@ where
         self.persistence.codex_ids()
     }
 
-    pub fn issuers_count(&self) -> usize {
-        self.persistence.issuers_count()
-    }
+    pub fn issuers_count(&self) -> usize { self.persistence.issuers_count() }
 
-    pub fn has_issuer(&self, codex_id: CodexId) -> bool {
-        self.persistence.has_issuer(codex_id)
-    }
+    pub fn has_issuer(&self, codex_id: CodexId) -> bool { self.persistence.has_issuer(codex_id) }
 
     pub fn issuers(&self) -> impl Iterator<Item = (CodexId, Issuer)> + use<'_, Sp, S, C> {
         self.persistence
@@ -244,9 +238,7 @@ where
         self.issuers.borrow().get(&codex_id).cloned()
     }
 
-    pub fn contracts_count(&self) -> usize {
-        self.persistence.contracts_count()
-    }
+    pub fn contracts_count(&self) -> usize { self.persistence.contracts_count() }
 
     pub fn has_contract(&self, contract_id: ContractId) -> bool {
         self.persistence.has_contract(contract_id)
@@ -378,8 +370,12 @@ where
                 |contract| -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {
                     for witness_id in contract.witness_ids() {
                         let old_status = contract.witness_status(witness_id);
-                        if matches!(old_status, WitnessStatus::Mined(height) if last_block_height - height.get() > min_conformations as u64) {
-                            continue
+                        if !witness_status_needs_refresh(
+                            old_status,
+                            last_block_height,
+                            min_conformations,
+                        ) {
+                            continue;
                         }
                         let new_status = match changed_statuses.get(&witness_id) {
                             None => resolver(witness_id)
@@ -422,7 +418,11 @@ where
                 async |contract| -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {
                     for witness_id in contract.witness_ids() {
                         let old_status = contract.witness_status(witness_id);
-                        if matches!(old_status, WitnessStatus::Mined(height) if last_block_height - height.get() > min_conformations as u64) {
+                        if !witness_status_needs_refresh(
+                            old_status,
+                            last_block_height,
+                            min_conformations,
+                        ) {
                             continue
                         }
                         let new_status = match changed_statuses.get(&witness_id) {
@@ -729,6 +729,19 @@ mod _fs {
     }
 }
 
+fn witness_status_needs_refresh(
+    status: WitnessStatus,
+    last_block_height: u64,
+    min_conformations: u32,
+) -> bool {
+    match status {
+        WitnessStatus::Mined(height) => {
+            last_block_height.saturating_sub(height.get()) <= min_conformations as u64
+        }
+        _ => true,
+    }
+}
+
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum SyncError<E: core::error::Error> {
@@ -741,4 +754,33 @@ pub enum SyncError<E: core::error::Error> {
     #[from]
     #[display(inner)]
     Forward(AcceptError),
+}
+
+#[cfg(test)]
+mod tests {
+    use core::num::NonZeroU64;
+
+    use super::*;
+
+    #[test]
+    fn mined_witness_inside_confirmation_window_is_refreshed() {
+        let status = WitnessStatus::Mined(NonZeroU64::new(100).unwrap());
+
+        assert!(witness_status_needs_refresh(status, 132, 32));
+        assert!(!witness_status_needs_refresh(status, 133, 32));
+    }
+
+    #[test]
+    fn mined_witness_ahead_of_current_height_is_refreshed() {
+        let status = WitnessStatus::Mined(NonZeroU64::new(100).unwrap());
+
+        assert!(witness_status_needs_refresh(status, 99, 32));
+        assert!(witness_status_needs_refresh(status, 0, 32));
+    }
+
+    #[test]
+    fn non_mined_witnesses_are_always_refreshed() {
+        assert!(witness_status_needs_refresh(WitnessStatus::Tentative, 1_000, 32));
+        assert!(witness_status_needs_refresh(WitnessStatus::Archived, 1_000, 32));
+    }
 }

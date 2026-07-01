@@ -45,14 +45,10 @@ impl StrictType for Void {
     const STRICT_LIB_NAME: &'static str = LIB;
 }
 impl StrictEncode for Void {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> {
-        Ok(writer)
-    }
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> io::Result<W> { Ok(writer) }
 }
 impl StrictDecode for Void {
-    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
-        Ok(Void)
-    }
+    fn strict_decode(_reader: &mut impl TypedRead) -> Result<Self, DecodeError> { Ok(Void) }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -152,7 +148,7 @@ fn dependency_misses_type() {
 
 #[test]
 #[should_panic(
-    expected = r#"DependencyMissesType(LibName("Std"), SemId(Array<32>(831bcb0c328608f3f9cd16633c16a8e6a52ac31c79a61042be9d864bc9f4a0f7)), TypeName("AlphaLodash"))"#
+    expected = r#"DependencyMissesType(LibName("Std"), SemId(Array<32>(a0d57bf7598242f04302c88954c7eb6aff90bbdfbf2c22264e5f8c34f40c528b)), TypeName("AlphaNumLodash"))"#
 )]
 fn type_lib_missing_type() {
     // construct the original SymbolicSys
@@ -199,7 +195,7 @@ fn type_lib_missing_type() {
 
 #[test]
 #[should_panic(
-    expected = r#"DependencyMissesType(LibName("Std"), SemId(Array<32>(95c3bdc94d0260f9716a113cf6492d5d4e23988e33043005ca36da6d6eee67b4)), TypeName("AlphaNumLodash"))"#
+    expected = r#"DependencyMissesType(LibName("Std"), SemId(Array<32>(a0d57bf7598242f04302c88954c7eb6aff90bbdfbf2c22264e5f8c34f40c528b)), TypeName("AlphaNumLodash"))"#
 )]
 fn type_lib_semid_inconsistency() {
     // construct the original SymbolicSys

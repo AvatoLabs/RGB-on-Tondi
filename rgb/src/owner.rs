@@ -27,7 +27,6 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use amplify::Bytes32;
-use bech32::{ToBase32, Variant};
 use bpstd::pstt::{KeyMap, Pstt, PsttConstructor, Utxo};
 use bpstd::seals::WTxoSeal;
 use bpstd::{
@@ -40,9 +39,8 @@ use rgbdescr::RgbDescr;
 
 use crate::p2mr::p2mr_original_pubkey_key;
 use crate::resolvers::{Resolver, ResolverError};
+use crate::tondi_address::encode_p2mr_for_network;
 use crate::{MemUtxos, UtxoSet};
-
-const TONDI_P2MR_ADDRESS_VERSION: u8 = 216;
 
 pub trait OwnerProvider {
     type Key: DeriveSet<Legacy = Self::Key, Compr = Self::Key, XOnly = Self::Key>
@@ -73,13 +71,9 @@ where
     U: UtxoSet,
 {
     #[inline]
-    pub fn with_components(descriptor: RgbDescr<K>, utxos: U) -> Self {
-        Self { descriptor, utxos }
-    }
+    pub fn with_components(descriptor: RgbDescr<K>, utxos: U) -> Self { Self { descriptor, utxos } }
     #[inline]
-    pub fn into_components(self) -> (RgbDescr<K>, U) {
-        (self.descriptor, self.utxos)
-    }
+    pub fn into_components(self) -> (RgbDescr<K>, U) { (self.descriptor, self.utxos) }
 }
 
 impl<K, U> OwnerProvider for Holder<K, U>
@@ -91,21 +85,13 @@ where
     type UtxoSet = U;
 
     #[inline]
-    fn descriptor(&self) -> &RgbDescr<K> {
-        &self.descriptor
-    }
+    fn descriptor(&self) -> &RgbDescr<K> { &self.descriptor }
     #[inline]
-    fn utxos(&self) -> &U {
-        &self.utxos
-    }
+    fn utxos(&self) -> &U { &self.utxos }
     #[inline]
-    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> {
-        &mut self.descriptor
-    }
+    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> { &mut self.descriptor }
     #[inline]
-    fn utxos_mut(&mut self) -> &mut U {
-        &mut self.utxos
-    }
+    fn utxos_mut(&mut self) -> &mut U { &mut self.utxos }
 }
 
 #[derive(Clone, Default)]
@@ -123,9 +109,7 @@ where
     K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
     U: UtxoSet,
 {
-    pub fn new() -> Self {
-        Self { current: None, holders: none!() }
-    }
+    pub fn new() -> Self { Self { current: None, holders: none!() } }
 
     pub fn with(id: DescrId, holder: Holder<K, U>) -> Self {
         Self { current: Some(id), holders: map! { id => holder } }
@@ -179,21 +163,13 @@ where
     type UtxoSet = U;
 
     #[inline]
-    fn descriptor(&self) -> &RgbDescr<K> {
-        self.current().descriptor()
-    }
+    fn descriptor(&self) -> &RgbDescr<K> { self.current().descriptor() }
     #[inline]
-    fn utxos(&self) -> &U {
-        self.current().utxos()
-    }
+    fn utxos(&self) -> &U { self.current().utxos() }
     #[inline]
-    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> {
-        self.current_mut().descriptor_mut()
-    }
+    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> { self.current_mut().descriptor_mut() }
     #[inline]
-    fn utxos_mut(&mut self) -> &mut U {
-        self.current_mut().utxos_mut()
-    }
+    fn utxos_mut(&mut self) -> &mut U { self.current_mut().utxos_mut() }
 }
 
 /// Owner structure represents a holder of an RGB wallet, which keeps information of the wallet
@@ -223,9 +199,7 @@ where
 {
     type Target = O;
 
-    fn deref(&self) -> &Self::Target {
-        &self.provider
-    }
+    fn deref(&self) -> &Self::Target { &self.provider }
 }
 
 impl<R, O, K, U> DerefMut for Owner<R, O, K, U>
@@ -235,9 +209,7 @@ where
     R: Resolver,
     U: UtxoSet,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.provider
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.provider }
 }
 
 impl<R, O, K, U> Owner<R, O, K, U>
@@ -251,14 +223,10 @@ where
         Self { network, provider, resolver, _phantom: PhantomData }
     }
 
-    pub fn into_components(self) -> (O, R) {
-        (self.provider, self.resolver)
-    }
+    pub fn into_components(self) -> (O, R) { (self.provider, self.resolver) }
 
     #[inline]
-    pub fn network(&self) -> Network {
-        self.network
-    }
+    pub fn network(&self) -> Network { self.network }
 
     pub fn next_tondi_p2mr_address(&mut self) -> Result<String, String> {
         let next = self.next_derivation_index(Keychain::OUTER, true);
@@ -269,35 +237,8 @@ where
             .next()
             .ok_or_else(|| "P2MR descriptor produced no derivation".to_string())?
             .to_script_pubkey();
-        encode_tondi_p2mr_address(self.network, spk.as_slice())
+        encode_p2mr_for_network(self.network, spk.as_slice())
     }
-}
-
-fn encode_tondi_p2mr_address(network: Network, root: &[u8]) -> Result<String, String> {
-    if root.len() != 32 || root.iter().all(|byte| *byte == 0) {
-        return Err(format!(
-            "invalid P2MR root for address: expected non-zero 32 bytes, got {} bytes",
-            root.len()
-        ));
-    }
-
-    let prefix = match network {
-        Network::Mainnet => "tondi",
-        Network::Testnet => "tondi0",
-        Network::Simnet => "tondisim",
-        Network::Devnet => "tondidev",
-    };
-
-    let mut data = Vec::with_capacity(33);
-    data.push(TONDI_P2MR_ADDRESS_VERSION);
-    data.extend_from_slice(root);
-    let encoded = bech32::encode(prefix, data.to_base32(), Variant::Bech32m)
-        .map_err(|err| format!("failed to encode Tondi P2MR address: {err}"))?;
-    let payload = encoded
-        .strip_prefix(prefix)
-        .and_then(|rest| rest.strip_prefix('1'))
-        .ok_or_else(|| "bech32 encoder returned an unexpected address prefix".to_string())?;
-    Ok(format!("{prefix}:{payload}"))
 }
 
 impl<R, O, K, U> WalletProvider for Owner<R, O, K, U>
@@ -309,13 +250,9 @@ where
 {
     type Error = ResolverError;
 
-    fn has_utxo(&self, outpoint: Outpoint) -> bool {
-        self.provider.utxos().has(outpoint)
-    }
+    fn has_utxo(&self, outpoint: Outpoint) -> bool { self.provider.utxos().has(outpoint) }
 
-    fn utxos(&self) -> impl Iterator<Item = Outpoint> {
-        self.provider.utxos().outpoints()
-    }
+    fn utxos(&self) -> impl Iterator<Item = Outpoint> { self.provider.utxos().outpoints() }
 
     #[cfg(not(feature = "async"))]
     fn update_utxos(&mut self) -> Result<(), Self::Error> {
@@ -343,23 +280,46 @@ where
                 }
 
                 let set = self.resolver.resolve_utxos(range);
-                let prev_len = self.provider.utxos().len();
+                let mut found_in_range = false;
                 for utxo in set {
                     let utxo = utxo?;
+                    found_in_range = true;
                     not_found.remove(&utxo.outpoint);
                     if self.provider.utxos().has(utxo.outpoint) {
                         continue;
                     }
                     new.insert(utxo);
                 }
-                let next_len = self.provider.utxos().len();
-                if prev_len == next_len && index > last_index {
+                if should_stop_utxo_scan(found_in_range, index, last_index) {
                     break;
                 }
 
                 index = to;
             }
         }
+        let known_unmatched = known_unmatched_utxos(self.provider.utxos(), &not_found);
+        let mut pending_spent = HashSet::new();
+        for (outpoint, current_value, _) in known_unmatched {
+            match self.resolver.check_utxo(outpoint)? {
+                Some(live) => {
+                    if live.value != current_value {
+                        return Err(ResolverError::Protocol);
+                    }
+                    not_found.remove(&outpoint);
+                }
+                None => {
+                    if self.resolver.resolve_tx_status(outpoint.txid)? == WitnessStatus::Tentative {
+                        if let Some(tx) = self.resolver.resolve_tx(outpoint.txid)? {
+                            let tx = Tx::from(tx);
+                            pending_spent.extend(tx.inputs.iter().map(|input| input.prev_output));
+                        }
+                        not_found.remove(&outpoint);
+                    }
+                }
+            }
+        }
+
+        new.retain(|utxo| !pending_spent.contains(&utxo.outpoint));
         self.provider.utxos_mut().remove_all(not_found);
         self.provider.utxos_mut().insert_all(new);
         Ok(())
@@ -390,31 +350,54 @@ where
                 }
 
                 let set = self.resolver.resolve_utxos_async(range).await;
-                let prev_len = self.provider.utxos().len();
+                let mut found_in_range = false;
                 for utxo in set {
                     let utxo = utxo?;
+                    found_in_range = true;
                     not_found.remove(&utxo.outpoint);
                     if self.provider.utxos().has(utxo.outpoint) {
                         continue;
                     }
                     new.insert(utxo);
                 }
-                let next_len = self.provider.utxos().len();
-                if prev_len == next_len && index > last_index {
+                if should_stop_utxo_scan(found_in_range, index, last_index) {
                     break;
                 }
 
                 index = to;
             }
         }
+        let known_unmatched = known_unmatched_utxos(self.provider.utxos(), &not_found);
+        let mut pending_spent = HashSet::new();
+        for (outpoint, current_value, _) in known_unmatched {
+            match self.resolver.check_utxo_async(outpoint).await? {
+                Some(live) => {
+                    if live.value != current_value {
+                        return Err(ResolverError::Protocol);
+                    }
+                    not_found.remove(&outpoint);
+                }
+                None => {
+                    if self.resolver.resolve_tx_status_async(outpoint.txid).await?
+                        == WitnessStatus::Tentative
+                    {
+                        if let Some(tx) = self.resolver.resolve_tx_async(outpoint.txid).await? {
+                            let tx = Tx::from(tx);
+                            pending_spent.extend(tx.inputs.iter().map(|input| input.prev_output));
+                        }
+                        not_found.remove(&outpoint);
+                    }
+                }
+            }
+        }
+
+        new.retain(|utxo| !pending_spent.contains(&utxo.outpoint));
         self.provider.utxos_mut().remove_all_async(not_found).await;
         self.provider.utxos_mut().insert_all_async(new).await;
         Ok(())
     }
 
-    fn register_seal(&mut self, seal: WTxoSeal) {
-        self.provider.descriptor_mut().add_seal(seal);
-    }
+    fn register_seal(&mut self, seal: WTxoSeal) { self.provider.descriptor_mut().add_seal(seal); }
 
     fn resolve_seals(
         &self,
@@ -428,13 +411,9 @@ where
         })
     }
 
-    fn noise_seed(&self) -> Bytes32 {
-        self.provider.descriptor().noise()
-    }
+    fn noise_seed(&self) -> Bytes32 { self.provider.descriptor().noise() }
 
-    fn next_nonce(&mut self) -> u64 {
-        self.provider.descriptor_mut().next_nonce()
-    }
+    fn next_nonce(&mut self) -> u64 { self.provider.descriptor_mut().next_nonce() }
 
     #[cfg(not(feature = "async"))]
     fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error> {
@@ -447,9 +426,7 @@ where
     }
 
     #[cfg(not(feature = "async"))]
-    fn last_block_height(&self) -> Result<u64, Self::Error> {
-        self.resolver.last_block_height()
-    }
+    fn last_block_height(&self) -> Result<u64, Self::Error> { self.resolver.last_block_height() }
 
     #[cfg(feature = "async")]
     async fn last_block_height_async(&self) -> Result<u64, Self::Error> {
@@ -509,6 +486,27 @@ where
     }
 }
 
+fn should_stop_utxo_scan(
+    found_in_range: bool,
+    next_index: NormalIndex,
+    last_known_index: NormalIndex,
+) -> bool {
+    !found_in_range && next_index > last_known_index
+}
+
+fn known_unmatched_utxos<U: UtxoSet>(
+    utxos: &U,
+    outpoints: &HashSet<Outpoint>,
+) -> Vec<(Outpoint, bpstd::Sats, Terminal)> {
+    outpoints
+        .iter()
+        .filter_map(|outpoint| {
+            let (value, terminal) = utxos.get(*outpoint)?;
+            Some((*outpoint, value, terminal))
+        })
+        .collect()
+}
+
 impl<R, O, K, U> PsttConstructor for Owner<R, O, K, U>
 where
     K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
@@ -519,9 +517,7 @@ where
     type Key = K;
     type Descr = RgbDescr<K>;
 
-    fn descriptor(&self) -> &Self::Descr {
-        self.provider.descriptor()
-    }
+    fn descriptor(&self) -> &Self::Descr { self.provider.descriptor() }
 
     #[cfg(not(feature = "async"))]
     fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx> {
@@ -530,10 +526,22 @@ where
 
     #[cfg(feature = "async")]
     fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx> {
-        use futures::executor::block_on;
-        block_on(self.resolver.resolve_tx_async(txid))
-            .ok()
-            .flatten()
+        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
+        {
+            let rt = tokio::runtime::Runtime::new().ok()?;
+            return rt
+                .block_on(self.resolver.resolve_tx_async(txid))
+                .ok()
+                .flatten();
+        }
+
+        #[cfg(not(any(feature = "resolver-tondi", feature = "resolver-tondi-async")))]
+        {
+            use futures::executor::block_on;
+            block_on(self.resolver.resolve_tx_async(txid))
+                .ok()
+                .flatten()
+        }
     }
 
     fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)> {
@@ -548,9 +556,7 @@ where
         Some((utxo, script.to_script_pubkey()))
     }
 
-    fn network(&self) -> Network {
-        self.network
-    }
+    fn network(&self) -> Network { self.network }
 
     #[cfg(not(feature = "async"))]
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex {
@@ -649,9 +655,7 @@ pub mod file {
             Ok(())
         }
 
-        pub fn path(&self) -> &Path {
-            &self.path
-        }
+        pub fn path(&self) -> &Path { &self.path }
     }
 
     impl Drop for FileHolder {
@@ -666,21 +670,13 @@ pub mod file {
         type Key = XpubDerivable;
         type UtxoSet = MemUtxos;
         #[inline]
-        fn descriptor(&self) -> &RgbDescr<Self::Key> {
-            self.inner.descriptor()
-        }
+        fn descriptor(&self) -> &RgbDescr<Self::Key> { self.inner.descriptor() }
         #[inline]
-        fn utxos(&self) -> &Self::UtxoSet {
-            self.inner.utxos()
-        }
+        fn utxos(&self) -> &Self::UtxoSet { self.inner.utxos() }
         #[inline]
-        fn descriptor_mut(&mut self) -> &mut RgbDescr<Self::Key> {
-            self.inner.descriptor_mut()
-        }
+        fn descriptor_mut(&mut self) -> &mut RgbDescr<Self::Key> { self.inner.descriptor_mut() }
         #[inline]
-        fn utxos_mut(&mut self) -> &mut Self::UtxoSet {
-            self.inner.utxos_mut()
-        }
+        fn utxos_mut(&mut self) -> &mut Self::UtxoSet { self.inner.utxos_mut() }
     }
 }
 
@@ -725,6 +721,24 @@ mod test {
     }
 
     #[test]
+    fn utxo_scan_continues_when_range_has_live_utxos() {
+        let next_index = NormalIndex::try_from_index(20).unwrap();
+        let last_known = NormalIndex::ZERO;
+
+        assert!(!should_stop_utxo_scan(true, next_index, last_known));
+        assert!(should_stop_utxo_scan(false, next_index, last_known));
+    }
+
+    #[test]
+    fn utxo_scan_continues_until_beyond_last_known_index() {
+        let next_index = NormalIndex::try_from_index(20).unwrap();
+        let last_known = NormalIndex::try_from_index(20).unwrap();
+
+        assert!(!should_stop_utxo_scan(false, next_index, last_known));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
     fn mem_utxo_serde() {
         let utxo = setup();
         let s = toml::to_string(&utxo).unwrap();
@@ -749,19 +763,19 @@ mod p2mr_address_tests {
     use rgbdescr::RgbDescr;
 
     use super::super::resolvers::NoResolver;
-    use super::encode_tondi_p2mr_address;
     use super::{Holder, MemUtxos, Owner};
+    use crate::tondi_address::encode_p2mr_for_network;
 
     #[test]
     fn tondi_p2mr_address_encoding() {
         let address =
-            encode_tondi_p2mr_address(Network::Testnet, &[1u8; 32]).expect("encode P2MR address");
+            encode_p2mr_for_network(Network::Testnet, &[1u8; 32]).expect("encode P2MR address");
         assert!(
             address.starts_with("tondi0:m"),
             "P2MR address should use tondi0:m prefix: {address}"
         );
-        assert!(encode_tondi_p2mr_address(Network::Testnet, &[0u8; 32]).is_err());
-        assert!(encode_tondi_p2mr_address(Network::Testnet, &[1u8; 31]).is_err());
+        assert!(encode_p2mr_for_network(Network::Testnet, &[0u8; 32]).is_err());
+        assert!(encode_p2mr_for_network(Network::Testnet, &[1u8; 31]).is_err());
     }
 
     #[test]
@@ -777,5 +791,198 @@ mod p2mr_address_tests {
             .next_tondi_p2mr_address()
             .expect("derive P2MR funding address");
         assert!(address.starts_with("tondi0:m"), "funding address should be Tondi P2MR: {address}");
+    }
+}
+
+#[cfg(all(test, feature = "async"))]
+mod async_utxo_tests {
+    use bpstd::pstt::Utxo;
+    use bpstd::{
+        h, LockTime, Network, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxIn,
+        TxOut, TxVer, Txid, UnsignedTx, VarIntArray, VarIntBytes, Vout, Witness, XprivAccount,
+        XpubDerivable,
+    };
+    use futures::executor::block_on;
+    use rgb::popls::bp::WalletProvider;
+    use rgb::WitnessStatus;
+    use rgbdescr::RgbDescr;
+
+    use super::{Holder, MemUtxos, Owner};
+    use crate::resolvers::{Resolver, ResolverError};
+    use crate::UtxoSet;
+
+    struct LiveKnownUtxoResolver {
+        outpoint: Outpoint,
+        value: Sats,
+    }
+
+    impl Resolver for LiveKnownUtxoResolver {
+        async fn resolve_tx_async(&self, _txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
+            Ok(None)
+        }
+
+        async fn resolve_tx_status_async(
+            &self,
+            _txid: Txid,
+        ) -> Result<WitnessStatus, ResolverError> {
+            Ok(WitnessStatus::Archived)
+        }
+
+        async fn resolve_utxos_async(
+            &self,
+            _iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
+        ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
+            Vec::new().into_iter()
+        }
+
+        async fn check_utxo_async(
+            &self,
+            outpoint: Outpoint,
+        ) -> Result<Option<Utxo>, ResolverError> {
+            if outpoint == self.outpoint {
+                Ok(Some(Utxo {
+                    outpoint,
+                    value: self.value,
+                    terminal: Terminal::new(0u8, 0u16.into()),
+                }))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn last_block_height_async(&self) -> Result<u64, ResolverError> { Ok(0) }
+
+        async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> { Ok(()) }
+    }
+
+    #[test]
+    fn async_sync_preserves_live_known_p2mr_change_outpoint() {
+        block_on(async {
+            let seed = [11u8; 64];
+            let xpriv = XprivAccount::with_seed(true, &seed).derive(h![86, 1, 0]);
+            let descriptor =
+                RgbDescr::p2mr_unfunded(XpubDerivable::from(xpriv.to_xpub_account()), [0u8; 32]);
+            let outpoint = Outpoint::coinbase();
+            let value = Sats::from_tondi(2);
+            let terminal = Terminal::new(1u8, 0u16.into());
+            let mut utxos = MemUtxos::default();
+            utxos.insert_async(outpoint, value, terminal).await;
+
+            let holder = Holder::with_components(descriptor, utxos);
+            let resolver = LiveKnownUtxoResolver { outpoint, value };
+            let mut owner = Owner::with_components(Network::Testnet, holder, resolver);
+
+            owner.update_utxos_async().await.unwrap();
+
+            assert!(owner.has_utxo(outpoint));
+        });
+    }
+
+    struct TentativeChangeResolver {
+        chain_visible_spent: Utxo,
+        pending_tx: Tx,
+    }
+
+    impl Resolver for TentativeChangeResolver {
+        async fn resolve_tx_async(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
+            if txid == self.pending_tx.txid() {
+                Ok(Some(UnsignedTx::with_sigs_removed(self.pending_tx.clone())))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn resolve_tx_status_async(
+            &self,
+            txid: Txid,
+        ) -> Result<WitnessStatus, ResolverError> {
+            if txid == self.pending_tx.txid() {
+                Ok(WitnessStatus::Tentative)
+            } else {
+                Ok(WitnessStatus::Archived)
+            }
+        }
+
+        async fn resolve_utxos_async(
+            &self,
+            iter: impl IntoIterator<Item = (Terminal, ScriptPubkey)>,
+        ) -> impl Iterator<Item = Result<Utxo, ResolverError>> {
+            if iter
+                .into_iter()
+                .any(|(terminal, _)| terminal == self.chain_visible_spent.terminal)
+            {
+                vec![Ok(self.chain_visible_spent)].into_iter()
+            } else {
+                Vec::new().into_iter()
+            }
+        }
+
+        async fn check_utxo_async(
+            &self,
+            outpoint: Outpoint,
+        ) -> Result<Option<Utxo>, ResolverError> {
+            if outpoint == self.chain_visible_spent.outpoint {
+                Ok(Some(self.chain_visible_spent))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn last_block_height_async(&self) -> Result<u64, ResolverError> { Ok(0) }
+
+        async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> { Ok(()) }
+    }
+
+    #[test]
+    fn async_sync_preserves_tentative_change_and_ignores_spent_input() {
+        block_on(async {
+            let seed = [12u8; 64];
+            let xpriv = XprivAccount::with_seed(true, &seed).derive(h![86, 1, 0]);
+            let descriptor =
+                RgbDescr::p2mr_unfunded(XpubDerivable::from(xpriv.to_xpub_account()), [0u8; 32]);
+            let spent_outpoint = Outpoint::new(Txid::from([7u8; 32]), Vout::from_u32(0));
+            let spent_value = Sats::from_tondi(2);
+            let spent_terminal = Terminal::new(0u8, 0u16.into());
+            let chain_visible_spent = Utxo {
+                outpoint: spent_outpoint,
+                value: spent_value,
+                terminal: spent_terminal,
+            };
+
+            let pending_tx = Tx {
+                version: TxVer::V0,
+                inputs: VarIntArray::from_checked(vec![TxIn {
+                    prev_output: spent_outpoint,
+                    sig_script: SigScript::empty(),
+                    sequence: SeqNo::ZERO,
+                    witness: Witness::default(),
+                }]),
+                outputs: VarIntArray::from_checked(vec![TxOut::p2mr(
+                    ScriptPubkey::from_checked(vec![1u8; 32]),
+                    Sats::from_tondi(1),
+                )]),
+                lock_time: LockTime::ZERO,
+                subnetwork_id: [0u8; 20],
+                gas: 0,
+                payload: VarIntBytes::new(),
+                mass: 0,
+            };
+            let pending_outpoint = Outpoint::new(pending_tx.txid(), Vout::from_u32(0));
+            let pending_value = Sats::from_tondi(1);
+            let pending_terminal = Terminal::new(1u8, 0u16.into());
+            let mut utxos = MemUtxos::default();
+            utxos
+                .insert_async(pending_outpoint, pending_value, pending_terminal)
+                .await;
+
+            let holder = Holder::with_components(descriptor, utxos);
+            let resolver = TentativeChangeResolver { chain_visible_spent, pending_tx };
+            let mut owner = Owner::with_components(Network::Testnet, holder, resolver);
+
+            owner.update_utxos_async().await.unwrap();
+
+            assert!(owner.has_utxo(pending_outpoint));
+            assert!(!owner.has_utxo(spent_outpoint));
+        });
     }
 }

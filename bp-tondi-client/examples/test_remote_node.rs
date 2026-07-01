@@ -45,7 +45,14 @@ async fn main() -> Result<(), tondi::Error> {
             println!("  - UTXO index: {}", info.has_utxo_index);
             println!("  - RPC API version: {}", info.rpc_api_version);
             println!("  - RPC API revision: {}", info.rpc_api_revision);
-            println!("  - Network ID: {}", if info.network_id.is_empty() { "N/A" } else { &info.network_id });
+            println!(
+                "  - Network ID: {}",
+                if info.network_id.is_empty() {
+                    "N/A"
+                } else {
+                    &info.network_id
+                }
+            );
             println!("  - Virtual DAA score: {}\n", info.virtual_daa_score);
         }
         Err(e) => {
@@ -57,7 +64,10 @@ async fn main() -> Result<(), tondi::Error> {
     println!("[Test 3] Sync status");
     match client.get_sync_status().await {
         Ok(is_synced) => {
-            println!("Sync status: {}\n", if is_synced { "synced" } else { "not synced" });
+            println!(
+                "Sync status: {}\n",
+                if is_synced { "synced" } else { "not synced" }
+            );
         }
         Err(e) => {
             eprintln!("Sync status failed: {}\n", e);
@@ -75,7 +85,10 @@ async fn main() -> Result<(), tondi::Error> {
             println!("  - Virtual DAA score: {}\n", dag_info.virtual_daa_score);
         }
         Err(e) => {
-            eprintln!("DAG info failed: {} (endpoint may not expose this call)\n", e);
+            eprintln!(
+                "DAG info failed: {} (endpoint may not expose this call)\n",
+                e
+            );
         }
     }
 

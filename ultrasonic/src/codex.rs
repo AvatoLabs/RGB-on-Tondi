@@ -105,24 +105,16 @@ pub struct Codex {
 }
 
 impl PartialOrd for Codex {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 impl Ord for Codex {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.commit_id().cmp(&other.commit_id())
-    }
+    fn cmp(&self, other: &Self) -> Ordering { self.commit_id().cmp(&other.commit_id()) }
 }
 impl PartialEq for Codex {
-    fn eq(&self, other: &Self) -> bool {
-        self.commit_id() == other.commit_id()
-    }
+    fn eq(&self, other: &Self) -> bool { self.commit_id() == other.commit_id() }
 }
 impl Hash for Codex {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&self.commit_id().to_byte_array());
-    }
+    fn hash<H: Hasher>(&self, state: &mut H) { state.write(&self.commit_id().to_byte_array()); }
 }
 
 impl Codex {
@@ -133,9 +125,7 @@ impl Codex {
     /// the structure definition.
     ///
     /// It is the same as the result of the [`CommitId::commit_id`] procedure.
-    pub fn codex_id(&self) -> CodexId {
-        self.commit_id()
-    }
+    pub fn codex_id(&self) -> CodexId { self.commit_id() }
 
     /// The main purpose of the codex is to verify the operation under the contract. This is the
     /// implementation of this verification procedure.
@@ -196,10 +186,9 @@ impl Codex {
         }
 
         // Phase 1: get inputs, verify their presence in the memory
-        let mut vm_inputs = Vm::<Instr<LibId>>::with(
-            self.input_config,
-            GfaConfig { field_order: self.field_order },
-        );
+        let mut vm_inputs = Vm::<Instr<LibId>>::with(self.input_config, GfaConfig {
+            field_order: self.field_order,
+        });
         let len = operation.destructible_in.len();
         let mut destructible_inputs = SmallVec::with_capacity(len);
         for input in &operation.destructible_in {
@@ -239,10 +228,9 @@ impl Codex {
             destructible_output: operation.destructible_out.as_slice(),
             immutable_output: operation.immutable_out.as_slice(),
         };
-        let mut vm_main = Vm::<Instr<LibId>>::with(
-            self.verification_config,
-            GfaConfig { field_order: self.field_order },
-        );
+        let mut vm_main = Vm::<Instr<LibId>>::with(self.verification_config, GfaConfig {
+            field_order: self.field_order,
+        });
         if vm_main.exec(*entry_point, &context, resolver) == Status::Fail {
             if let Some(err_code) = vm_main.core.cx.get(RegE::E1) {
                 return Err(CallError::Script(err_code));
@@ -378,9 +366,7 @@ pub struct CodexId(
 impl_serde_str_bin_wrapper!(CodexId, Bytes32);
 
 impl From<TondiBlake3> for CodexId {
-    fn from(hasher: TondiBlake3) -> Self {
-        hasher.finish().into()
-    }
+    fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
 }
 
 impl CommitmentId for CodexId {
@@ -402,21 +388,15 @@ mod _baid4 {
         const PREFIX: bool = false;
         const EMBED_CHECKSUM: bool = false;
         const MNEMONIC: bool = true;
-        fn to_baid64_payload(&self) -> [u8; 32] {
-            self.to_byte_array()
-        }
+        fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
     }
     impl FromBaid64Str for CodexId {}
     impl FromStr for CodexId {
         type Err = Baid64ParseError;
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
-            Self::from_baid64_str(s)
-        }
+        fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
     }
     impl Display for CodexId {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            self.fmt_baid64(f)
-        }
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
     }
 }
 
@@ -446,13 +426,13 @@ mod test {
         let id = CodexId::from_byte_array(blake3_hash(b"test"));
         assert_eq!(
             format!("{id}"),
-            "n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg#berlin-river-delta"
+            "4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s#corona-maxwell-nominal"
         );
         assert_eq!(
             format!("{id:-}"),
-            "codex:n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg#berlin-river-delta"
+            "codex:4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s#corona-maxwell-nominal"
         );
-        assert_eq!(format!("{id:#}"), "n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg");
+        assert_eq!(format!("{id:#}"), "4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s");
     }
 
     #[test]
@@ -460,24 +440,24 @@ mod test {
         let id = CodexId::from_byte_array(blake3_hash(b"test"));
         assert_eq!(
             CodexId::from_str(
-                "n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg#berlin-river-delta"
+                "4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s#corona-maxwell-nominal"
             )
             .unwrap(),
             id
         );
         assert_eq!(
             CodexId::from_str(
-                "codex:n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg#berlin-river-delta"
+                "codex:4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s#corona-maxwell-nominal"
             )
             .unwrap(),
             id
         );
         assert_eq!(
-            CodexId::from_str("codex:n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg").unwrap(),
+            CodexId::from_str("codex:4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s").unwrap(),
             id
         );
         assert_eq!(
-            CodexId::from_str("n4bQgYhM-fWWaL_q-gxVrQFa-O~TxsrC-4Is0V1s-FbDwCgg").unwrap(),
+            CodexId::from_str("4gbc4SPC-~MblwGD-jqOuSy5-JleBxjQ-ulLUjnf-MkP4F2s").unwrap(),
             id
         );
     }
@@ -508,9 +488,7 @@ mod test {
         }
     }
 
-    fn lib_success() -> Lib {
-        Lib::assemble(&aluasm! { stop; }).unwrap()
-    }
+    fn lib_success() -> Lib { Lib::assemble(&aluasm! { stop; }).unwrap() }
     fn lib_failure_none() -> Lib {
         Lib::assemble(&zk_aluasm! {
             clr     E1;
@@ -597,13 +575,11 @@ mod test {
     }
 
     #[test]
-    fn verify_dumb() {
-        test_stand(|_codex, _operation, _memory| {});
-    }
+    fn verify_dumb() { test_stand(|_codex, _operation, _memory| {}); }
 
     #[test]
     #[should_panic(
-        expected = "WrongContract { expected: ContractId(Array<32>(9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08)), found: ContractId(Array<32>(8810ad581e59f2bc3928b261707a71308f7e139eb04820366dc4d5c18d980225))"
+        expected = "WrongContract { expected: ContractId(Array<32>(e206dce123c2fcc6e5c060e3a8eb92cb9265781c6342e94b5239df3243f8176b)), found: ContractId(Array<32>(eafabdc5ec8907f62189942f5b6d00bc149c4e53dffbaf403bc36a729021b46f))"
     )]
     fn verify_contract_id() {
         test_stand(|_codex, operation, _memory| {
@@ -654,14 +630,11 @@ mod test {
     fn verify_protected_dumb() {
         test_stand_script(lib_lock(), |_codex, operation, memory| {
             let addr = CellAddr::strict_dumb();
-            memory.destructible.insert(
-                addr,
-                StateCell {
-                    data: StateValue::None,
-                    auth: AuthToken::strict_dumb(),
-                    lock: Some(CellLock::with_script(lib_lock().lib_id(), 0)),
-                },
-            );
+            memory.destructible.insert(addr, StateCell {
+                data: StateValue::None,
+                auth: AuthToken::strict_dumb(),
+                lock: Some(CellLock::with_script(lib_lock().lib_id(), 0)),
+            });
             operation.destructible_in = small_vec![Input { addr, witness: none!() }];
         });
     }
@@ -670,14 +643,11 @@ mod test {
     fn verify_protected() {
         test_stand_script(lib_lock(), |_codex, operation, memory| {
             let addr = CellAddr::strict_dumb();
-            memory.destructible.insert(
-                addr,
-                StateCell {
-                    data: StateValue::None,
-                    auth: AuthToken::from(fe256::from(SECRET)),
-                    lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
-                },
-            );
+            memory.destructible.insert(addr, StateCell {
+                data: StateValue::None,
+                auth: AuthToken::from(fe256::from(SECRET)),
+                lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
+            });
             operation.destructible_in = small_vec![Input {
                 addr,
                 witness: StateValue::Single { first: fe256::from(SECRET) }
@@ -692,14 +662,11 @@ mod test {
     fn verify_protected_failure1() {
         test_stand_script(lib_lock(), |_codex, operation, memory| {
             let addr = CellAddr::strict_dumb();
-            memory.destructible.insert(
-                addr,
-                StateCell {
-                    data: StateValue::None,
-                    auth: AuthToken::strict_dumb(),
-                    lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
-                },
-            );
+            memory.destructible.insert(addr, StateCell {
+                data: StateValue::None,
+                auth: AuthToken::strict_dumb(),
+                lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
+            });
             operation.destructible_in = small_vec![Input {
                 addr,
                 witness: StateValue::Single { first: fe256::from(SECRET) }
@@ -714,14 +681,11 @@ mod test {
     fn verify_protected_failure2() {
         test_stand_script(lib_lock(), |_codex, operation, memory| {
             let addr = CellAddr::strict_dumb();
-            memory.destructible.insert(
-                addr,
-                StateCell {
-                    data: StateValue::None,
-                    auth: AuthToken::from(fe256::from(SECRET)),
-                    lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
-                },
-            );
+            memory.destructible.insert(addr, StateCell {
+                data: StateValue::None,
+                auth: AuthToken::from(fe256::from(SECRET)),
+                lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
+            });
             operation.destructible_in = small_vec![Input { addr, witness: StateValue::None }];
         });
     }
@@ -733,14 +697,11 @@ mod test {
     fn verify_protected_failure3() {
         test_stand_script(lib_lock(), |_codex, operation, memory| {
             let addr = CellAddr::strict_dumb();
-            memory.destructible.insert(
-                addr,
-                StateCell {
-                    data: StateValue::None,
-                    auth: AuthToken::from(fe256::from(SECRET)),
-                    lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
-                },
-            );
+            memory.destructible.insert(addr, StateCell {
+                data: StateValue::None,
+                auth: AuthToken::from(fe256::from(SECRET)),
+                lock: Some(CellLock::with_script(lib_lock().lib_id(), 1)),
+            });
             operation.destructible_in = small_vec![Input {
                 addr,
                 witness: StateValue::Double {
@@ -803,9 +764,7 @@ mod test {
     fn verify_wrong_lib_id() {
         struct InvalidRepo(Lib);
         impl LibRepo for InvalidRepo {
-            fn get_lib(&self, _lib_id: LibId) -> Option<&Lib> {
-                Some(&self.0)
-            }
+            fn get_lib(&self, _lib_id: LibId) -> Option<&Lib> { Some(&self.0) }
         }
         let repo = InvalidRepo(lib_failure_one());
         test_stand_repo(lib_success().lib_id(), repo, |_codex, _operation, _memory| {});

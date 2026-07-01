@@ -118,9 +118,7 @@ impl CommitmentProtocol for UntaggedProtocol {}
 pub struct ReservedBytes<const LEN: usize, const VAL: u8 = 0>([u8; LEN]);
 
 impl<const LEN: usize, const VAL: u8> Default for ReservedBytes<LEN, VAL> {
-    fn default() -> Self {
-        Self([VAL; LEN])
-    }
+    fn default() -> Self { Self([VAL; LEN]) }
 }
 
 impl<const LEN: usize, const VAL: u8> From<[u8; LEN]> for ReservedBytes<LEN, VAL> {
@@ -132,9 +130,7 @@ impl<const LEN: usize, const VAL: u8> From<[u8; LEN]> for ReservedBytes<LEN, VAL
 
 impl<const LEN: usize, const VAL: u8> ReservedBytes<LEN, VAL> {
     /// Constant constructor.
-    pub const fn new() -> Self {
-        Self([VAL; LEN])
-    }
+    pub const fn new() -> Self { Self([VAL; LEN]) }
 }
 
 mod _reserved {
@@ -145,9 +141,7 @@ mod _reserved {
     impl<const LEN: usize, const VAL: u8> CommitEncode for ReservedBytes<LEN, VAL> {
         type CommitmentId = StrictHash;
 
-        fn commit_encode(&self, e: &mut CommitEngine) {
-            e.commit_to_serialized(self)
-        }
+        fn commit_encode(&self, e: &mut CommitEngine) { e.commit_to_serialized(self) }
     }
 
     impl<const LEN: usize, const VAL: u8> StrictDecode for ReservedBytes<LEN, VAL> {
@@ -175,9 +169,7 @@ mod _reserved {
 
         impl<const LEN: usize, const VAL: u8> Serialize for ReservedBytes<LEN, VAL> {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
+            where S: Serializer {
                 if serializer.is_human_readable() {
                     serializer.serialize_str(&self.0.to_hex())
                 } else {
@@ -188,9 +180,7 @@ mod _reserved {
 
         impl<'de, const LEN: usize, const VAL: u8> Deserialize<'de> for ReservedBytes<LEN, VAL> {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
+            where D: Deserializer<'de> {
                 let v = if deserializer.is_human_readable() {
                     let s = String::deserialize(deserializer)?;
                     Vec::<u8>::from_hex(&s)

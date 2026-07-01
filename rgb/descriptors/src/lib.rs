@@ -39,13 +39,13 @@ use alloc::collections::BTreeSet;
 use core::fmt::{self, Display, Formatter};
 use core::iter;
 
-use amplify::{ByteArray, Bytes32, Wrapper, WrapperMut};
+use amplify::{Bytes32, Wrapper, WrapperMut};
 use bp::seals::WTxoSeal;
 use bpstd::{
-    CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet,
-    DeriveXOnly, DerivedScript, Descriptor, KeyOrigin, Keychain, LegacyKeySig, LegacyPk,
-    NormalIndex, RedeemScript, ScriptPubkey, SigScript, SpkClass, StdDescr, TapDerivation,
-    TapLeafHash, TapScript, TaprootKeySig, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
+    tondi_p2mr_root_from_tapscript, CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey,
+    DeriveLegacy, DeriveSet, DeriveXOnly, DerivedScript, Descriptor, KeyOrigin, Keychain,
+    LegacyKeySig, LegacyPk, NormalIndex, RedeemScript, ScriptPubkey, SigScript, SpkClass, StdDescr,
+    TapDerivation, TaprootKeySig, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
     XpubDerivable,
 };
 use indexmap::IndexMap;
@@ -54,8 +54,7 @@ const OP_PUSHBYTES_32: u8 = 0x20;
 const OP_CHECKSIG: u8 = 0xac;
 
 pub trait DescriptorRgb<K = XpubDerivable, V = ()>: Descriptor<K, V>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
     fn add_seal(&self, seal: WTxoSeal);
 }
@@ -94,12 +93,9 @@ enum RgbDeriver<K: DeriveSet<XOnly = K> + DeriveXOnly = XpubDerivable> {
 }
 
 impl<K> RgbDeriver<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
-    fn p2mr(key: K) -> Self {
-        Self::TondiP2mr { key }
-    }
+    fn p2mr(key: K) -> Self { Self::TondiP2mr { key } }
 
     fn key(&self) -> &K {
         match self {
@@ -109,8 +105,7 @@ where
 }
 
 impl<K> Display for RgbDeriver<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -129,7 +124,7 @@ pub fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] {
     script.push(OP_PUSHBYTES_32);
     script.extend_from_slice(&xonly.to_byte_array());
     script.push(OP_CHECKSIG);
-    TapLeafHash::with_tap_script(&TapScript::from_checked(script)).to_byte_array()
+    tondi_p2mr_root_from_tapscript(&script)
 }
 
 fn p2mr_script_pubkey(xonly: XOnlyPk) -> ScriptPubkey {
@@ -137,16 +132,11 @@ fn p2mr_script_pubkey(xonly: XOnlyPk) -> ScriptPubkey {
 }
 
 impl<K> Derive<DerivedScript> for RgbDeriver<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
-    fn default_keychain(&self) -> Keychain {
-        self.key().default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.key().default_keychain() }
 
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.key().keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.key().keychains() }
 
     fn derive(
         &self,
@@ -165,24 +155,17 @@ where
 }
 
 impl<K> Descriptor<K> for RgbDeriver<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly
 {
-    fn class(&self) -> SpkClass {
-        SpkClass::Bare
-    }
+    fn class(&self) -> SpkClass { SpkClass::Bare }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         iter::once(self.key())
     }
 
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         iter::empty()
     }
 
@@ -245,8 +228,7 @@ pub struct RgbDescr<K: DeriveSet<XOnly = K> + DeriveXOnly = XpubDerivable> {
 }
 
 impl<K> Display for RgbDescr<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "rgb({},{},noise({:x}))", self.deriver, self.seals, self.noise)
@@ -254,8 +236,7 @@ where
 }
 
 impl<K> RgbDescr<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
     pub fn p2mr_unfunded(key: K, noise: impl Into<[u8; 32]>) -> Self {
         Self {
@@ -280,9 +261,7 @@ where
         nonce
     }
 
-    pub fn noise(&self) -> Bytes32 {
-        self.noise
-    }
+    pub fn noise(&self) -> Bytes32 { self.noise }
 
     pub fn derive_p2mr_compressed_key(
         &self,
@@ -303,22 +282,15 @@ where
         self.seals.0.iter().copied()
     }
 
-    pub fn add_seal(&mut self, seal: WTxoSeal) {
-        self.seals.0.insert(seal);
-    }
+    pub fn add_seal(&mut self, seal: WTxoSeal) { self.seals.0.insert(seal); }
 }
 
 impl<K> Derive<DerivedScript> for RgbDescr<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveXOnly
 {
-    fn default_keychain(&self) -> Keychain {
-        self.deriver.default_keychain()
-    }
+    fn default_keychain(&self) -> Keychain { self.deriver.default_keychain() }
 
-    fn keychains(&self) -> BTreeSet<Keychain> {
-        self.deriver.keychains()
-    }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.deriver.keychains() }
 
     fn derive(
         &self,
@@ -330,30 +302,21 @@ where
 }
 
 impl<K> Descriptor<K> for RgbDescr<K>
-where
-    K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
+where K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly
 {
-    fn class(&self) -> SpkClass {
-        self.deriver.class()
-    }
+    fn class(&self) -> SpkClass { self.deriver.class() }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
-    where
-        K: 'a,
-    {
+    where K: 'a {
         self.deriver.keys()
     }
 
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
-    where
-        (): 'a,
-    {
+    where (): 'a {
         self.deriver.vars()
     }
 
-    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
-        self.deriver.xpubs()
-    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.deriver.xpubs() }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.deriver.legacy_keyset(terminal)
@@ -382,7 +345,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod test {
     use bpstd::{h, Derive, Idx, Keychain, NormalIndex, XprivAccount};
 

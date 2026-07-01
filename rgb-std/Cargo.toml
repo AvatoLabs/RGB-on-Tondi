@@ -41,6 +41,7 @@ serde = { workspace = true, optional = true }
 serde_with = { version = "1.14", optional = true }
 
 [dev-dependencies]
+aluvm = { workspace = true }
 rand = { workspace = true }
 rgb-persist-fs = { workspace = true }
 

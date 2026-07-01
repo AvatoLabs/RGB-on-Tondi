@@ -59,9 +59,7 @@ impl std::fmt::Display for MemoryLayout {
 }
 
 impl MemoryLayout {
-    fn new() -> Self {
-        Self { items: empty!() }
-    }
+    fn new() -> Self { Self { items: empty!() } }
 
     #[cfg(feature = "vesper")]
     pub fn to_vesper(&self) -> TypeVesper {

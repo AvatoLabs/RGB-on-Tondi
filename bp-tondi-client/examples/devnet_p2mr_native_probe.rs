@@ -6,7 +6,10 @@
 //! Set `TONDI_DEVNET_ALLOW_UNSYNCED=1` only for an isolated local devnet node.
 
 use amplify::Bytes32;
-use tondi::{NetworkType, ScriptPublicKey, TondiClient, TondiConfig, TondiTransaction, TondiTxOutput, TONDI_P2MR_SCRIPT_VERSION};
+use tondi::{
+    NetworkType, ScriptPublicKey, TondiClient, TondiConfig, TondiTransaction, TondiTxOutput,
+    TONDI_P2MR_SCRIPT_VERSION,
+};
 
 fn native_p2mr_probe_tx() -> TondiTransaction {
     TondiTransaction {
@@ -14,7 +17,10 @@ fn native_p2mr_probe_tx() -> TondiTransaction {
         inputs: Vec::new(),
         outputs: vec![TondiTxOutput::Standard {
             value: 1,
-            script_public_key: ScriptPublicKey { version: TONDI_P2MR_SCRIPT_VERSION, script: vec![0x42; 32] },
+            script_public_key: ScriptPublicKey {
+                version: TONDI_P2MR_SCRIPT_VERSION,
+                script: vec![0x42; 32],
+            },
         }],
         lock_time: 0,
         subnetwork_id: Bytes32::from_byte_array([0u8; 32]),
@@ -30,14 +36,23 @@ fn verify_native_policy() -> Result<(), tondi::Error> {
 
     let mut payload_tx = tx.clone();
     payload_tx.payload = vec![0x50, 0x20, 0x20];
-    assert!(payload_tx.validate_tondi_native_rgb().is_err(), "payload carriers must be rejected");
+    assert!(
+        payload_tx.validate_tondi_native_rgb().is_err(),
+        "payload carriers must be rejected"
+    );
 
     let mut legacy_tx = tx;
-    let TondiTxOutput::Standard { script_public_key, .. } = &mut legacy_tx.outputs[0] else {
+    let TondiTxOutput::Standard {
+        script_public_key, ..
+    } = &mut legacy_tx.outputs[0]
+    else {
         unreachable!("probe tx has one standard output")
     };
     script_public_key.version = 0;
-    assert!(legacy_tx.validate_tondi_native_rgb().is_err(), "non-P2MR outputs must be rejected");
+    assert!(
+        legacy_tx.validate_tondi_native_rgb().is_err(),
+        "non-P2MR outputs must be rejected"
+    );
 
     Ok(())
 }
@@ -47,7 +62,10 @@ async fn main() -> Result<(), tondi::Error> {
     verify_native_policy()?;
 
     let endpoint = std::env::var("TONDI_DEVNET_RPC").map_err(|_| {
-        tondi::Error::Connection("TONDI_DEVNET_RPC must point at a devnet gRPC endpoint, e.g. 127.0.0.1:16210".to_string())
+        tondi::Error::Connection(
+            "TONDI_DEVNET_RPC must point at a devnet gRPC endpoint, e.g. 127.0.0.1:16210"
+                .to_string(),
+        )
     })?;
     let allow_unsynced = std::env::var("TONDI_DEVNET_ALLOW_UNSYNCED").as_deref() == Ok("1");
 

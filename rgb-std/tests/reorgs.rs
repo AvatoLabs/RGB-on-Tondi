@@ -18,9 +18,7 @@ use strict_encoding::StrictDumb;
 use crate::utils::setup;
 
 #[test]
-fn no_reorgs() {
-    setup("NoReorgs");
-}
+fn no_reorgs() { setup("NoReorgs"); }
 
 #[test]
 fn single_rollback() {

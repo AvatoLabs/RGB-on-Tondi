@@ -35,9 +35,7 @@ macro_rules! impl_strict_newtype {
     };
     ($ty:ident, $lib:expr, $dumb:expr) => {
         impl $crate::StrictDumb for $ty {
-            fn strict_dumb() -> Self {
-                Self::from($dumb)
-            }
+            fn strict_dumb() -> Self { Self::from($dumb) }
         }
         impl $crate::StrictType for $ty {
             const STRICT_LIB_NAME: &'static str = $lib;

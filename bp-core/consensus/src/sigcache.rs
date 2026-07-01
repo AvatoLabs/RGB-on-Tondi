@@ -66,9 +66,7 @@ pub enum SighashError {
 }
 
 impl From<IoError> for SighashError {
-    fn from(_: IoError) -> Self {
-        unreachable!("in-memory I/O doesn't error in Rust")
-    }
+    fn from(_: IoError) -> Self { unreachable!("in-memory I/O doesn't error in Rust") }
 }
 
 /// Efficiently calculates signature hash message for legacy, segwit and taproot
@@ -443,7 +441,7 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
                         out.clone()
                     } else {
                         // consensus encoding of the "NULL txout" - max amount, empty script_pubkey
-                        TxOut { value: Sats::MAX, script_pubkey: none!() }
+                        TxOut::new(ScriptPubkey::new(), Sats::MAX)
                     });
                 VarIntArray::from_iter_checked(outputs)
             }

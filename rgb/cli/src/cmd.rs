@@ -22,6 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use bpstd::Sats;
@@ -65,6 +66,32 @@ pub enum Cmd {
         descriptor: String,
     },
 
+    /// Generate development Tondi P2MR account key material
+    DevKeys {
+        /// Hex seed used to derive the account key.
+        #[clap(long)]
+        seed_hex: String,
+
+        /// Generate mainnet xpriv/xpub prefixes. Defaults to testnet/devnet prefixes.
+        #[clap(long)]
+        mainnet: bool,
+    },
+
+    /// Generate a development RGB issuer fixture for local Tondi devnet workflows
+    DevIssuer {
+        /// Existing issuer-like fixture to repair into a valid development issuer
+        #[clap(long, value_hint = ValueHint::FilePath)]
+        source: Option<PathBuf>,
+
+        /// Overwrite the output file if it already exists
+        #[clap(short, long)]
+        force: bool,
+
+        /// Target file to save the generated issuer to
+        #[clap(value_hint = ValueHint::FilePath)]
+        output: PathBuf,
+    },
+
     /// Synchronize wallet and contracts with the blockchain
     Sync {
         #[clap(flatten)]
@@ -86,6 +113,13 @@ pub enum Cmd {
     Seals {
         #[clap(flatten)]
         wallet: WalletOpts,
+    },
+
+    /// Serve the RGB-on-Tondi HTTP API boundary for the Avato wallet frontend
+    ServeHttp {
+        /// HTTP bind address
+        #[clap(long, default_value = "127.0.0.1:8787", env = "RGB_HTTP_BIND")]
+        bind: SocketAddr,
     },
 
     // =====================================================================================
@@ -355,6 +389,10 @@ pub enum Cmd {
         /// Broadcast the transaction.
         #[clap(short, long, global = true)]
         broadcast: bool,
+
+        /// Hex-encoded Tondi P2MR single-key secret used to sign matching inputs.
+        #[clap(long, env = "RGB_TONDI_P2MR_SECRET_KEY")]
+        tondi_p2mr_secret_key: Option<String>,
 
         /// Name of the PSTT file to finalize.
         pstt: PathBuf,

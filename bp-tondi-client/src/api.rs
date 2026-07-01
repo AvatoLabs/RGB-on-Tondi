@@ -4,8 +4,8 @@
 //! providing a consistent interface for both sync and async implementations.
 
 use crate::{
-    BalanceByAddressEntry, DagInfo, FeeEstimate, MempoolEntry, Result, ServerInfo, TondiBlock, TondiBlockHash, TondiTransaction,
-    TondiTxid, TxStatus, UtxosByAddressEntry,
+    BalanceByAddressEntry, DagInfo, FeeEstimate, MempoolEntry, Result, ServerInfo, TondiBlock,
+    TondiBlockHash, TondiTransaction, TondiTxid, TxStatus, UtxosByAddressEntry,
 };
 
 #[cfg(feature = "async")]
@@ -29,7 +29,11 @@ pub trait TondiRpcApi: Send + Sync {
 
     // Transaction operations
     /// Submit a transaction to the mempool
-    async fn submit_transaction(&self, transaction: TondiTransaction, allow_orphan: bool) -> Result<TondiTxid>;
+    async fn submit_transaction(
+        &self,
+        transaction: TondiTransaction,
+        allow_orphan: bool,
+    ) -> Result<TondiTxid>;
 
     /// Get transaction by ID
     async fn get_transaction(&self, txid: TondiTxid) -> Result<TondiTransaction>;
@@ -45,7 +49,11 @@ pub trait TondiRpcApi: Send + Sync {
 
     // Block operations
     /// Get block by hash
-    async fn get_block(&self, hash: TondiBlockHash, include_transactions: bool) -> Result<TondiBlock>;
+    async fn get_block(
+        &self,
+        hash: TondiBlockHash,
+        include_transactions: bool,
+    ) -> Result<TondiBlock>;
 
     /// Get current DAG sink
     async fn get_sink(&self) -> Result<TondiBlockHash>;
@@ -61,13 +69,19 @@ pub trait TondiRpcApi: Send + Sync {
     async fn get_balance_by_address(&self, address: &str) -> Result<u64>;
 
     /// Get balances for multiple addresses
-    async fn get_balances_by_addresses(&self, addresses: &[String]) -> Result<Vec<BalanceByAddressEntry>>;
+    async fn get_balances_by_addresses(
+        &self,
+        addresses: &[String],
+    ) -> Result<Vec<BalanceByAddressEntry>>;
 
     /// Get UTXOs for an address
     async fn get_utxos_by_address(&self, address: &str) -> Result<Vec<UtxosByAddressEntry>>;
 
     /// Get UTXOs for multiple addresses
-    async fn get_utxos_by_addresses(&self, addresses: &[String]) -> Result<Vec<UtxosByAddressEntry>>;
+    async fn get_utxos_by_addresses(
+        &self,
+        addresses: &[String],
+    ) -> Result<Vec<UtxosByAddressEntry>>;
 
     // Fee estimation
     /// Get fee estimate
@@ -79,7 +93,11 @@ pub trait TondiRpcApi: Send + Sync {
 
     // Network info
     /// Estimate network hash rate
-    async fn estimate_network_hashes_per_second(&self, window_size: u32, start_hash: Option<TondiBlockHash>) -> Result<u64>;
+    async fn estimate_network_hashes_per_second(
+        &self,
+        window_size: u32,
+        start_hash: Option<TondiBlockHash>,
+    ) -> Result<u64>;
 }
 
 /// Notification scope for subscriptions
@@ -109,11 +127,17 @@ pub enum NotificationScope {
 #[derive(Debug, Clone)]
 pub enum TondiNotification {
     /// Block added to DAG
-    BlockAdded { block_hash: TondiBlockHash, block: TondiBlock },
+    BlockAdded {
+        block_hash: TondiBlockHash,
+        block: TondiBlock,
+    },
     /// New block template available
     NewBlockTemplate { block_hash: TondiBlockHash },
     /// UTXOs changed for watched addresses
-    UtxosChanged { added: Vec<UtxosByAddressEntry>, removed: Vec<UtxosByAddressEntry> },
+    UtxosChanged {
+        added: Vec<UtxosByAddressEntry>,
+        removed: Vec<UtxosByAddressEntry>,
+    },
     /// Virtual DAA score changed
     VirtualDaaScoreChanged { virtual_daa_score: u64 },
     /// Virtual chain changed
@@ -125,7 +149,9 @@ pub enum TondiNotification {
     /// Sink blue score changed
     SinkBlueScoreChanged { sink_blue_score: u64 },
     /// Finality conflict detected
-    FinalityConflict { violating_block_hash: TondiBlockHash },
+    FinalityConflict {
+        violating_block_hash: TondiBlockHash,
+    },
     /// Finality conflict resolved
     FinalityConflictResolved { finality_block_hash: TondiBlockHash },
 }

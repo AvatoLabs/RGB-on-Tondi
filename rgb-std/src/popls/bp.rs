@@ -215,14 +215,16 @@ impl<T> IntoIterator for OpRequestSet<T> {
     type Item = OpRequest<T>;
     type IntoIter = vec::IntoIter<OpRequest<T>>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 impl<T> OpRequestSet<T> {
-    pub fn with(request: OpRequest<T>) -> Self {
-        Self(NonEmptyVec::with(request))
+    pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
+
+    pub fn try_from_iter(
+        requests: impl IntoIterator<Item = OpRequest<T>>,
+    ) -> Result<Self, confinement::Error> {
+        NonEmptyVec::try_from_iter(requests).map(Self)
     }
 }
 
@@ -343,18 +345,14 @@ impl IntoIterator for PrefabBundle {
     type Item = Prefab;
     type IntoIter = btree_set::IntoIter<Prefab>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 impl<'a> IntoIterator for &'a PrefabBundle {
     type Item = &'a Prefab;
     type IntoIter = btree_set::Iter<'a, Prefab>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
 }
 
 impl PrefabBundle {
@@ -404,13 +402,9 @@ where
         Self { wallet, contracts }
     }
 
-    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) {
-        (self.wallet, self.contracts)
-    }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
 
-    pub fn switch_wallet(&mut self, new: W) -> W {
-        mem::replace(&mut self.wallet, new)
-    }
+    pub fn switch_wallet(&mut self, new: W) -> W { mem::replace(&mut self.wallet, new) }
 
     pub fn issue(
         &mut self,
@@ -423,8 +417,9 @@ where
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
-        let outpoint = self.wallet.utxos().next()?;
         let nonce = nonce.unwrap_or_else(|| self.wallet.next_nonce());
+        let utxos = self.wallet.utxos().collect::<Vec<_>>();
+        let outpoint = *utxos.get(nonce as usize % utxos.len())?;
         let seal = WTxoSeal::no_fallback(outpoint, self.noise_engine(), nonce);
         let auth = seal.auth_token();
         self.wallet.register_seal(seal);
@@ -547,6 +542,116 @@ where
             using,
             owned,
         })
+    }
+
+    pub fn fulfill_same_contract(
+        &mut self,
+        invoices: &[RgbInvoice<ContractId>],
+        mut coinselect: impl Coinselect,
+        _giveaway: Option<Sats>,
+    ) -> Result<(OpRequest<Option<DisabledExternalOutput>>, BTreeSet<AuthToken>), FulfillError>
+    {
+        let first = invoices.first().ok_or(FulfillError::InvoiceSetEmpty)?;
+        let contract_id = first.scope;
+
+        let articles = self.contracts.contract_articles(contract_id);
+        let api = articles.default_api();
+        let call = first
+            .call
+            .as_ref()
+            .or(api.default_call.as_ref())
+            .ok_or(FulfillError::CallStateUnknown)?;
+        let method = call.method.clone();
+        let state_name = call.owned.clone().ok_or(FulfillError::StateNameUnknown)?;
+
+        let mut target_calc = api.calculate(state_name.clone())?;
+        let mut terminals = BTreeSet::new();
+        for invoice in invoices {
+            if invoice.scope != contract_id {
+                return Err(FulfillError::InvoiceContractMismatch);
+            }
+            let call = invoice
+                .call
+                .as_ref()
+                .or(api.default_call.as_ref())
+                .ok_or(FulfillError::CallStateUnknown)?;
+            if call.method != method || call.owned.as_ref() != Some(&state_name) {
+                return Err(FulfillError::InvoiceCallMismatch);
+            }
+            let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
+            target_calc.accumulate(value)?;
+            let terminal = match invoice.auth {
+                RgbBeneficiary::Token(auth) => auth,
+            };
+            terminals.insert(terminal);
+        }
+        let mut target_values = target_calc.diff()?;
+        if target_values.len() != 1 {
+            return Err(FulfillError::StateCalc(StateCalcError::UncountableState));
+        }
+        let target_value = target_values
+            .pop()
+            .ok_or(FulfillError::StateCalc(StateCalcError::UncountableState))?;
+
+        // One aggregate coinselection avoids spending the same owned RGB state independently for
+        // each receiver in the MIMO operation.
+        let state = self.wallet_contract_state(contract_id);
+        let state = state
+            .owned
+            .get(&state_name)
+            .ok_or(FulfillError::StateUnavailable)?;
+        let mut calc = api.calculate(state_name.clone())?;
+        let mut using = coinselect
+            .coinselect(&target_value, &mut calc, state)
+            .ok_or(FulfillError::StateInsufficient)?;
+
+        let (addrs, outpoints) = using
+            .iter()
+            .copied()
+            .unzip::<_, _, BTreeSet<_>, BTreeSet<_>>();
+        using.extend(
+            state
+                .iter()
+                .filter(|s| outpoints.contains(&s.assignment.seal) && !addrs.contains(&s.addr))
+                .filter_map(|s| {
+                    calc.accumulate(&s.assignment.data).ok()?;
+                    Some((s.addr, s.assignment.seal))
+                }),
+        );
+        let using = using
+            .into_iter()
+            .map(|(addr, outpoint)| UsedState { addr, outpoint, satisfaction: None })
+            .collect();
+
+        let mut owned = Vec::with_capacity(invoices.len() + 1);
+        for invoice in invoices {
+            let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
+            let seal = match invoice.auth {
+                RgbBeneficiary::Token(auth) => EitherSeal::Token(auth),
+            };
+            calc.lessen(value)?;
+            let assignment = Assignment { seal, data: value.clone() };
+            owned.push(NamedState { name: state_name.clone(), state: assignment });
+        }
+
+        let diff = calc.diff()?;
+        let seal = EitherSeal::Alt(None);
+        for data in diff {
+            let assignment = Assignment { seal: seal.clone(), data };
+            owned.push(NamedState { name: state_name.clone(), state: assignment });
+        }
+
+        Ok((
+            OpRequest {
+                contract_id,
+                method,
+                reading: none!(),
+                global: none!(),
+                using,
+                owned,
+            },
+            terminals,
+        ))
     }
 
     /// Check whether all state used in a request is properly re-distributed to new owners, and
@@ -964,6 +1069,15 @@ pub enum BundleError {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum FulfillError {
+    /// payment script must contain at least one invoice.
+    InvoiceSetEmpty,
+
+    /// all invoices in a same-contract payment script must reference the same contract.
+    InvoiceContractMismatch,
+
+    /// all invoices in a same-contract payment script must use the same method and owned state.
+    InvoiceCallMismatch,
+
     /// neither invoice nor contract API contains information about the transfer method.
     CallStateUnknown,
 

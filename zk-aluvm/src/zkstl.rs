@@ -37,9 +37,7 @@ fn _finite_field_stl() -> Result<TypeLib, CompileError> {
 }
 
 /// Generates strict type lib-old providing data types from this crate.
-pub fn finite_field_stl() -> TypeLib {
-    _finite_field_stl().expect("invalid strict type AluVM lib-old")
-}
+pub fn finite_field_stl() -> TypeLib { _finite_field_stl().expect("invalid strict type AluVM lib-old") }
 
 #[cfg(test)]
 mod test {

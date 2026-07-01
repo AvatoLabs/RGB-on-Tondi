@@ -89,9 +89,7 @@ impl SymTy {
         Self::with(Some(TypeFqn::with(lib_name, ty_name)), ty)
     }
 
-    pub fn unnamed(ty: Ty<SemId>) -> SymTy {
-        Self::with(None::<TypeFqn>, ty)
-    }
+    pub fn unnamed(ty: Ty<SemId>) -> SymTy { Self::with(None::<TypeFqn>, ty) }
 
     pub fn with(orig: Option<impl Into<TypeFqn>>, ty: Ty<SemId>) -> SymTy {
         SymTy {
@@ -122,13 +120,9 @@ impl StrictSerialize for TypeSystem {}
 impl StrictDeserialize for TypeSystem {}
 
 impl TypeSystem {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
-    pub fn count_types(&self) -> u24 {
-        self.0.len_u24()
-    }
+    pub fn count_types(&self) -> u24 { self.0.len_u24() }
 
     pub(super) fn insert_unchecked(
         &mut self,
@@ -138,9 +132,7 @@ impl TypeSystem {
         self.0.insert(sem_id, ty).map(|r| r.is_some())
     }
 
-    pub fn get(&self, sem_id: SemId) -> Option<&Ty<SemId>> {
-        self.0.get(&sem_id)
-    }
+    pub fn get(&self, sem_id: SemId) -> Option<&Ty<SemId>> { self.0.get(&sem_id) }
 
     pub fn extend(&mut self, other: Self) -> Result<(), confinement::Error> {
         self.0.extend(other.0)
@@ -216,7 +208,5 @@ impl armor::StrictArmor for TypeSystem {
     type Id = crate::TypeSysId;
     const PLATE_TITLE: &'static str = "STRICT TYPE SYSTEM";
 
-    fn armor_id(&self) -> Self::Id {
-        self.id()
-    }
+    fn armor_id(&self) -> Self::Id { self.id() }
 }

@@ -73,8 +73,7 @@ impl From<SighashError> for SignError {
 pub trait Signer {
     /// Type which does the actual signatures. See [`Sign`] trait for the details.
     type Sign<'s>: Sign
-    where
-        Self: 's;
+    where Self: 's;
 
     /// In the implementation of this method signers must ensure that transaction is checked by the
     /// user. If the transaction passes the check, they must provide the caller with [`Satisfier`]

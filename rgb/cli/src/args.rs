@@ -104,6 +104,13 @@ pub struct Args {
 
 impl Args {
     pub fn check_data_dir(&self) -> anyhow::Result<()> {
+        if matches!(
+            &self.command,
+            Cmd::DevKeys { .. } | Cmd::DevIssuer { .. } | Cmd::ServeHttp { .. }
+        ) {
+            return Ok(());
+        }
+
         let data_dir = self.data_dir();
         if !data_dir.is_dir() {
             if let Cmd::Init { quiet: _ } = self.command {
@@ -189,10 +196,15 @@ impl Args {
                 let rt = tokio::runtime::Runtime::new()
                     .expect("Unable to create tokio runtime for Tondi resolver");
                 rt.block_on(async {
-                    // Use MultiResolver::new_tondi which is available when resolver-tondi feature is enabled
-                    MultiResolver::new_tondi(endpoint)
-                        .await
-                        .expect("Unable to connect to Tondi node")
+                    // Use MultiResolver::new_tondi which is available when resolver-tondi feature
+                    // is enabled
+                    MultiResolver::new_tondi_with_min_blue_score_depth(
+                        endpoint,
+                        self.network.into(),
+                        self.min_confirmations as u64,
+                    )
+                    .await
+                    .expect("Unable to connect to Tondi node")
                 })
             }
             None => MultiResolver::new_absent().expect("Unable to create resolver"),

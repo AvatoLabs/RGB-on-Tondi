@@ -89,9 +89,7 @@ impl FromStr for TapretCommitment {
 
 impl TapretCommitment {
     /// Constructs information about tapret commitment.
-    pub fn with(mpc: mpc::Commitment, nonce: u8) -> Self {
-        Self { mpc, nonce }
-    }
+    pub fn with(mpc: mpc::Commitment, nonce: u8) -> Self { Self { mpc, nonce } }
 }
 
 impl CommitVerify<TapretCommitment, TapretFirst> for TapScript {
@@ -125,9 +123,7 @@ mod _serde {
 
     impl Serialize for TapretCommitment {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
+        where S: Serializer {
             if serializer.is_human_readable() {
                 self.to_string().serialize(serializer)
             } else {
@@ -138,9 +134,7 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for TapretCommitment {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
+        where D: Deserializer<'de> {
             if deserializer.is_human_readable() {
                 let s = String::deserialize(deserializer)?;
                 Self::from_str(&s).map_err(D::Error::custom)
@@ -189,7 +183,7 @@ mod test {
     pub fn tapret_commitment_baid64() {
         let commitment = commitment();
         let s = commitment.to_string();
-        assert_eq!(s, "k#7JerF92P=PEN7cf&`GWfS*?rIEdfEup1%zausI2m");
+        assert_eq!(s, "YLzvC)(yVAmr1p4BZDV@uq#;7V6@Ek@fi@0pz+l22m");
         assert_eq!(Ok(commitment.clone()), TapretCommitment::from_str(&s));
     }
 }

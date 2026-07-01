@@ -31,9 +31,7 @@ use crate::isa::{Bytecode, BytecodeRead, BytecodeWrite, Instr, ReservedInstr};
 use crate::Site;
 
 impl<Id: SiteId> Bytecode<Id> for Instr<Id> {
-    fn op_range() -> RangeInclusive<u8> {
-        0..=0xFF
-    }
+    fn op_range() -> RangeInclusive<u8> { 0..=0xFF }
 
     fn opcode_byte(&self) -> u8 {
         match self {
@@ -57,9 +55,7 @@ impl<Id: SiteId> Bytecode<Id> for Instr<Id> {
     }
 
     fn encode_operands<W>(&self, writer: &mut W) -> Result<(), W::Error>
-    where
-        W: BytecodeWrite<Id>,
-    {
+    where W: BytecodeWrite<Id> {
         match self {
             Instr::Ctrl(instr) => instr.encode_operands(writer),
             Instr::Reserved(instr) => instr.encode_operands(writer),
@@ -81,26 +77,16 @@ impl<Id: SiteId> Bytecode<Id> for Instr<Id> {
 }
 
 impl<Id: SiteId> Bytecode<Id> for ReservedInstr {
-    fn op_range() -> RangeInclusive<u8> {
-        0..=0x7F
-    }
+    fn op_range() -> RangeInclusive<u8> { 0..=0x7F }
 
-    fn opcode_byte(&self) -> u8 {
-        self.0
-    }
+    fn opcode_byte(&self) -> u8 { self.0 }
 
-    fn code_byte_len(&self) -> u16 {
-        1
-    }
+    fn code_byte_len(&self) -> u16 { 1 }
 
-    fn external_ref(&self) -> Option<Id> {
-        None
-    }
+    fn external_ref(&self) -> Option<Id> { None }
 
     fn encode_operands<W>(&self, _writer: &mut W) -> Result<(), W::Error>
-    where
-        W: BytecodeWrite<Id>,
-    {
+    where W: BytecodeWrite<Id> {
         Ok(())
     }
 
@@ -138,9 +124,7 @@ impl<Id: SiteId> CtrlInstr<Id> {
 }
 
 impl<Id: SiteId> Bytecode<Id> for CtrlInstr<Id> {
-    fn op_range() -> RangeInclusive<u8> {
-        Self::START..=Self::END
-    }
+    fn op_range() -> RangeInclusive<u8> { Self::START..=Self::END }
 
     fn opcode_byte(&self) -> u8 {
         match self {
@@ -208,9 +192,7 @@ impl<Id: SiteId> Bytecode<Id> for CtrlInstr<Id> {
     }
 
     fn encode_operands<W>(&self, writer: &mut W) -> Result<(), W::Error>
-    where
-        W: BytecodeWrite<Id>,
-    {
+    where W: BytecodeWrite<Id> {
         match *self {
             CtrlInstr::Nop
             | CtrlInstr::ChkCo

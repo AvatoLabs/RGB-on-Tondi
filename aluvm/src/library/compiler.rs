@@ -107,9 +107,7 @@ impl CompiledLib {
     }
 
     /// Count the number of routines in the library.
-    pub fn routines_count(&self) -> usize {
-        self.routines.len()
-    }
+    pub fn routines_count(&self) -> usize { self.routines.len() }
 
     /// Returns code offset for the entry point of a given routine.
     ///
@@ -122,12 +120,8 @@ impl CompiledLib {
     }
 
     /// Get a reference to the underlying [`Lib`].
-    pub fn as_lib(&self) -> &Lib {
-        &self.lib
-    }
+    pub fn as_lib(&self) -> &Lib { &self.lib }
 
     /// Convert into the underlying [`Lib`].
-    pub fn into_lib(self) -> Lib {
-        self.lib
-    }
+    pub fn into_lib(self) -> Lib { self.lib }
 }

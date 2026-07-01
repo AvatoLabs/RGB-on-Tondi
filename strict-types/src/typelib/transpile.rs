@@ -112,9 +112,7 @@ impl TypedWrite for LibBuilder {
     type UnionDefiner = UnionBuilder;
     type RawWriter = StreamWriter<Sink>;
 
-    unsafe fn raw_writer(&mut self) -> &mut Self::RawWriter {
-        &mut self.sink
-    }
+    unsafe fn raw_writer(&mut self) -> &mut Self::RawWriter { &mut self.sink }
 
     fn write_union<T: StrictUnion>(
         self,
@@ -125,9 +123,7 @@ impl TypedWrite for LibBuilder {
     }
 
     fn write_enum<T: StrictEnum>(self, value: T) -> io::Result<Self>
-    where
-        u8: From<T>,
-    {
+    where u8: From<T> {
         let mut writer = UnionBuilder::with::<T>(self);
         for (_, name) in T::ALL_VARIANTS {
             writer = writer.define_variant(vname!(*name));
@@ -309,9 +305,7 @@ impl<P: BuilderParent> StructBuilder<P> {
         }
     }
 
-    pub fn name(&self) -> &str {
-        self.name.as_ref().map(|n| n.as_str()).unwrap_or("<unnamed>")
-    }
+    pub fn name(&self) -> &str { self.name.as_ref().map(|n| n.as_str()).unwrap_or("<unnamed>") }
 
     fn _define_field<T: StrictEncode + StrictDumb>(mut self, fname: Option<FieldName>) -> Self {
         let (parent, remnant) = self.writer.into_parent_split();
@@ -405,9 +399,7 @@ impl<P: BuilderParent> DefineStruct for StructBuilder<P> {
         self._define_field::<T>(Some(name))
     }
 
-    fn complete(self) -> P {
-        self._complete_definition()
-    }
+    fn complete(self) -> P { self._complete_definition() }
 }
 
 impl<P: BuilderParent> WriteStruct for StructBuilder<P> {
@@ -418,9 +410,7 @@ impl<P: BuilderParent> WriteStruct for StructBuilder<P> {
         self._write_field(Some(name), value)
     }
 
-    fn complete(self) -> P {
-        self._complete_write()
-    }
+    fn complete(self) -> P { self._complete_write() }
 }
 
 impl<P: BuilderParent> DefineTuple for StructBuilder<P> {
@@ -431,9 +421,7 @@ impl<P: BuilderParent> DefineTuple for StructBuilder<P> {
         self._define_field::<T>(None)
     }
 
-    fn complete(self) -> P {
-        self._complete_definition()
-    }
+    fn complete(self) -> P { self._complete_definition() }
 }
 
 impl<P: BuilderParent> WriteTuple for StructBuilder<P> {
@@ -444,9 +432,7 @@ impl<P: BuilderParent> WriteTuple for StructBuilder<P> {
         self._write_field(None, value)
     }
 
-    fn complete(self) -> P {
-        self._complete_write()
-    }
+    fn complete(self) -> P { self._complete_write() }
 }
 
 #[derive(Debug)]
@@ -479,9 +465,7 @@ impl UnionBuilder {
         }
     }
 
-    pub fn name(&self) -> &str {
-        self.name.as_ref().map(|n| n.as_str()).unwrap_or("<unnamed>")
-    }
+    pub fn name(&self) -> &str { self.name.as_ref().map(|n| n.as_str()).unwrap_or("<unnamed>") }
 
     fn _define_variant(&mut self, name: &VariantName) {
         let ty = self.parent.last_compiled.clone().expect("no compiled type found");
