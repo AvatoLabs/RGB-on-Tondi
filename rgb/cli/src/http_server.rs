@@ -66,6 +66,7 @@ use crate::http_contract::{
 };
 
 const PROFILE_FILE: &str = "http-wallet-profile.json";
+const ASSET_METADATA_DIR: &str = "asset-metadata";
 const BIP39_SEED_ROUNDS: u32 = 2048;
 const PASSWORD_VERIFIER_ROUNDS: u32 = 100_000;
 const RGB_AMOUNT_STATE: &str = "amount";
@@ -84,6 +85,17 @@ struct AppState {
     profile_lock: Mutex<()>,
     wallet_state_lock: Mutex<()>,
     signer_session: Mutex<Option<UnlockedSigner>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredAssetMetadata {
+    contract_id: String,
+    ticker: String,
+    name: String,
+    precision: u8,
+    issued_supply: Option<String>,
+    contract_consignment_ref: Option<String>,
 }
 
 pub async fn serve(bind: SocketAddr, config: HttpServerConfig) -> anyhow::Result<()> {
@@ -519,6 +531,7 @@ impl AppState {
         asset.precision = input.precision;
         asset.issued_supply = Some(issued_supply.to_string());
         asset.contract_consignment_ref = Some(self.file_ref(&consignment_path));
+        self.save_asset_metadata(&asset)?;
         Ok(asset)
     }
 
@@ -550,6 +563,7 @@ impl AppState {
             })?;
         let mut asset = rgb_asset_from_runtime(&runtime, contract_id);
         asset.contract_consignment_ref = Some(self.file_ref(&path));
+        self.save_asset_metadata(&asset)?;
         Ok(asset)
     }
 
@@ -1411,6 +1425,102 @@ impl AppState {
             .into_owned()
     }
 
+    fn asset_metadata_path(&self, contract_id: &str) -> PathBuf {
+        let file_name =
+            contract_id
+                .chars()
+                .map(|ch| {
+                    if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '~') {
+                        ch
+                    } else {
+                        '_'
+                    }
+                })
+                .collect::<String>();
+        self.config
+            .data_dir
+            .join(ASSET_METADATA_DIR)
+            .join(format!("{file_name}.json"))
+    }
+
+    fn save_asset_metadata(&self, asset: &RgbAsset) -> Result<(), ApiError> {
+        let metadata = StoredAssetMetadata {
+            contract_id: asset.contract_id.clone(),
+            ticker: asset.ticker.clone(),
+            name: asset.name.clone(),
+            precision: asset.precision,
+            issued_supply: asset.issued_supply.clone(),
+            contract_consignment_ref: asset.contract_consignment_ref.clone(),
+        };
+        let path = self.asset_metadata_path(&asset.contract_id);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|err| {
+                ApiError::internal(format!(
+                    "unable to create asset metadata directory '{}': {err}",
+                    parent.display()
+                ))
+            })?;
+        }
+        let bytes = serde_json::to_vec_pretty(&metadata)
+            .map_err(|err| ApiError::internal(format!("unable to encode asset metadata: {err}")))?;
+        fs::write(&path, bytes).map_err(|err| {
+            ApiError::internal(format!(
+                "unable to write asset metadata '{}': {err}",
+                path.display()
+            ))
+        })
+    }
+
+    fn load_asset_metadata(&self) -> Result<BTreeMap<String, StoredAssetMetadata>, ApiError> {
+        let dir = self.config.data_dir.join(ASSET_METADATA_DIR);
+        let mut metadata = BTreeMap::new();
+        let entries = match fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(metadata),
+            Err(err) => {
+                return Err(ApiError::internal(format!(
+                    "unable to read asset metadata directory '{}': {err}",
+                    dir.display()
+                )));
+            }
+        };
+        for entry in entries {
+            let entry = entry.map_err(|err| {
+                ApiError::internal(format!(
+                    "unable to read asset metadata entry in '{}': {err}",
+                    dir.display()
+                ))
+            })?;
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+                continue;
+            }
+            let bytes = fs::read(&path).map_err(|err| {
+                ApiError::internal(format!(
+                    "unable to read asset metadata '{}': {err}",
+                    path.display()
+                ))
+            })?;
+            let asset: StoredAssetMetadata = serde_json::from_slice(&bytes).map_err(|err| {
+                ApiError::internal(format!("asset metadata '{}' is invalid: {err}", path.display()))
+            })?;
+            metadata.insert(asset.contract_id.clone(), asset);
+        }
+        Ok(metadata)
+    }
+
+    fn apply_asset_metadata(&self, asset: &mut RgbAsset, metadata: &StoredAssetMetadata) {
+        asset.ticker = metadata.ticker.clone();
+        asset.name = metadata.name.clone();
+        asset.precision = metadata.precision;
+        if metadata.issued_supply.is_some() {
+            asset.issued_supply = metadata.issued_supply.clone();
+        }
+        if metadata.contract_consignment_ref.is_some() {
+            asset.contract_consignment_ref = metadata.contract_consignment_ref.clone();
+        }
+    }
+
     fn transfer_record_path(&self, transfer_id: &str) -> PathBuf {
         self.config
             .data_dir
@@ -1649,10 +1759,17 @@ impl AppState {
                 }
             })
             .collect::<Vec<_>>();
+        let asset_metadata = self.load_asset_metadata()?;
         let assets = runtime
             .contracts
             .contract_ids()
-            .map(|contract_id| rgb_asset_from_runtime(runtime, contract_id))
+            .map(|contract_id| {
+                let mut asset = rgb_asset_from_runtime(runtime, contract_id);
+                if let Some(metadata) = asset_metadata.get(&asset.contract_id) {
+                    self.apply_asset_metadata(&mut asset, metadata);
+                }
+                asset
+            })
             .collect();
 
         Ok(DashboardSnapshot {
@@ -2532,6 +2649,53 @@ mod tests {
         assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
         assert!(err.message.contains("transfer record"));
         assert!(err.message.contains("invalid"));
+    }
+
+    #[test]
+    fn asset_metadata_survives_dashboard_rebuild() {
+        let state = AppState::new(HttpServerConfig {
+            data_dir: std::env::temp_dir().join(new_transfer_id().expect("transfer id")),
+            network: Network::Devnet,
+            min_confirmations: 1,
+            tondi_rpc_endpoint: "127.0.0.1:17110".to_owned(),
+        });
+        let mut asset = RgbAsset {
+            contract_id: "contract:asset_metadata_test".to_owned(),
+            ticker: "META".to_owned(),
+            name: "Metadata Persist Asset".to_owned(),
+            precision: 2,
+            balance: "12345".to_owned(),
+            issued_supply: Some("12345".to_owned()),
+            contract_consignment_ref: Some("contracts/asset_metadata_test.rgb".to_owned()),
+            icon_url: None,
+            issuer: "ssi:anonymous".to_owned(),
+            validation: ValidationState::Valid,
+            last_transition: None,
+        };
+
+        state
+            .save_asset_metadata(&asset)
+            .expect("save asset metadata");
+        let metadata = state.load_asset_metadata().expect("load asset metadata");
+        let persisted = metadata
+            .get("contract:asset_metadata_test")
+            .expect("persisted metadata");
+
+        asset.ticker = "FungibleToken".to_owned();
+        asset.name = "META".to_owned();
+        asset.precision = 0;
+        asset.issued_supply = None;
+        asset.contract_consignment_ref = None;
+        state.apply_asset_metadata(&mut asset, persisted);
+
+        assert_eq!(asset.ticker, "META");
+        assert_eq!(asset.name, "Metadata Persist Asset");
+        assert_eq!(asset.precision, 2);
+        assert_eq!(asset.issued_supply.as_deref(), Some("12345"));
+        assert_eq!(
+            asset.contract_consignment_ref.as_deref(),
+            Some("contracts/asset_metadata_test.rgb")
+        );
     }
 
     #[test]
