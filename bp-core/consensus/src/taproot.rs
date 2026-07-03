@@ -332,8 +332,13 @@ fn sha256_tagged_hash(tag: &str, payload: &[u8]) -> [u8; 32] {
 /// Tondi P2MR follows the node-side TapLeaf/BIP360 encoding for the public
 /// P2MR envelope, not the legacy RGB Copperoot/BLAKE3 hash above.
 pub fn tondi_tapleaf_hash_from_tapscript(script: &[u8]) -> TapLeafHash {
+    tondi_p2mr_leaf_hash(script, LeafVer::TapScript)
+}
+
+/// Computes the Tondi native P2MR leaf hash for a script leaf.
+pub fn tondi_p2mr_leaf_hash(script: &[u8], leaf_version: LeafVer) -> TapLeafHash {
     let mut payload = Vec::with_capacity(2 + script.len());
-    payload.push(LeafVer::TapScript.to_consensus_u8());
+    payload.push(leaf_version.to_consensus_u8());
     VarInt(script.len() as u64).consensus_encode(&mut payload).expect("Vec writes cannot fail");
     payload.extend_from_slice(script);
     TapLeafHash(sha256_tagged_hash("TapLeaf", &payload).into())
@@ -342,6 +347,360 @@ pub fn tondi_tapleaf_hash_from_tapscript(script: &[u8]) -> TapLeafHash {
 /// Computes the Tondi native one-leaf P2MR root from a TapScript leaf.
 pub fn tondi_p2mr_root_from_tapscript(script: &[u8]) -> [u8; 32] {
     tondi_tapleaf_hash_from_tapscript(script).to_byte_array()
+}
+
+/// Computes a Tondi native P2MR branch hash from two child hashes.
+pub fn tondi_p2mr_branch_hash(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+    let (first, second) = if left <= right { (left, right) } else { (right, left) };
+    let mut payload = Vec::with_capacity(64);
+    payload.extend_from_slice(&first);
+    payload.extend_from_slice(&second);
+    sha256_tagged_hash("TapBranch", &payload)
+}
+
+/// P2MR control block base size.
+pub const TONDI_P2MR_CONTROL_BASE_SIZE: usize = 1;
+
+/// P2MR control block sibling hash size.
+pub const TONDI_P2MR_CONTROL_NODE_SIZE: usize = 32;
+
+/// Maximum P2MR script tree depth.
+pub const TONDI_P2MR_CONTROL_MAX_NODE_COUNT: usize = 128;
+
+/// Standard single-leaf P2MR control block.
+pub const TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF: [u8; 1] = [TAPROOT_LEAF_TAPSCRIPT | 1];
+
+/// Errors produced by Tondi P2MR tree and witness helpers.
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum TondiP2mrTreeError {
+    /// P2MR tree must contain at least one leaf or hidden branch.
+    EmptyTree,
+
+    /// P2MR tree depth {depth} exceeds max depth {max}.
+    DepthTooLarge {
+        /// Supplied tree depth.
+        depth: usize,
+        /// Maximum accepted tree depth.
+        max: usize,
+    },
+
+    /// P2MR tree depths are not valid DFS order.
+    InvalidDepthOrder,
+
+    /// P2MR leaf version {0:#x} has the control-block parity bit set.
+    LeafVersionCarriesParity(u8),
+
+    /// P2MR tree is incomplete.
+    IncompleteTree,
+
+    /// P2MR witness stack item count exceeds u32.
+    TooManyWitnessItems,
+
+    /// P2MR witness stack item length exceeds u32.
+    WitnessItemTooLarge,
+}
+
+/// Spend data for one tracked P2MR script leaf.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct TondiP2mrScriptSpend {
+    /// Script bytes revealed for this spend.
+    pub leaf_script: Vec<u8>,
+    /// Leaf version committed by the control block.
+    pub leaf_version: LeafVer,
+    /// Control block containing the parity-set leaf version and merkle branch.
+    pub control_block: Vec<u8>,
+}
+
+impl TondiP2mrScriptSpend {
+    /// Encodes a Tondi P2MR Borsh witness stack for this script spend.
+    pub fn encode_witness(
+        &self,
+        input: impl IntoIterator<Item = Vec<u8>>,
+        annex: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>, TondiP2mrTreeError> {
+        let mut stack: Vec<Vec<u8>> = input.into_iter().collect();
+        stack.push(self.leaf_script.clone());
+        stack.push(self.control_block.clone());
+        if let Some(annex) = annex {
+            stack.push(annex);
+        }
+        tondi_p2mr_encode_witness_stack(stack)
+    }
+}
+
+/// Tracked spend data for a P2MR tree.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct TondiP2mrSpendData {
+    /// P2MR merkle root committed in the output script.
+    pub merkle_root: [u8; 32],
+    /// Spendable leaves tracked by the local wallet.
+    pub scripts: Vec<TondiP2mrScriptSpend>,
+}
+
+impl TondiP2mrSpendData {
+    /// Returns the shortest known spend data for a leaf script/version pair.
+    pub fn shortest_spend_for(
+        &self,
+        leaf_script: &[u8],
+        leaf_version: LeafVer,
+    ) -> Option<&TondiP2mrScriptSpend> {
+        self.scripts
+            .iter()
+            .filter(|spend| spend.leaf_script == leaf_script && spend.leaf_version == leaf_version)
+            .min_by(|a, b| {
+                a.control_block
+                    .len()
+                    .cmp(&b.control_block.len())
+                    .then_with(|| a.control_block.cmp(&b.control_block))
+            })
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+struct P2mrLeafInfo {
+    script: Vec<u8>,
+    leaf_version: LeafVer,
+    merkle_branch: Vec<[u8; 32]>,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+struct P2mrNodeInfo {
+    hash: [u8; 32],
+    leaves: Vec<P2mrLeafInfo>,
+}
+
+impl P2mrNodeInfo {
+    fn combine(mut a: Self, mut b: Self) -> Self {
+        for leaf in &mut a.leaves {
+            leaf.merkle_branch.push(b.hash);
+        }
+        for leaf in &mut b.leaves {
+            leaf.merkle_branch.push(a.hash);
+        }
+
+        let hash = tondi_p2mr_branch_hash(a.hash, b.hash);
+        a.leaves.extend(b.leaves);
+        Self {
+            hash,
+            leaves: a.leaves,
+        }
+    }
+}
+
+/// Builder for Tondi P2MR script trees in DFS depth order.
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+pub struct TondiP2mrTreeBuilder {
+    branches: Vec<Option<P2mrNodeInfo>>,
+}
+
+impl TondiP2mrTreeBuilder {
+    /// Constructs an empty P2MR tree builder.
+    pub fn new() -> Self { Self::default() }
+
+    /// Adds a TapScript leaf at the specified DFS depth.
+    pub fn add_tapscript_leaf(
+        &mut self,
+        depth: u8,
+        script: impl AsRef<[u8]>,
+    ) -> Result<&mut Self, TondiP2mrTreeError> {
+        self.add_leaf(depth, script, LeafVer::TapScript)
+    }
+
+    /// Adds a script leaf at the specified DFS depth.
+    pub fn add_leaf(
+        &mut self,
+        depth: u8,
+        script: impl AsRef<[u8]>,
+        leaf_version: LeafVer,
+    ) -> Result<&mut Self, TondiP2mrTreeError> {
+        if leaf_version.to_consensus_u8() & 1 != 0 {
+            return Err(TondiP2mrTreeError::LeafVersionCarriesParity(
+                leaf_version.to_consensus_u8(),
+            ));
+        }
+
+        let script = script.as_ref().to_vec();
+        let node = P2mrNodeInfo {
+            hash: tondi_p2mr_leaf_hash(&script, leaf_version).to_byte_array(),
+            leaves: vec![P2mrLeafInfo {
+                script,
+                leaf_version,
+                merkle_branch: vec![],
+            }],
+        };
+        self.insert(depth as usize, node)?;
+        Ok(self)
+    }
+
+    /// Adds an omitted hidden branch hash at the specified DFS depth.
+    pub fn add_hidden(
+        &mut self,
+        depth: u8,
+        hash: [u8; 32],
+    ) -> Result<&mut Self, TondiP2mrTreeError> {
+        let node = P2mrNodeInfo {
+            hash,
+            leaves: vec![],
+        };
+        self.insert(depth as usize, node)?;
+        Ok(self)
+    }
+
+    /// Returns true when the tree has exactly one complete root.
+    pub fn is_complete(&self) -> bool { self.branches.len() == 1 && self.branches[0].is_some() }
+
+    /// Returns the P2MR merkle root.
+    pub fn merkle_root(&self) -> Result<[u8; 32], TondiP2mrTreeError> {
+        Ok(self.complete_root()?.hash)
+    }
+
+    /// Builds spend data for all tracked leaves.
+    pub fn spend_data(&self) -> Result<TondiP2mrSpendData, TondiP2mrTreeError> {
+        let root = self.complete_root()?;
+        let mut scripts = Vec::with_capacity(root.leaves.len());
+
+        for leaf in &root.leaves {
+            let mut control_block = Vec::with_capacity(
+                TONDI_P2MR_CONTROL_BASE_SIZE
+                    + TONDI_P2MR_CONTROL_NODE_SIZE * leaf.merkle_branch.len(),
+            );
+            control_block.push(leaf.leaf_version.to_consensus_u8() | 1);
+            for node in &leaf.merkle_branch {
+                control_block.extend_from_slice(node);
+            }
+            scripts.push(TondiP2mrScriptSpend {
+                leaf_script: leaf.script.clone(),
+                leaf_version: leaf.leaf_version,
+                control_block,
+            });
+        }
+
+        scripts.sort_by(|a, b| {
+            a.leaf_script
+                .cmp(&b.leaf_script)
+                .then_with(|| {
+                    a.leaf_version.to_consensus_u8().cmp(&b.leaf_version.to_consensus_u8())
+                })
+                .then_with(|| a.control_block.len().cmp(&b.control_block.len()))
+                .then_with(|| a.control_block.cmp(&b.control_block))
+        });
+
+        Ok(TondiP2mrSpendData {
+            merkle_root: root.hash,
+            scripts,
+        })
+    }
+
+    /// Validates DFS depth order for a P2MR tree description.
+    pub fn valid_depths(depths: impl IntoIterator<Item = u8>) -> bool {
+        let mut branch = Vec::<bool>::new();
+        for depth in depths {
+            let mut depth = depth as usize;
+            if depth > TONDI_P2MR_CONTROL_MAX_NODE_COUNT || depth + 1 < branch.len() {
+                return false;
+            }
+            while branch.len() > depth && branch[depth] {
+                branch.pop();
+                if depth == 0 {
+                    return false;
+                }
+                depth -= 1;
+            }
+            if branch.len() <= depth {
+                branch.resize(depth + 1, false);
+            }
+            if branch[depth] {
+                return false;
+            }
+            branch[depth] = true;
+        }
+        branch.len() == 1 && branch[0]
+    }
+
+    fn complete_root(&self) -> Result<&P2mrNodeInfo, TondiP2mrTreeError> {
+        if self.branches.is_empty() {
+            return Err(TondiP2mrTreeError::EmptyTree);
+        }
+        if !self.is_complete() {
+            return Err(TondiP2mrTreeError::IncompleteTree);
+        }
+        Ok(self.branches[0].as_ref().expect("complete P2MR tree has a root"))
+    }
+
+    fn insert(&mut self, depth: usize, mut node: P2mrNodeInfo) -> Result<(), TondiP2mrTreeError> {
+        if depth > TONDI_P2MR_CONTROL_MAX_NODE_COUNT {
+            return Err(TondiP2mrTreeError::DepthTooLarge {
+                depth,
+                max: TONDI_P2MR_CONTROL_MAX_NODE_COUNT,
+            });
+        }
+        if depth + 1 < self.branches.len() {
+            return Err(TondiP2mrTreeError::InvalidDepthOrder);
+        }
+
+        let mut depth = depth;
+        while self.branches.len() > depth && self.branches[depth].is_some() {
+            let sibling =
+                self.branches.pop().and_then(|entry| entry).expect("branch at depth is populated");
+            node = P2mrNodeInfo::combine(node, sibling);
+            if depth == 0 {
+                return Err(TondiP2mrTreeError::InvalidDepthOrder);
+            }
+            depth -= 1;
+        }
+
+        if self.branches.len() <= depth {
+            self.branches.resize_with(depth + 1, || None);
+        }
+        self.branches[depth] = Some(node);
+        Ok(())
+    }
+}
+
+/// Builds the standard single-key Tondi P2MR leaf script.
+pub fn tondi_p2mr_single_key_leaf_script(xonly_public_key: XOnlyPk) -> Vec<u8> {
+    let mut script = Vec::with_capacity(34);
+    script.push(0x20);
+    script.extend_from_slice(&xonly_public_key.to_byte_array());
+    script.push(OP_CHECKSIG);
+    script
+}
+
+/// Builds spend data for the standard single-key Tondi P2MR leaf.
+pub fn tondi_p2mr_single_key_spend_data(xonly_public_key: XOnlyPk) -> TondiP2mrSpendData {
+    let mut builder = TondiP2mrTreeBuilder::new();
+    builder
+        .add_tapscript_leaf(0, tondi_p2mr_single_key_leaf_script(xonly_public_key))
+        .expect("standard single-key P2MR leaf is valid");
+    builder.spend_data().expect("standard single-key P2MR tree is complete")
+}
+
+/// Computes the standard single-key Tondi P2MR root.
+pub fn tondi_p2mr_single_key_root(xonly_public_key: XOnlyPk) -> [u8; 32] {
+    tondi_p2mr_single_key_spend_data(xonly_public_key).merkle_root
+}
+
+/// Encodes a Tondi P2MR Borsh witness stack.
+pub fn tondi_p2mr_encode_witness_stack(
+    stack: impl IntoIterator<Item = Vec<u8>>,
+) -> Result<Vec<u8>, TondiP2mrTreeError> {
+    let stack = stack.into_iter().collect::<Vec<_>>();
+    let mut bytes = Vec::new();
+    append_p2mr_witness_len(&mut bytes, stack.len())
+        .ok_or(TondiP2mrTreeError::TooManyWitnessItems)?;
+    for item in stack {
+        append_p2mr_witness_len(&mut bytes, item.len())
+            .ok_or(TondiP2mrTreeError::WitnessItemTooLarge)?;
+        bytes.extend_from_slice(&item);
+    }
+    Ok(bytes)
+}
+
+fn append_p2mr_witness_len(bytes: &mut Vec<u8>, len: usize) -> Option<()> {
+    let len = u32::try_from(len).ok()?;
+    bytes.extend_from_slice(&len.to_le_bytes());
+    Some(())
 }
 
 impl IntoTapHash for TapLeafHash {
@@ -834,6 +1193,79 @@ mod tests {
         .expect("valid hash");
 
         assert_eq!(tondi_p2mr_root_from_tapscript(&[0x51]), expected);
+    }
+
+    #[test]
+    fn tondi_p2mr_tree_builder_tracks_multileaf_control_blocks() {
+        let left = vec![0x51];
+        let mut right = Vec::with_capacity(34);
+        right.push(0x20);
+        right.extend_from_slice(&[7u8; 32]);
+        right.push(OP_CHECKSIG);
+
+        let mut builder = TondiP2mrTreeBuilder::new();
+        builder.add_tapscript_leaf(1, &left).unwrap().add_tapscript_leaf(1, &right).unwrap();
+        let spend_data = builder.spend_data().unwrap();
+
+        let left_hash = tondi_p2mr_root_from_tapscript(&left);
+        let right_hash = tondi_p2mr_root_from_tapscript(&right);
+        assert_eq!(spend_data.merkle_root, tondi_p2mr_branch_hash(left_hash, right_hash));
+
+        let left_spend = spend_data.shortest_spend_for(&left, LeafVer::TapScript).unwrap();
+        assert_eq!(left_spend.control_block[0], TAPROOT_LEAF_TAPSCRIPT | 1);
+        assert_eq!(&left_spend.control_block[1..], right_hash.as_slice());
+
+        let right_spend = spend_data.shortest_spend_for(&right, LeafVer::TapScript).unwrap();
+        assert_eq!(right_spend.control_block[0], TAPROOT_LEAF_TAPSCRIPT | 1);
+        assert_eq!(&right_spend.control_block[1..], left_hash.as_slice());
+    }
+
+    #[test]
+    fn tondi_p2mr_tree_builder_supports_hidden_branches() {
+        let visible = vec![0x51];
+        let hidden = [9u8; 32];
+
+        let mut builder = TondiP2mrTreeBuilder::new();
+        builder.add_tapscript_leaf(1, &visible).unwrap().add_hidden(1, hidden).unwrap();
+        let spend_data = builder.spend_data().unwrap();
+
+        let visible_hash = tondi_p2mr_root_from_tapscript(&visible);
+        assert_eq!(spend_data.merkle_root, tondi_p2mr_branch_hash(visible_hash, hidden));
+        assert_eq!(spend_data.scripts.len(), 1);
+        assert_eq!(&spend_data.scripts[0].control_block[1..], hidden.as_slice());
+    }
+
+    #[test]
+    fn tondi_p2mr_single_key_spend_data_encodes_witness_stack() {
+        let secret_key = secp256k1::SecretKey::from_slice(&[3u8; 32]).unwrap();
+        let public_key = secp256k1::PublicKey::from_secret_key(secp256k1::SECP256K1, &secret_key);
+        let xonly = XOnlyPk::from_byte_array(public_key.x_only_public_key().0.serialize()).unwrap();
+        let spend_data = tondi_p2mr_single_key_spend_data(xonly);
+        let spend = spend_data.scripts.first().unwrap();
+
+        assert_eq!(spend_data.merkle_root, tondi_p2mr_single_key_root(xonly));
+        assert_eq!(spend.control_block, TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF);
+
+        let encoded = spend.encode_witness([vec![1u8; 64]], None).unwrap();
+        let mut cursor = encoded.as_slice();
+        assert_eq!(read_test_witness_len(&mut cursor), 3);
+        assert_eq!(read_test_witness_item(&mut cursor), vec![1u8; 64]);
+        assert_eq!(read_test_witness_item(&mut cursor), spend.leaf_script);
+        assert_eq!(read_test_witness_item(&mut cursor), spend.control_block);
+        assert!(cursor.is_empty());
+    }
+
+    fn read_test_witness_len(cursor: &mut &[u8]) -> usize {
+        let (len, rest) = cursor.split_at(4);
+        *cursor = rest;
+        u32::from_le_bytes(len.try_into().unwrap()) as usize
+    }
+
+    fn read_test_witness_item(cursor: &mut &[u8]) -> Vec<u8> {
+        let len = read_test_witness_len(cursor);
+        let (item, rest) = cursor.split_at(len);
+        *cursor = rest;
+        item.to_vec()
     }
 }
 

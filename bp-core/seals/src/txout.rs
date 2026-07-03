@@ -27,8 +27,7 @@ use core::fmt::Debug;
 
 use amplify::{ByteArray, Bytes, Bytes32};
 use bc::{
-    secp256k1, tondi_p2mr_root_from_tapscript, CompressedPk, Outpoint, ScriptPubkey, Tx, Txid,
-    XOnlyPk,
+    secp256k1, tondi_p2mr_single_key_root, CompressedPk, Outpoint, ScriptPubkey, Tx, Txid, XOnlyPk,
 };
 use commit_verify::{
     CommitId, ConvolveVerifyError, DigestExt, EmbedVerifyError, ReservedBytes, TondiBlake3,
@@ -41,16 +40,7 @@ use strict_encoding::{StrictDumb, StrictSum};
 use crate::WOutpoint;
 
 const RGB_COMMITMENT_DOMAIN: &[u8] = b"TondiRgbCommitment";
-const OP_PUSHBYTES_32: u8 = 0x20;
-const OP_CHECKSIG: u8 = 0xac;
-
-fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] {
-    let mut script = Vec::with_capacity(34);
-    script.push(OP_PUSHBYTES_32);
-    script.extend_from_slice(&xonly.to_byte_array());
-    script.push(OP_CHECKSIG);
-    tondi_p2mr_root_from_tapscript(&script)
-}
+fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] { tondi_p2mr_single_key_root(xonly) }
 
 fn is_tondi_p2mr_root(script: &ScriptPubkey) -> bool {
     script.len() == 32 && script.iter().any(|byte| *byte != 0)

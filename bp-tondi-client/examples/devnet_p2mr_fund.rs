@@ -9,8 +9,9 @@ use std::str::FromStr;
 use amplify::{ByteArray, Bytes32};
 use anyhow::{anyhow, bail, Context};
 use bpstd::{
-    secp256k1, tondi_tapleaf_hash_from_tapscript, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo,
-    SigScript, Tx, TxIn, TxOut, TxVer, Txid, VarIntArray, VarIntBytes, Vout, Witness,
+    secp256k1, tondi_p2mr_encode_witness_stack, tondi_p2mr_single_key_spend_data,
+    tondi_tapleaf_hash_from_tapscript, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript,
+    Tx, TxIn, TxOut, TxVer, Txid, VarIntArray, VarIntBytes, Vout, Witness, XOnlyPk,
 };
 use sha2::{Digest, Sha256};
 use tondi::{
@@ -18,11 +19,8 @@ use tondi::{
     TondiTxInput, TondiTxOutput,
 };
 
-const OP_PUSHBYTES_32: u8 = 0x20;
-const OP_CHECKSIG: u8 = 0xac;
 const TONDI_TAPSIGHASH_TAG: &str = "TapSighash";
 const TONDI_TAPROOT_KEY_VERSION_0: u8 = 0;
-const TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF: [u8; 1] = [0xc1];
 const P2MR_ADDRESS_VERSION: u8 = 216;
 const BECH32M_CONST: u32 = 0x2bc830a3;
 const CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
@@ -31,6 +29,7 @@ const GENERATORS: [u32; 5] = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x
 struct Signer {
     keypair: secp256k1::Keypair,
     leaf_script: Vec<u8>,
+    control_block: Vec<u8>,
     leaf_hash: bpstd::TapLeafHash,
     p2mr_root: [u8; 32],
 }
@@ -260,22 +259,21 @@ fn p2mr_signer(secret_key: &str) -> anyhow::Result<Signer> {
     })?;
     let keypair = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &secret_key)?;
     let xonly = keypair.public_key().x_only_public_key().0.serialize();
-    let leaf_script = p2mr_single_key_leaf_script(&xonly);
+    let xonly = XOnlyPk::from_byte_array(xonly).context("invalid x-only faucet P2MR key")?;
+    let spend_data = tondi_p2mr_single_key_spend_data(xonly);
+    let spend = spend_data
+        .scripts
+        .first()
+        .context("standard single-key P2MR spend data is empty")?;
+    let leaf_script = spend.leaf_script.clone();
     let leaf_hash = tondi_tapleaf_hash_from_tapscript(&leaf_script);
     Ok(Signer {
         keypair,
         leaf_script,
+        control_block: spend.control_block.clone(),
         leaf_hash,
-        p2mr_root: leaf_hash.to_byte_array(),
+        p2mr_root: spend_data.merkle_root,
     })
-}
-
-fn p2mr_single_key_leaf_script(xonly_public_key: &[u8; 32]) -> Vec<u8> {
-    let mut script = Vec::with_capacity(34);
-    script.push(OP_PUSHBYTES_32);
-    script.extend_from_slice(xonly_public_key);
-    script.push(OP_CHECKSIG);
-    script
 }
 
 fn sign_input(
@@ -288,11 +286,12 @@ fn sign_input(
     let sig = secp256k1::SECP256K1
         .sign_schnorr_no_aux_rand(&sighash, &signer.keypair)
         .to_byte_array();
-    let sig_script = encode_p2mr_witness_stack([
+    let sig_script = tondi_p2mr_encode_witness_stack([
         sig.to_vec(),
         signer.leaf_script.clone(),
-        TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF.to_vec(),
-    ])?;
+        signer.control_block.clone(),
+    ])
+    .map_err(|err| anyhow!("unable to encode P2MR witness stack: {err}"))?;
     tx.inputs[input_index].sig_script = SigScript::from_checked(sig_script);
     Ok(())
 }
@@ -452,23 +451,6 @@ fn bp_tx_to_tondi(tx: &Tx) -> anyhow::Result<TondiTransaction> {
         .validate_tondi_native_rgb()
         .map_err(|err| anyhow!("{err}"))?;
     Ok(native)
-}
-
-fn encode_p2mr_witness_stack(items: impl IntoIterator<Item = Vec<u8>>) -> anyhow::Result<Vec<u8>> {
-    let items = items.into_iter().collect::<Vec<_>>();
-    let mut bytes = Vec::new();
-    append_le_u32(
-        &mut bytes,
-        u32::try_from(items.len()).context("too many witness items")?,
-    );
-    for item in items {
-        append_le_u32(
-            &mut bytes,
-            u32::try_from(item.len()).context("witness item too large")?,
-        );
-        bytes.extend_from_slice(&item);
-    }
-    Ok(bytes)
 }
 
 fn sha256_digest(bytes: &[u8]) -> [u8; 32] {

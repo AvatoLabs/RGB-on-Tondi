@@ -2017,6 +2017,7 @@ fn network_from_contract(network: TondiNetwork) -> Network {
     match network {
         TondiNetwork::Mainnet => Network::Mainnet,
         TondiNetwork::Testnet => Network::Testnet,
+        TondiNetwork::Testnet2 => Network::Testnet2,
         TondiNetwork::Devnet => Network::Devnet,
     }
 }
@@ -2024,7 +2025,8 @@ fn network_from_contract(network: TondiNetwork) -> Network {
 fn network_label(network: Network) -> &'static str {
     match network {
         Network::Mainnet => "mainnet",
-        Network::Testnet | Network::Testnet2 | Network::Simnet => "testnet",
+        Network::Testnet | Network::Simnet => "testnet",
+        Network::Testnet2 => "testnet2",
         Network::Devnet => "devnet",
     }
 }
@@ -2040,7 +2042,8 @@ impl From<Network> for TondiNetwork {
     fn from(network: Network) -> Self {
         match network {
             Network::Mainnet => Self::Mainnet,
-            Network::Testnet | Network::Testnet2 | Network::Simnet => Self::Testnet,
+            Network::Testnet | Network::Simnet => Self::Testnet,
+            Network::Testnet2 => Self::Testnet2,
             Network::Devnet => Self::Devnet,
         }
     }
@@ -2761,6 +2764,12 @@ mod tests {
     #[test]
     fn network_mapping_preserves_devnet() {
         assert_eq!(TondiNetwork::from(Network::Devnet), TondiNetwork::Devnet);
+    }
+
+    #[test]
+    fn network_mapping_preserves_testnet2() {
+        assert_eq!(network_from_contract(TondiNetwork::Testnet2), Network::Testnet2);
+        assert_eq!(TondiNetwork::from(Network::Testnet2), TondiNetwork::Testnet2);
     }
 
     #[test]

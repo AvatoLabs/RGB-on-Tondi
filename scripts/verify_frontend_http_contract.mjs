@@ -103,6 +103,17 @@ function rustStructFields(source, typeName) {
   return fields
 }
 
+function rustEnumValues(source, typeName) {
+  const match = new RegExp(`pub\\s+enum\\s+${typeName}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(
+    source,
+  )
+  if (!match) return null
+
+  return Array.from(match[1].matchAll(/^\s*([A-Z][A-Za-z0-9]*)\s*,/gm), ([, value]) =>
+    value.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase(),
+  )
+}
+
 function assertExactSchema(actual, expected, label) {
   const actualKeys = Object.keys(actual).sort()
   const expectedKeys = Object.keys(expected).sort()
@@ -116,6 +127,13 @@ function assertExactSchema(actual, expected, label) {
       `${label}.${key} type ${actual[key]} must equal ${expected[key]}`,
     )
   }
+}
+
+function assertExactArray(actual, expected, label) {
+  assert(
+    actual.join(",") === expected.join(","),
+    `${label} ${actual.join(",")} must equal ${expected.join(",")}`,
+  )
 }
 
 function endpointKey(endpoint) {
@@ -174,6 +192,16 @@ assert(
   !frontend.enums?.dashboardServiceMode?.includes("dev-preview"),
   "frontend production backend serviceMode enum must exclude dev-preview",
 )
+
+const rustTondiNetwork = rustEnumValues(rustSource, "TondiNetwork")
+assert(rustTondiNetwork !== null, "Rust contract missing enum TondiNetwork")
+if (rustTondiNetwork) {
+  assertExactArray(
+    rustTondiNetwork,
+    frontend.enums?.tondiNetwork ?? [],
+    "TondiNetwork enum",
+  )
+}
 
 for (const typeName of requestTypeNames) {
   const schema = frontend.requestTypes?.[typeName]

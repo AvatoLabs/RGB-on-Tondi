@@ -81,11 +81,16 @@ pub use sigcache::{PrevoutMismatch, SighashCache, SighashError};
 pub use sigtypes::{Bip340Sig, LegacySig, ScriptCode, SigError, Sighash, SighashFlag, SighashType};
 pub use tapcode::TapCode;
 pub use taproot::{
-    tondi_p2mr_root_from_tapscript, tondi_tapleaf_hash_from_tapscript, Annex, AnnexError,
+    tondi_p2mr_branch_hash, tondi_p2mr_encode_witness_stack, tondi_p2mr_leaf_hash,
+    tondi_p2mr_root_from_tapscript, tondi_p2mr_single_key_leaf_script, tondi_p2mr_single_key_root,
+    tondi_p2mr_single_key_spend_data, tondi_tapleaf_hash_from_tapscript, Annex, AnnexError,
     ControlBlock, FutureLeafVer, InternalKeypair, InternalPk, IntoTapHash, InvalidLeafVer,
     InvalidParityValue, LeafScript, LeafVer, OutputPk, Parity, TapBranchHash, TapLeafHash,
-    TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, COPPEROOT_SIGHASH_TAG,
-    TAPROOT_ANNEX_PREFIX, TAPROOT_LEAF_MASK, TAPROOT_LEAF_TAPSCRIPT,
+    TapMerklePath, TapNodeHash, TapScript, TapSighash, TondiP2mrScriptSpend, TondiP2mrSpendData,
+    TondiP2mrTreeBuilder, TondiP2mrTreeError, XOnlyPk, COPPEROOT_SIGHASH_TAG, TAPROOT_ANNEX_PREFIX,
+    TAPROOT_LEAF_MASK, TAPROOT_LEAF_TAPSCRIPT, TONDI_P2MR_CONTROL_BASE_SIZE,
+    TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF, TONDI_P2MR_CONTROL_MAX_NODE_COUNT,
+    TONDI_P2MR_CONTROL_NODE_SIZE,
 };
 pub use timelocks::{
     InvalidTimelock, LockHeight, LockTime, LockTimestamp, SeqNo, TimeLockInterval,

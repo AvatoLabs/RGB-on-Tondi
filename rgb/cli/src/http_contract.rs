@@ -140,6 +140,7 @@ pub const HTTP_ENDPOINTS: &[Endpoint] = &[
 pub enum TondiNetwork {
     Mainnet,
     Testnet,
+    Testnet2,
     Devnet,
 }
 

@@ -31,3 +31,7 @@ Cargo.lock
 *.bak
 *.tmp
 
+
+# Local tooling artifacts
+.cap/
+.playwright-mcp/

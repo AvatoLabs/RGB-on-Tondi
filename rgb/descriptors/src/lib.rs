@@ -42,16 +42,13 @@ use core::iter;
 use amplify::{Bytes32, Wrapper, WrapperMut};
 use bp::seals::WTxoSeal;
 use bpstd::{
-    tondi_p2mr_root_from_tapscript, CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey,
+    tondi_p2mr_single_key_root, CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey,
     DeriveLegacy, DeriveSet, DeriveXOnly, DerivedScript, Descriptor, KeyOrigin, Keychain,
     LegacyKeySig, LegacyPk, NormalIndex, RedeemScript, ScriptPubkey, SigScript, SpkClass, StdDescr,
     TapDerivation, TaprootKeySig, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
     XpubDerivable,
 };
 use indexmap::IndexMap;
-
-const OP_PUSHBYTES_32: u8 = 0x20;
-const OP_CHECKSIG: u8 = 0xac;
 
 pub trait DescriptorRgb<K = XpubDerivable, V = ()>: Descriptor<K, V>
 where K: DeriveSet<XOnly = K> + DeriveXOnly
@@ -119,13 +116,7 @@ where K: DeriveSet<XOnly = K> + DeriveXOnly
 /// This mirrors Tondi's `p2mr_single_key_root`: the committed leaf is
 /// `<x-only-pubkey> OP_CHECKSIG`, and the P2MR output payload is the one-leaf
 /// TapLeaf hash.
-pub fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] {
-    let mut script = Vec::with_capacity(34);
-    script.push(OP_PUSHBYTES_32);
-    script.extend_from_slice(&xonly.to_byte_array());
-    script.push(OP_CHECKSIG);
-    tondi_p2mr_root_from_tapscript(&script)
-}
+pub fn p2mr_single_key_root(xonly: XOnlyPk) -> [u8; 32] { tondi_p2mr_single_key_root(xonly) }
 
 fn p2mr_script_pubkey(xonly: XOnlyPk) -> ScriptPubkey {
     ScriptPubkey::from_checked(p2mr_single_key_root(xonly).to_vec())
@@ -342,6 +333,22 @@ where K: DeriveSet<XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly
         keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         self.deriver.taproot_witness(cb, keysigs)
+    }
+}
+
+#[cfg(test)]
+mod p2mr_tests {
+    use bpstd::secp256k1;
+
+    use super::*;
+
+    #[test]
+    fn p2mr_single_key_root_delegates_to_protocol_helper() {
+        let secret_key = secp256k1::SecretKey::from_slice(&[11u8; 32]).unwrap();
+        let public_key = secp256k1::PublicKey::from_secret_key(secp256k1::SECP256K1, &secret_key);
+        let xonly = XOnlyPk::from_byte_array(public_key.x_only_public_key().0.serialize()).unwrap();
+
+        assert_eq!(p2mr_single_key_root(xonly), tondi_p2mr_single_key_root(xonly));
     }
 }
 
