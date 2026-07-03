@@ -7,8 +7,8 @@ cd "$ROOT"
 echo "=== RGB-on-Tondi full contract workflow ==="
 echo
 
-TONDI_RPC="${TONDI_RPC:-127.0.0.1:16210}"
-NETWORK="${NETWORK:-testnet}"
+TONDI_RPC="${TONDI_RPC:-127.0.0.1:16310}"
+NETWORK="${NETWORK:-testnet2}"
 DATA_ROOT="${DATA_ROOT:-/tmp/rgb-on-tondi-full-workflow}"
 DATA_DIR_ALICE="${DATA_DIR_ALICE:-$DATA_ROOT/alice}"
 DATA_DIR_BOB="${DATA_DIR_BOB:-$DATA_ROOT/bob}"
@@ -63,7 +63,7 @@ if [[ -z "${ALICE_XPUB:-}" || -z "${BOB_XPUB:-}" ]]; then
   cat >&2 <<'MSG'
 ALICE_XPUB and BOB_XPUB are required.
 Create Tondi-compatible extended public keys, or leave AUTO_DEV_KEYS=1 for deterministic devnet keys, then rerun:
-  ALICE_XPUB='...' BOB_XPUB='...' TONDI_RPC=127.0.0.1:16210 bash test_full_workflow.sh
+  ALICE_XPUB='...' BOB_XPUB='...' TONDI_RPC=127.0.0.1:16310 NETWORK=testnet2 bash test_full_workflow.sh
 MSG
   exit 2
 fi

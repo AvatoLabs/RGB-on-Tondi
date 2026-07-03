@@ -2024,7 +2024,7 @@ fn network_from_contract(network: TondiNetwork) -> Network {
 fn network_label(network: Network) -> &'static str {
     match network {
         Network::Mainnet => "mainnet",
-        Network::Testnet | Network::Simnet => "testnet",
+        Network::Testnet | Network::Testnet2 | Network::Simnet => "testnet",
         Network::Devnet => "devnet",
     }
 }
@@ -2040,7 +2040,7 @@ impl From<Network> for TondiNetwork {
     fn from(network: Network) -> Self {
         match network {
             Network::Mainnet => Self::Mainnet,
-            Network::Testnet | Network::Simnet => Self::Testnet,
+            Network::Testnet | Network::Testnet2 | Network::Simnet => Self::Testnet,
             Network::Devnet => Self::Devnet,
         }
     }

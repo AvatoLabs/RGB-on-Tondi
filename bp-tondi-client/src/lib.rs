@@ -20,9 +20,9 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), tondi::Error> {
-//!     // For gRPC connection (port 16210)
+//!     // For gRPC connection (testnet2 local port 16310)
 //!     let config = TondiConfig::new(format!("localhost:{}", DEFAULT_GRPC_PORT));
-//!     // Or use a remote node: TondiConfig::new("38.190.226.7:16210")
+//!     // Or use a remote node: TondiConfig::new("host:16310")
 //!     let client = TondiClient::connect(config).await?;
 //!     
 //!     // Check connection
@@ -58,7 +58,7 @@ pub const DEFAULT_RPC_PORT: u16 = 17110;
 pub const DEFAULT_TESTNET_RPC_PORT: u16 = 17210;
 
 /// Default Tondi mainnet gRPC port
-pub const DEFAULT_GRPC_PORT: u16 = 16210;
+pub const DEFAULT_GRPC_PORT: u16 = 16310;
 
 /// Default Tondi testnet gRPC port
 pub const DEFAULT_TESTNET_GRPC_PORT: u16 = 16220;

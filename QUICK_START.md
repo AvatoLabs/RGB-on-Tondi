@@ -17,9 +17,9 @@ node scripts/verify_frontend_http_contract.mjs
 Run the backend-shaped service target used by the Avato wallet frontend:
 
 ```bash
-TONDI_RPC=127.0.0.1:26310 \
+TONDI_RPC=127.0.0.1:16310 \
 cargo run -p rgb-wallet --features resolver-tondi -- \
-  --network devnet serve-http --bind 127.0.0.1:8787
+  --network testnet2 serve-http --bind 127.0.0.1:8787
 ```
 
 The service now handles wallet profile creation, lock/unlock, cached dashboard,
@@ -47,7 +47,7 @@ The smoke test verifies that the CLI builds, the workflow scripts parse, the iss
 Start a Tondi devnet node with RPC and UTXO indexing enabled, then run:
 
 ```bash
-TONDI_DEVNET_RPC=127.0.0.1:26310 \
+TONDI_DEVNET_RPC=127.0.0.1:16310 \
 TONDI_DEVNET_ALLOW_UNSYNCED=1 \
 bash scripts/devnet_p2mr_rgb_verify.sh
 ```
@@ -73,8 +73,8 @@ Prepare an issuer file and, if you do not want deterministic devnet keys, wallet
 
 ```bash
 export ISSUER_FILE='<path-to-tondi-compatible-issuer.issuer>'
-export TONDI_RPC='127.0.0.1:26310'
-export NETWORK='devnet'
+export TONDI_RPC='127.0.0.1:16310'
+export NETWORK='testnet2'
 ```
 
 Run:

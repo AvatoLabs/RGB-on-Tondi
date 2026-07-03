@@ -100,6 +100,7 @@ impl TondiResolver {
         self.network_type = match network {
             AddressNetwork::TondiMainnet => NetworkType::Mainnet,
             AddressNetwork::TondiTestnet => NetworkType::Testnet,
+            AddressNetwork::TondiTestnet2 => NetworkType::Testnet2,
             AddressNetwork::TondiSimnet => NetworkType::Simnet,
             AddressNetwork::TondiDevnet => NetworkType::Devnet,
             _ => self.network_type,

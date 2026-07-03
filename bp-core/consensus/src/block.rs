@@ -89,6 +89,15 @@ impl BlockHash {
         0x6b57c279_79eb1463,
     ]);
 
+    /// Tondi testnet2 genesis block hash
+    /// Hash: fe032347513080cd9cbbed7cb48a3b00daf039d9e8107d42aab0180d2acc93c9
+    pub const GENESIS_TONDI_TESTNET2: BlockHash = BlockHash::from_u64_be_array([
+        0xfe032347_513080cd,
+        0x9cbbed7c_b48a3b00,
+        0xdaf039d9_e8107d42,
+        0xaab0180d_2acc93c9,
+    ]);
+
     // Tondi genesis block hashes (deprecated, kept for backward compatibility)
     #[deprecated(note = "Use GENESIS_TONDI_MAINNET for Tondi")]
     pub const GENESIS_MAINNET: BlockHash = BlockHash::from_u64_be_array([

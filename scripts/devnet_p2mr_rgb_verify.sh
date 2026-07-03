@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TONDI_REPO="${TONDI_REPO:-"$ROOT/../Tondi"}"
 
 if [[ -z "${TONDI_DEVNET_RPC:-}" ]]; then
-  echo "TONDI_DEVNET_RPC is required, for example: TONDI_DEVNET_RPC=127.0.0.1:16210 bash scripts/devnet_p2mr_rgb_verify.sh" >&2
+  echo "TONDI_DEVNET_RPC is required, for example: TONDI_DEVNET_RPC=127.0.0.1:16310 bash scripts/devnet_p2mr_rgb_verify.sh" >&2
   echo "For an isolated local devnet only, set TONDI_DEVNET_ALLOW_UNSYNCED=1." >&2
   exit 2
 fi

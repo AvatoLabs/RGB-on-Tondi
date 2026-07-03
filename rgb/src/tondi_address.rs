@@ -11,6 +11,7 @@ pub(crate) fn encode_p2mr_for_network(network: Network, root: &[u8]) -> Result<S
     let prefix = match network {
         Network::Mainnet => "tondi",
         Network::Testnet => "tondi0",
+        Network::Testnet2 => "tondi1",
         Network::Simnet => "tondisim",
         Network::Devnet => "tondidev",
     };

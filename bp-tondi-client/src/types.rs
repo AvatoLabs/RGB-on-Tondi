@@ -34,6 +34,7 @@ pub type BlueScore = u64;
 pub enum NetworkType {
     Mainnet,
     Testnet,
+    Testnet2,
     Devnet,
     Simnet,
 }

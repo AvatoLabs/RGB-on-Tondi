@@ -334,8 +334,8 @@ fn proto_fee_estimate_to_fee_estimate(estimate: proto::RpcFeeEstimate) -> Result
 /// Configuration for Tondi RPC client
 #[derive(Debug, Clone)]
 pub struct TondiConfig {
-    /// RPC endpoint URL (e.g., "38.190.226.7:16210" for gRPC)
-    /// Note: gRPC typically uses port 16210
+    /// RPC endpoint URL (e.g., "127.0.0.1:16310" for local testnet2 gRPC)
+    /// Note: local testnet2 gRPC typically uses port 16310
     pub endpoint: String,
     /// Connection timeout
     pub timeout: Option<Duration>,
@@ -382,6 +382,11 @@ impl TondiConfig {
     /// Create configuration for testnet
     pub fn testnet(endpoint: impl Into<String>) -> Self {
         Self::new(endpoint).with_network(NetworkType::Testnet)
+    }
+
+    /// Create configuration for testnet2
+    pub fn testnet2(endpoint: impl Into<String>) -> Self {
+        Self::new(endpoint).with_network(NetworkType::Testnet2)
     }
 }
 

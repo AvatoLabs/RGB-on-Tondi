@@ -533,6 +533,9 @@ pub enum AddressNetwork {
     /// Tondi testnet (Frontier)
     TondiTestnet,
 
+    /// Tondi testnet2
+    TondiTestnet2,
+
     /// Tondi simnet
     TondiSimnet,
 
@@ -549,7 +552,7 @@ impl AddressNetwork {
     pub fn is_tondi(self) -> bool {
         matches!(
             self,
-            Self::TondiMainnet | Self::TondiTestnet | Self::TondiSimnet | Self::TondiDevnet
+            Self::TondiMainnet | Self::TondiTestnet | Self::TondiTestnet2 | Self::TondiSimnet | Self::TondiDevnet
         )
     }
 
@@ -566,6 +569,7 @@ impl AddressNetwork {
             // Tondi networks (TSP-0001)
             AddressNetwork::TondiMainnet => "tondi",
             AddressNetwork::TondiTestnet => "tondi0",
+            AddressNetwork::TondiTestnet2 => "tondi1",
             AddressNetwork::TondiSimnet => "tondisim",
             AddressNetwork::TondiDevnet => "tondidev",
         }
@@ -581,6 +585,7 @@ impl AddressNetwork {
             // Tondi networks
             "tondi" => Some(Self::TondiMainnet),
             "tondi0" | "tonditest" => Some(Self::TondiTestnet),
+            "tondi1" => Some(Self::TondiTestnet2),
             "tondisim" => Some(Self::TondiSimnet),
             "tondidev" => Some(Self::TondiDevnet),
             _ => None,

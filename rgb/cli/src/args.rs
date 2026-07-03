@@ -138,10 +138,15 @@ impl Args {
             self.data_dir.clone()
         } else {
             let mut dir = self.data_dir.join("tondi");
-            if self.network.is_testnet() {
-                dir.set_extension("testnet");
+            match self.network {
+                Network::Mainnet => {}
+                Network::Testnet | Network::Simnet | Network::Devnet => {
+                    dir.set_extension("testnet");
+                }
+                Network::Testnet2 => {
+                    dir.set_extension("testnet2");
+                }
             }
-            // For mainnet, keep as "tondi" (no extension)
             dir
         }
     }

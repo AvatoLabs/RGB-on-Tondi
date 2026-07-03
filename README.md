@@ -66,9 +66,9 @@ that this backend boundary still matches
 The CLI also exposes an HTTP service for frontend integration:
 
 ```bash
-TONDI_RPC=127.0.0.1:26310 \
+TONDI_RPC=127.0.0.1:16310 \
 cargo run -p rgb-wallet --features resolver-tondi -- \
-  --network devnet serve-http --bind 127.0.0.1:8787
+  --network testnet2 serve-http --bind 127.0.0.1:8787
 ```
 
 `POST /wallets` creates a Tondi P2MR descriptor wallet from a BIP39 recovery
@@ -87,7 +87,7 @@ restart, unlock the wallet before finalising PSTT inputs.
 Devnet verification requires a Tondi node with RPC and the UTXO index enabled:
 
 ```bash
-TONDI_DEVNET_RPC=127.0.0.1:26310 \
+TONDI_DEVNET_RPC=127.0.0.1:16310 \
 TONDI_DEVNET_ALLOW_UNSYNCED=1 \
 bash scripts/devnet_p2mr_rgb_verify.sh
 ```
@@ -111,8 +111,8 @@ Required environment:
 
 ```bash
 export ISSUER_FILE='<path-to-tondi-compatible-issuer.issuer>'
-export TONDI_RPC='127.0.0.1:26310'
-export NETWORK='devnet'
+export TONDI_RPC='127.0.0.1:16310'
+export NETWORK='testnet2'
 ```
 
 Run:

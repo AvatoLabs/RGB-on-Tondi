@@ -43,6 +43,10 @@ pub enum Network {
     #[display("tondi-testnet")]
     Testnet,
 
+    /// Tondi testnet2
+    #[display("tondi-testnet2")]
+    Testnet2,
+
     /// Tondi simnet (for simulation)
     #[display("tondi-simnet")]
     Simnet,
@@ -62,6 +66,7 @@ impl Network {
         match self {
             Network::Mainnet => BlockHash::GENESIS_TONDI_MAINNET,
             Network::Testnet => BlockHash::GENESIS_TONDI_TESTNET,
+            Network::Testnet2 => BlockHash::GENESIS_TONDI_TESTNET2,
             Network::Simnet => BlockHash::GENESIS_TONDI_SIMNET,
             Network::Devnet => BlockHash::GENESIS_TONDI_DEVNET,
         }
@@ -73,6 +78,7 @@ impl From<Network> for AddressNetwork {
         match network {
             Network::Mainnet => AddressNetwork::TondiMainnet,
             Network::Testnet => AddressNetwork::TondiTestnet,
+            Network::Testnet2 => AddressNetwork::TondiTestnet2,
             Network::Simnet => AddressNetwork::TondiSimnet,
             Network::Devnet => AddressNetwork::TondiDevnet,
         }
@@ -92,6 +98,7 @@ impl TryFrom<BlockHash> for Network {
             BlockHash::GENESIS_TONDI_TESTNET | BlockHash::GENESIS_TONDI_TESTNET_11 => {
                 Ok(Network::Testnet)
             }
+            BlockHash::GENESIS_TONDI_TESTNET2 => Ok(Network::Testnet2),
             BlockHash::GENESIS_TONDI_SIMNET => Ok(Network::Simnet),
             BlockHash::GENESIS_TONDI_DEVNET => Ok(Network::Devnet),
             _ => Err(UnknownGenesisBlock(hash)),
@@ -110,6 +117,7 @@ impl FromStr for Network {
         Ok(match s {
             "tondi" | "mainnet" => Network::Mainnet,
             "tondi-testnet" | "testnet" => Network::Testnet,
+            "tondi-testnet2" | "testnet2" => Network::Testnet2,
             "tondi-simnet" | "simnet" => Network::Simnet,
             "tondi-devnet" | "devnet" => Network::Devnet,
             other => return Err(UnknownNetwork(other.to_owned())),
