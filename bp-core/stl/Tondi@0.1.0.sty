@@ -1,5 +1,5 @@
 {-
-  Id: stl:htmUXr0Z-~ohcA7N-vxkQMgn-kprfcpj-8~ziNKJ-Hn2wmL8#process-poem-cobalt
+  Id: stl:ETMP1vno-AW24hmU-IolKRhA-eEwNsTc-AIM9gd8-_LaLPuc#fiona-fiction-yogurt
   Name: Tondi
   Version: 0.1.0
   Description: Consensus library for Tondi protocol
@@ -17,23 +17,6 @@ import Std#sister-triton-cricket
 
 @mnemonic(john-james-beast)
 data Bip340Sig         : sig [Byte ^ 64], sighash_type SighashType?
-
-@mnemonic(similar-bravo-proton)
-data Block             : header BlockHeader, transactions [BlockHeader ^ ..0xffffffff]
-
-@mnemonic(castle-clock-galaxy)
-data BlockHash         : [Byte ^ 32]
-
-@mnemonic(puma-stone-pupil)
-data BlockHeader       : version I32
-                       , prevBlockHash BlockHash
-                       , merkleRoot BlockMerkleRoot
-                       , time U32
-                       , bits U32
-                       , nonce U32
-
-@mnemonic(button-analyze-winter)
-data BlockMerkleRoot   : [Byte ^ 32]
 
 @mnemonic(lima-tripod-decimal)
 data ByteStr           : [Byte ^ ..0xffffffff]
@@ -65,11 +48,8 @@ data LegacyPk          : compressed Std.Bool, pubkey [Byte ^ 33]
 @mnemonic(address-outside-canvas)
 data LegacySig         : sig [Byte ^ ..0xff], sighash_type SighashType
 
-@mnemonic(havana-fiona-marina)
-data LockHeight        : U32
-
-@mnemonic(rabbit-carpet-colombo)
-data LockTimestamp     : U32
+@mnemonic(tape-antenna-forbid)
+data NativeTransactionV4 : wire [Byte ^ ..0x100000]
 
 @mnemonic(honey-cement-karl)
 data OpCode            : pushBytes0 | pushBytes1 | pushBytes2 | pushBytes3
@@ -215,10 +195,6 @@ data TapNodeHash       : [Byte ^ 32]
 @mnemonic(period-java-correct)
 data TapScript         : ScriptBytes
 
-@mnemonic(video-emerald-spray)
-data TimeLockInterval  : height U16
-                       | time U16
-
 @mnemonic(spring-camel-gamma)
 data TondiOutpoint     : txid TondiTxid, vout Vout
 
@@ -231,9 +207,6 @@ data Txid              : [Byte ^ 32]
 @mnemonic(dinner-cannon-compact)
 data UncompressedPk    : [Byte ^ 65]
 
-@mnemonic(tropic-native-voodoo)
-data VBytes            : U32
-
 @mnemonic(store-metro-dynasty)
 data VarInt            : U64
 
@@ -245,9 +218,6 @@ data WPubkeyHash       : [Byte ^ 20]
 
 @mnemonic(philips-copy-lexicon)
 data WScriptHash       : [Byte ^ 32]
-
-@mnemonic(risk-plasma-trident)
-data WeightUnits       : U32
 
 @mnemonic(geneva-alien-ecology)
 data WitnessProgram    : version WitnessVer, program [Byte ^ 2..0x28]
@@ -268,5 +238,3 @@ data Wtxid             : [Byte ^ 32]
 
 @mnemonic(input-compact-flower)
 data XOnlyPk           : [Byte ^ 32]
-
-

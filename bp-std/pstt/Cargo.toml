@@ -16,16 +16,18 @@ license = "Apache-2.0"
 amplify = { workspace = true }
 commit_verify = { workspace = true, optional = true }
 strict_encoding = { workspace = true, optional = true }
-bp-consensus = { workspace = true }
+bp-consensus = { workspace = true, features = ["serde"] }
 bp-core = { workspace = true, optional = true }
-bp-derive = { workspace = true }
+bp-derive = { workspace = true, features = ["serde"] }
 descriptors = { workspace = true }
 indexmap = { workspace = true }
-base64 = "0.22.1"
-serde = { workspace = true, optional = true }
+tondi-vm.workspace = true
+tondi-wallet-pstt.workspace = true
+serde_json.workspace = true
+serde.workspace = true
 
 [features]
 default = []
 all = ["serde", "client-side-validation"]
 client-side-validation = ["bp-core", "commit_verify", "strict_encoding"]
-serde = ["dep:serde", "bp-derive/serde", "indexmap/serde"]
+serde = ["bp-derive/serde", "indexmap/serde"]

@@ -33,7 +33,6 @@ use amplify::hex::FromHex;
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use commit_verify::{DigestExt, TondiBlake3};
 use secp256k1::{Keypair, PublicKey, Scalar, XOnlyPublicKey};
-use sha2::{Digest, Sha256};
 use strict_encoding::{
     DecodeError, ReadTuple, StrictDecode, StrictEncode, StrictProduct, StrictTuple, StrictType,
     TypeName, TypedRead, TypedWrite, WriteTuple,
@@ -77,7 +76,9 @@ impl<const LEN: usize> From<InvalidPubkey<LEN>> for DecodeError {
 pub struct XOnlyPk(XOnlyPublicKey);
 
 impl XOnlyPk {
-    fn dumb() -> Self { Self(XOnlyPublicKey::from_slice(&[1u8; 32]).unwrap()) }
+    fn dumb() -> Self {
+        Self(XOnlyPublicKey::from_slice(&[1u8; 32]).unwrap())
+    }
 
     pub fn from_byte_array(data: [u8; 32]) -> Result<Self, InvalidPubkey<32>> {
         XOnlyPublicKey::from_slice(data.as_ref())
@@ -85,7 +86,9 @@ impl XOnlyPk {
             .map_err(|_| InvalidPubkey::Specified(data.into()))
     }
 
-    pub fn to_byte_array(&self) -> [u8; 32] { self.0.serialize() }
+    pub fn to_byte_array(&self) -> [u8; 32] {
+        self.0.serialize()
+    }
 
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, InvalidPubkey<33>> {
         Ok(XOnlyPk(XOnlyPublicKey::from_slice(bytes.as_ref())?))
@@ -93,15 +96,21 @@ impl XOnlyPk {
 }
 
 impl From<CompressedPk> for XOnlyPk {
-    fn from(pubkey: CompressedPk) -> Self { XOnlyPk(pubkey.x_only_public_key().0) }
+    fn from(pubkey: CompressedPk) -> Self {
+        XOnlyPk(pubkey.x_only_public_key().0)
+    }
 }
 
 impl From<PublicKey> for XOnlyPk {
-    fn from(pubkey: PublicKey) -> Self { XOnlyPk(pubkey.x_only_public_key().0) }
+    fn from(pubkey: PublicKey) -> Self {
+        XOnlyPk(pubkey.x_only_public_key().0)
+    }
 }
 
 impl From<XOnlyPk> for [u8; 32] {
-    fn from(pk: XOnlyPk) -> [u8; 32] { pk.to_byte_array() }
+    fn from(pk: XOnlyPk) -> [u8; 32] {
+        pk.to_byte_array()
+    }
 }
 
 impl StrictEncode for XOnlyPk {
@@ -176,7 +185,9 @@ pub struct InternalPk(
 
 impl InternalPk {
     #[inline]
-    pub fn from_unchecked(pk: XOnlyPk) -> Self { Self(pk) }
+    pub fn from_unchecked(pk: XOnlyPk) -> Self {
+        Self(pk)
+    }
 
     #[inline]
     pub fn from_byte_array(data: [u8; 32]) -> Result<Self, InvalidPubkey<32>> {
@@ -189,10 +200,14 @@ impl InternalPk {
     }
 
     #[inline]
-    pub fn to_byte_array(&self) -> [u8; 32] { self.0.to_byte_array() }
+    pub fn to_byte_array(&self) -> [u8; 32] {
+        self.0.to_byte_array()
+    }
 
     #[inline]
-    pub fn to_xonly_pk(&self) -> XOnlyPk { self.0 }
+    pub fn to_xonly_pk(&self) -> XOnlyPk {
+        self.0
+    }
 
     pub fn to_output_pk(&self, merkle_root: Option<TapNodeHash>) -> (OutputPk, Parity) {
         let mut engine = TondiBlake3::from_tag(COPPEROOT_TWEAK_TAG);
@@ -216,7 +231,9 @@ impl InternalPk {
 }
 
 impl From<InternalPk> for [u8; 32] {
-    fn from(pk: InternalPk) -> [u8; 32] { pk.to_byte_array() }
+    fn from(pk: InternalPk) -> [u8; 32] {
+        pk.to_byte_array()
+    }
 }
 
 /// Output taproot key - an [`InternalPk`] tweaked with merkle root of the
@@ -232,7 +249,9 @@ pub struct OutputPk(XOnlyPk);
 
 impl OutputPk {
     #[inline]
-    pub fn from_unchecked(pk: XOnlyPk) -> Self { Self(pk) }
+    pub fn from_unchecked(pk: XOnlyPk) -> Self {
+        Self(pk)
+    }
 
     #[inline]
     pub fn from_byte_array(data: [u8; 32]) -> Result<Self, InvalidPubkey<32>> {
@@ -245,17 +264,25 @@ impl OutputPk {
     }
 
     #[inline]
-    pub fn to_xonly_pk(&self) -> XOnlyPk { self.0 }
+    pub fn to_xonly_pk(&self) -> XOnlyPk {
+        self.0
+    }
 
     #[inline]
-    pub fn to_script_pubkey(&self) -> ScriptPubkey { ScriptPubkey::p2tr_tweaked(*self) }
+    pub fn to_script_pubkey(&self) -> ScriptPubkey {
+        ScriptPubkey::p2tr_tweaked(*self)
+    }
 
     #[inline]
-    pub fn to_byte_array(&self) -> [u8; 32] { self.0.to_byte_array() }
+    pub fn to_byte_array(&self) -> [u8; 32] {
+        self.0.to_byte_array()
+    }
 }
 
 impl From<OutputPk> for [u8; 32] {
-    fn from(pk: OutputPk) -> [u8; 32] { pk.to_byte_array() }
+    fn from(pk: OutputPk) -> [u8; 32] {
+        pk.to_byte_array()
+    }
 }
 
 pub trait IntoTapHash {
@@ -274,7 +301,9 @@ pub struct TapSighash(
 );
 
 impl From<TapSighash> for [u8; 32] {
-    fn from(value: TapSighash) -> Self { value.0.into_inner() }
+    fn from(value: TapSighash) -> Self {
+        value.0.into_inner()
+    }
 }
 
 impl From<TapSighash> for secp256k1::Message {
@@ -284,9 +313,13 @@ impl From<TapSighash> for secp256k1::Message {
 }
 
 impl TapSighash {
-    pub fn engine() -> TondiBlake3 { TondiBlake3::from_tag(COPPEROOT_SIGHASH_TAG) }
+    pub fn engine() -> TondiBlake3 {
+        TondiBlake3::from_tag(COPPEROOT_SIGHASH_TAG)
+    }
 
-    pub fn from_engine(engine: TondiBlake3) -> Self { Self(engine.finish().into()) }
+    pub fn from_engine(engine: TondiBlake3) -> Self {
+        Self(engine.finish().into())
+    }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -318,34 +351,10 @@ impl TapLeafHash {
     }
 }
 
-fn sha256_tagged_hash(tag: &str, payload: &[u8]) -> [u8; 32] {
-    let tag_hash = Sha256::digest(tag.as_bytes());
-    let mut hasher = Sha256::new();
-    hasher.update(tag_hash);
-    hasher.update(tag_hash);
-    hasher.update(payload);
-    hasher.finalize().into()
-}
-
-/// Computes the Tondi native TapLeaf hash for a TapScript leaf.
-///
-/// Tondi P2MR follows the node-side TapLeaf/BIP360 encoding for the public
-/// P2MR envelope, not the legacy RGB Copperoot/BLAKE3 hash above.
-pub fn tondi_tapleaf_hash_from_tapscript(script: &[u8]) -> TapLeafHash {
-    let mut payload = Vec::with_capacity(2 + script.len());
-    payload.push(LeafVer::TapScript.to_consensus_u8());
-    VarInt(script.len() as u64).consensus_encode(&mut payload).expect("Vec writes cannot fail");
-    payload.extend_from_slice(script);
-    TapLeafHash(sha256_tagged_hash("TapLeaf", &payload).into())
-}
-
-/// Computes the Tondi native one-leaf P2MR root from a TapScript leaf.
-pub fn tondi_p2mr_root_from_tapscript(script: &[u8]) -> [u8; 32] {
-    tondi_tapleaf_hash_from_tapscript(script).to_byte_array()
-}
-
 impl IntoTapHash for TapLeafHash {
-    fn into_tap_hash(self) -> TapNodeHash { TapNodeHash(self.0) }
+    fn into_tap_hash(self) -> TapNodeHash {
+        TapNodeHash(self.0)
+    }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -369,7 +378,9 @@ impl TapBranchHash {
 }
 
 impl IntoTapHash for TapBranchHash {
-    fn into_tap_hash(self) -> TapNodeHash { TapNodeHash(self.0) }
+    fn into_tap_hash(self) -> TapNodeHash {
+        TapNodeHash(self.0)
+    }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -386,7 +397,9 @@ pub struct TapNodeHash(
 );
 
 impl IntoTapHash for TapNodeHash {
-    fn into_tap_hash(self) -> TapNodeHash { self }
+    fn into_tap_hash(self) -> TapNodeHash {
+        self
+    }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From, Default)]
@@ -401,14 +414,18 @@ impl IntoIterator for TapMerklePath {
     type Item = TapBranchHash;
     type IntoIter = vec::IntoIter<TapBranchHash>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<'a> IntoIterator for &'a TapMerklePath {
     type Item = &'a TapBranchHash;
     type IntoIter = slice::Iter<'a, TapBranchHash>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
 }
 
 impl TapMerklePath {
@@ -462,7 +479,9 @@ pub enum LeafVer {
 
 impl StrictType for LeafVer {
     const STRICT_LIB_NAME: &'static str = LIB_NAME_TONDI;
-    fn strict_name() -> Option<TypeName> { Some(tn!("LeafVer")) }
+    fn strict_name() -> Option<TypeName> {
+        Some(tn!("LeafVer"))
+    }
 }
 impl StrictProduct for LeafVer {}
 impl StrictTuple for LeafVer {
@@ -485,10 +504,6 @@ impl StrictDecode for LeafVer {
 
 impl LeafVer {
     #[doc(hidden)]
-    #[deprecated(since = "0.10.9", note = "use from_consensus_u8")]
-    pub fn from_consensus(version: u8) -> Result<Self, InvalidLeafVer> {
-        Self::from_consensus_u8(version)
-    }
 
     /// Creates a [`LeafVer`] from consensus byte representation.
     ///
@@ -505,8 +520,6 @@ impl LeafVer {
     }
 
     #[doc(hidden)]
-    #[deprecated(since = "0.10.9", note = "use to_consensus_u8")]
-    pub fn to_consensus(self) -> u8 { self.to_consensus_u8() }
 
     /// Returns the consensus representation of this [`LeafVer`].
     pub fn to_consensus_u8(self) -> u8 {
@@ -518,11 +531,15 @@ impl LeafVer {
 }
 
 impl LowerHex for LeafVer {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { LowerHex::fmt(&self.to_consensus_u8(), f) }
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        LowerHex::fmt(&self.to_consensus_u8(), f)
+    }
 }
 
 impl UpperHex for LeafVer {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result { UpperHex::fmt(&self.to_consensus_u8(), f) }
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        UpperHex::fmt(&self.to_consensus_u8(), f)
+    }
 }
 
 /// Inner type representing future (non-tapscript) leaf versions. See
@@ -551,17 +568,23 @@ impl FutureLeafVer {
 
     /// Returns the consensus representation of this [`FutureLeafVer`].
     #[inline]
-    pub fn to_consensus(self) -> u8 { self.0 }
+    pub fn to_consensus(self) -> u8 {
+        self.0
+    }
 }
 
 impl LowerHex for FutureLeafVer {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { LowerHex::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        LowerHex::fmt(&self.0, f)
+    }
 }
 
 impl UpperHex for FutureLeafVer {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { UpperHex::fmt(&self.0, f) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        UpperHex::fmt(&self.0, f)
+    }
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, Display)]
@@ -587,7 +610,9 @@ impl From<TapScript> for LeafScript {
 
 impl LeafScript {
     #[inline]
-    pub fn new(version: LeafVer, script: ScriptBytes) -> Self { LeafScript { version, script } }
+    pub fn new(version: LeafVer, script: ScriptBytes) -> Self {
+        LeafScript { version, script }
+    }
     #[inline]
     pub fn with_bytes(version: LeafVer, script: Vec<u8>) -> Result<Self, confinement::Error> {
         Ok(LeafScript {
@@ -596,13 +621,19 @@ impl LeafScript {
         })
     }
     #[inline]
-    pub fn from_tap_script(tap_script: TapScript) -> Self { Self::from(tap_script) }
+    pub fn from_tap_script(tap_script: TapScript) -> Self {
+        Self::from(tap_script)
+    }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.script }
+    pub fn as_script_bytes(&self) -> &ScriptBytes {
+        &self.script
+    }
 
     #[inline]
-    pub fn tap_leaf_hash(&self) -> TapLeafHash { TapLeafHash::with_leaf_script(self) }
+    pub fn tap_leaf_hash(&self) -> TapLeafHash {
+        TapLeafHash::with_leaf_script(self)
+    }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From, Default)]
@@ -623,7 +654,9 @@ impl TryFrom<Vec<u8>> for TapScript {
 
 impl TapScript {
     #[inline]
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -638,14 +671,20 @@ impl TapScript {
     }
 
     #[inline]
-    pub fn tap_leaf_hash(&self) -> TapLeafHash { TapLeafHash::with_tap_script(self) }
+    pub fn tap_leaf_hash(&self) -> TapLeafHash {
+        TapLeafHash::with_tap_script(self)
+    }
 
     /// Adds a single opcode to the script.
     #[inline]
-    pub fn push_opcode(&mut self, op_code: TapCode) { self.0.push(op_code as u8); }
+    pub fn push_opcode(&mut self, op_code: TapCode) {
+        self.0.push(op_code as u8);
+    }
 
     #[inline]
-    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
+    pub fn as_script_bytes(&self) -> &ScriptBytes {
+        &self.0
+    }
 }
 
 impl ScriptPubkey {
@@ -708,7 +747,9 @@ impl Parity {
     /// Converts parity into an integer (byte) value.
     ///
     /// This returns `0` for even parity and `1` for odd parity.
-    pub fn to_consensus_u8(self) -> u8 { self as u8 }
+    pub fn to_consensus_u8(self) -> u8 {
+        self as u8
+    }
 
     /// Constructs a [`Parity`] from a byte.
     ///
@@ -810,30 +851,21 @@ impl Annex {
         Ok(annex)
     }
 
-    pub fn len_var_int(&self) -> VarInt { VarInt(self.len() as u64) }
+    pub fn len_var_int(&self) -> VarInt {
+        VarInt(self.len() as u64)
+    }
 
-    pub fn into_vec(self) -> Vec<u8> { self.0.release() }
+    pub fn into_vec(self) -> Vec<u8> {
+        self.0.release()
+    }
 
     /// Returns the Annex bytes data (including first byte `0x50`).
-    pub fn as_slice(&self) -> &[u8] { self.0.as_slice() }
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
 
-    pub(crate) fn as_var_int_bytes(&self) -> &VarIntBytes<1> { &self.0 }
-}
-
-#[cfg(test)]
-mod tests {
-    use amplify::hex::FromHex;
-
-    use super::*;
-
-    #[test]
-    fn tondi_p2mr_root_uses_tapleaf_sha256() {
-        let expected = <[u8; 32]>::from_hex(
-            "a85b2107f791b26a84e7586c28cec7cb61202ed3d01944d832500f363782d675",
-        )
-        .expect("valid hash");
-
-        assert_eq!(tondi_p2mr_root_from_tapscript(&[0x51]), expected);
+    pub(crate) fn as_var_int_bytes(&self) -> &VarIntBytes<1> {
+        &self.0
     }
 }
 
@@ -847,7 +879,9 @@ mod _serde {
 
     impl Serialize for Annex {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+        where
+            S: Serializer,
+        {
             if serializer.is_human_readable() {
                 serializer.serialize_str(&self.to_hex())
             } else {
@@ -858,7 +892,9 @@ mod _serde {
 
     impl<'de> Deserialize<'de> for Annex {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+        where
+            D: Deserializer<'de>,
+        {
             if deserializer.is_human_readable() {
                 String::deserialize(deserializer).and_then(|string| {
                     Self::from_hex(&string).map_err(|_| D::Error::custom("wrong hex data"))

@@ -1,0 +1,140 @@
+{-
+  Id: stl:bpSK8n2F-Nr~0vd2-14reej1-Qh_iWX1-NhjZlR5-~Nkue04#silver-normal-mile
+  Name: RGB
+  Version: 0.12.0
+  Description: RGB smart contracts library
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2024-2025 LNP/BP Labs, Institute for Distributed and Cognitive Systems, Switzerland.
+                All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib RGB
+
+import StrictTypes#claudia-bambino-organic
+  use FieldName#carmen-gordon-june
+  use Variant#plaza-history-papa
+  use UnnamedFieldsSemId#album-herman-tape
+  use VariantInfoSemId#episode-major-switch
+  use TySemId#parking-ninja-hello
+  use Sizing#clean-emotion-process
+  use EnumVariants#torpedo-fluid-apollo
+  use UnionVariantsSemId#podium-arcade-spider
+  use NamedFieldsSemId#scratch-caviar-blonde
+  use FieldSemId#diploma-star-sport
+  use TypeName#passive-perfume-julius
+  use SemId#state-cartoon-conan
+  use TypeSystem#current-mask-locate
+  use Primitive#raymond-genesis-carol
+  use VariantName#diamond-reform-octavia
+
+import Tondi#fiona-fiction-yogurt
+  use Vout#section-regular-proxy
+  use NativeTransactionV4#tape-antenna-forbid
+  use Outpoint#child-delta-disney
+  use Txid#gibson-energy-maximum
+
+import AluVM#event-parking-papa
+  use Lib#mask-sweet-floor
+  use LibSite#famous-prelude-magnet
+  use IsaId#avalon-harmony-sweet
+  use LibId#forward-garbo-telex
+  use CoreConfig#salon-sabrina-polka
+
+import FiniteField#congo-wedding-pioneer
+  use Fe256#farmer-forest-ammonia
+
+import CommitVerify#clark-blonde-karma
+  use MerkleProof#aroma-mirror-match
+  use ReservedBytes4#marina-libra-gopher
+  use MerkleHash#ivory-spoon-imitate
+  use ReservedBytes1#marco-balsa-meaning
+  use ProtocolId#armada-immune-martin
+  use ReservedBytes6#quick-karl-numeric
+  use ReservedBytes2#button-micro-fast
+  use Method#horse-justice-select
+
+import SingleUseSeals#europe-verbal-glass
+  use SealWitnessTxoSeal#idea-formal-lion
+
+import BPCore#swim-million-melody
+  use BundleProof#quick-cable-pasta
+  use Anchor#ventura-connect-siren
+  use TxoSealExt#sierra-river-mono
+  use Noise#john-gentle-capital
+  use StateAnchorProof#type-hamlet-invite
+  use WTxoSeal#korea-pump-observe
+  use Message#baker-judge-miranda
+  use WOutpoint#cable-diagram-museum
+
+import SONIC#laser-level-green
+  use Aggregator#index-buenos-gong
+  use StateBuilder#bank-carbon-aurora
+  use OwnedApi#jimmy-sofia-direct
+  use GlobalApi#electra-stock-vega
+  use Api#reserve-jordan-diet
+  use Semantics#amazon-cadet-crystal
+  use SigBlob#cement-bottle-budget
+  use SubAggregator#report-alert-disney
+  use StateArithm#finish-magnet-logo
+  use RawConvertor#virus-signal-monaco
+  use CallState#state-turbo-news
+  use RawBuilder#blonde-uniform-capital
+  use StateConvertor#legend-rabbit-congo
+  use StateSelector#cool-weather-civil
+
+import Std#sister-triton-cricket
+  use AlphaCapsNum#snake-telex-crack
+  use AlphaSmallLodash#soprano-dance-flex
+  use Bool#mustang-caravan-jester
+  use AlphaNumLodash#marina-urban-omega
+  use AlphaCapsLodash#acrobat-magic-consul
+  use AsciiPrintable#valid-house-fame
+
+import UltraSONIC#druid-mozart-puzzle
+  use Genesis#shelter-alert-front
+  use Input#robin-bonanza-senator
+  use CellLock#pupil-galileo-matrix
+  use Consensus#trust-crack-radius
+  use CodexId#madrid-analyze-dynamic
+  use RawData#axiom-join-aroma
+  use Identity#vacuum-baby-domain
+  use StateData#pencil-potato-clara
+  use StateCell#billy-dexter-cave
+  use ContractId#shelter-alert-serpent
+  use ContractMeta#orca-billy-explain
+  use ContractName#rainbow-evita-slalom
+  use Operation#lobster-appear-british
+  use Opid#grid-baron-tornado
+  use CellAddr#percent-sailor-tommy
+  use StateValue#open-salsa-sonata
+  use Issue#result-hope-brenda
+  use AuthToken#trumpet-queen-queen
+  use Codex#precise-weather-june
+
+
+@mnemonic(pelican-history-melody)
+data ConsignmentHeaderTxoSeal : extensions [[Byte] ^ ..0xff]
+                       , semantics SONIC.Semantics
+                       , sig SONIC.SigBlob?
+                       , issue UltraSONIC.Issue
+                       , genesisSeals {U16 -> BPCore.WTxoSeal}
+                       , witness CommitVerify.ReservedBytes1
+                       , opCount U32
+
+@mnemonic(pasta-phoenix-major)
+data ConsignmentTxoSeal : header ConsignmentHeaderTxoSeal, operationSeals [OperationSealsTxoSeal ^ ..0xffffffff]
+
+@mnemonic(ohio-tango-friend)
+data OperationSealsTxoSeal : operation UltraSONIC.Operation
+                       , definedSeals {U16 -> BPCore.WTxoSeal}
+                       , witness SingleUseSeals.SealWitnessTxoSeal?
+
+@mnemonic(sushi-druid-armada)
+data Prefab            : closes {Tondi.Outpoint}
+                       , defines {Tondi.Vout}
+                       , operation UltraSONIC.Operation
+
+@mnemonic(antonio-ritual-pony)
+data PrefabBundle      : {Prefab}

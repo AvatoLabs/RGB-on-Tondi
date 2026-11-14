@@ -26,11 +26,11 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use binfile::BinFile;
-use bpstd::pstt::{Input as PsttInput, KeyMap, PropKey, PsttConstructor, TxParams};
-use bpstd::seals::{mpc, TondiP2mrProof, TxoSeal};
+use bpstd::pstt::{Input as PsttInput, PsttConstructor, TxParams};
+use bpstd::seals::TxoSeal;
 use bpstd::{
-    h, CompressedPk, ConsensusDecode, ConsensusEncode, IdxBase, Network, Outpoint, Pstt, PsttVer,
-    Sats, Terminal, Tx, Txid, Vout, XprivAccount, XpubDerivable,
+    h, ConsensusDecode, ConsensusEncode, IdxBase, Network, Outpoint, Pstt, PsttVer, Sats, Terminal,
+    Tx, Txid, Vout, XprivAccount, XpubDerivable,
 };
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
@@ -47,15 +47,15 @@ use rgb_persist_fs::StockpileDir;
 use rgbp::descriptors::RgbDescr;
 use rgbp::resolvers::{MultiResolver, Resolver};
 use rgbp::{
-    p2mr_original_pubkey_key, CoinselectStrategy, ContractInfo, FileHolder, Owner, OwnerProvider,
-    Payment, RgbpRuntimeDir, UtxoSet,
+    CoinselectStrategy, ContractInfo, FileHolder, Owner, OwnerProvider, Payment, RgbpRuntimeDir,
+    UtxoSet,
 };
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use strict_encoding::{StreamReader, StrictReader, TypeName, VariantName};
 use strict_types::StrictVal;
 
-use crate::exec::sign_tondi_p2mr_inputs;
+use crate::exec::{native_clock, sign_tondi_p2mr_inputs};
 use crate::http_contract::{
     AcceptContractInput, AcceptTransferInput, CreateInvoiceInput, CreateWalletInput,
     DashboardServiceMode, DashboardSnapshot, FinaliseTransferInput, ImportIssuerInput,
@@ -267,7 +267,9 @@ fn dashboard_snapshot_cached(state: Arc<AppState>) -> Result<DashboardSnapshot, 
     state.dashboard_from_runtime(&profile, &mut runtime)
 }
 
-async fn cors_preflight() -> impl IntoResponse { StatusCode::NO_CONTENT }
+async fn cors_preflight() -> impl IntoResponse {
+    StatusCode::NO_CONTENT
+}
 
 async fn cors_headers(request: Request<Body>, next: Next) -> Response {
     let mut response = if request.method() == Method::OPTIONS {
@@ -298,7 +300,9 @@ impl AppState {
         }
     }
 
-    fn profile_path(&self) -> PathBuf { self.config.data_dir.join(PROFILE_FILE) }
+    fn profile_path(&self) -> PathBuf {
+        self.config.data_dir.join(PROFILE_FILE)
+    }
 
     fn wallet_dir(&self, wallet_id: &str) -> PathBuf {
         self.config
@@ -765,7 +769,7 @@ impl AppState {
         let mut pstt_file = File::create_new(&pstt_path).map_err(|err| {
             ApiError::internal(format!("unable to create PSTT '{}': {err}", pstt_path.display()))
         })?;
-        pstt.encode(PsttVer::V0, &mut pstt_file).map_err(|err| {
+        pstt.encode(PsttVer::V4, &mut pstt_file).map_err(|err| {
             ApiError::internal(format!("unable to encode PSTT '{}': {err}", pstt_path.display()))
         })?;
         payment.bundle.save(&bundle_path).map_err(|err| {
@@ -956,26 +960,21 @@ impl AppState {
                 ApiError::bad_request(format!("unable to sign Tondi P2MR inputs: {err}"))
             })?;
         }
-        pstt.finalize(runtime.wallet.descriptor());
-        if !pstt.is_finalized() {
-            return Err(ApiError::bad_request(format!(
-                "PSTT '{}' still contains non-finalized inputs; sign the Tondi P2MR inputs before \
-                 calling transfer finalisation",
-                pstt_path.display()
-            )));
+        let profile = self.load_profile()?;
+        if pstt.network != profile.network.native_domain() {
+            return Err(ApiError::bad_request("PSTT network differs from active wallet"));
         }
-        let change = pstt_change_hint(pstt)?;
-        let change_tweak = match change {
-            Some((vout, _, _)) => pstt_p2mr_tweak(pstt, vout)?,
-            None => None,
-        };
-        let extracted = pstt.extract().map_err(|err| {
-            ApiError::bad_request(format!(
-                "PSTT '{}' still contains {} non-finalized inputs",
-                pstt_path.display(),
-                err.0
-            ))
+        let clock = native_clock(&profile.tondi_rpc_endpoint, profile.network).map_err(|e| {
+            ApiError::unavailable(format!("unable to obtain native validation clock: {e}"))
         })?;
+        let change = pstt_change_hint(pstt)?;
+        let extracted = pstt.extract(clock).map_err(|err| {
+            ApiError::bad_request(format!("native Auth/Law/Since validation failed: {err}"))
+        })?;
+        let mut signed_file = File::create(pstt_path)
+            .map_err(|e| ApiError::internal(format!("unable to save signed PSTT: {e}")))?;
+        pstt.encode(PsttVer::V4, &mut signed_file)
+            .map_err(|e| ApiError::internal(format!("unable to save signed PSTT: {e}")))?;
         let txid = extracted.txid().to_string();
         let tx_path = pstt_path.with_extension("tx");
         let mut tx_file = File::create(&tx_path).map_err(|err| {
@@ -999,11 +998,6 @@ impl AppState {
                 })?;
             rt.block_on(async {
                 runtime.wallet.broadcast_async(&extracted, change).await?;
-                if let (Some((vout, _, _)), Some(tweak)) = (change, change_tweak) {
-                    OwnerProvider::utxos_mut(&mut *runtime.wallet)
-                        .set_p2mr_tweak_async(Outpoint::new(extracted.txid(), vout), Some(tweak))
-                        .await;
-                }
                 Ok::<_, rgbp::resolvers::ResolverError>(())
             })
             .map_err(|err| ApiError::unavailable(format!("unable to broadcast transfer: {err}")))?;
@@ -1049,12 +1043,11 @@ impl AppState {
         pstt: &Pstt,
     ) -> Result<Option<String>, ApiError> {
         let runtime = self.load_runtime_cached(profile)?;
-        let mut inputs = Vec::<(Terminal, Option<[u8; 32]>)>::new();
+        let mut inputs = Vec::<Terminal>::new();
         for input in pstt.inputs() {
-            if input.final_script_sig.is_some() {
+            if input.is_reference() {
                 continue;
             }
-            let tweak = OwnerProvider::utxos(&*runtime.wallet).p2mr_tweak(input.previous_outpoint);
             let terminal = input_terminal_derivation(input).or_else(|| {
                 OwnerProvider::utxos(&*runtime.wallet)
                     .get(input.previous_outpoint)
@@ -1063,7 +1056,7 @@ impl AppState {
             let Some(terminal) = terminal else {
                 continue;
             };
-            let signing_input = (terminal, tweak);
+            let signing_input = terminal;
             if !inputs.contains(&signing_input) {
                 inputs.push(signing_input);
             }
@@ -1091,14 +1084,8 @@ impl AppState {
         let account = account_from_seed(signer.network, &signer.seed);
         let derived_keys = inputs
             .into_iter()
-            .map(|(terminal, tweak)| {
-                let mut key =
-                    hex_encode(&account.derive_terminal_secret_key(terminal).secret_bytes());
-                if let Some(tweak) = tweak {
-                    key.push(':');
-                    key.push_str(&hex_encode(&tweak));
-                }
-                key
+            .map(|terminal| {
+                hex_encode(&account.derive_terminal_secret_key(terminal).secret_bytes())
             })
             .collect::<Vec<_>>()
             .join(",");
@@ -1637,7 +1624,7 @@ impl AppState {
                 let value_sats = runtime
                     .wallet
                     .utxo(outpoint)
-                    .map(|(utxo, _)| u128::from(utxo.value.sats()))
+                    .map(|utxo| u128::from(utxo.value().sats()))
                     .unwrap_or(0);
                 chain_balance_sats += value_sats;
                 P2mrOutput {
@@ -1998,8 +1985,12 @@ fn pstt_change_hint(pstt: &Pstt) -> Result<Option<(Vout, u32, u32)>, ApiError> {
     let wallet_outputs = pstt
         .outputs()
         .filter_map(|output| {
-            let terminal = output.terminal_derivation()?;
-            Some((output.vout(), terminal.keychain.index(), terminal.index.index()))
+            let terminal = output.terminal?;
+            Some((
+                Vout::from_u32(output.index as u32),
+                terminal.keychain.index(),
+                terminal.index.index(),
+            ))
         })
         .collect::<Vec<_>>();
 
@@ -2011,30 +2002,6 @@ fn pstt_change_hint(pstt: &Pstt) -> Result<Option<(Vout, u32, u32)>, ApiError> {
              a single Tondi P2MR change output",
         )),
     }
-}
-
-fn pstt_p2mr_tweak(pstt: &Pstt, vout: Vout) -> Result<Option<[u8; 32]>, ApiError> {
-    let output = pstt
-        .output(vout.into_usize())
-        .ok_or_else(|| ApiError::bad_request(format!("PSTT change output {vout} is missing")))?;
-    let Some(original_pubkey) = output.proprietary(&p2mr_original_pubkey_key()) else {
-        return Ok(None);
-    };
-    let original_pubkey: [u8; 33] = original_pubkey.as_slice().try_into().map_err(|_| {
-        ApiError::bad_request("PSTT P2MR change output has invalid original pubkey metadata")
-    })?;
-    let original_pubkey = CompressedPk::from_byte_array(original_pubkey).map_err(|_| {
-        ApiError::bad_request("PSTT P2MR change output has invalid original pubkey metadata")
-    })?;
-    let commitment = output
-        .proprietary(&PropKey::mpc_commitment())
-        .ok_or_else(|| ApiError::bad_request("PSTT P2MR change output misses MPC commitment"))?;
-    let commitment = mpc::Commitment::copy_from_slice(commitment.as_slice())
-        .map_err(|_| ApiError::bad_request("PSTT P2MR change output has invalid MPC commitment"))?;
-    let tweak = TondiP2mrProof::new(original_pubkey)
-        .rgb_tweak(commitment)
-        .map_err(|err| ApiError::bad_request(format!("invalid P2MR RGB tweak: {err}")))?;
-    Ok(Some(tweak.to_be_bytes()))
 }
 
 fn parse_u64_amount(value: &str, field: &'static str) -> Result<u64, ApiError> {
@@ -2208,21 +2175,7 @@ fn account_from_seed(network: Network, seed: &[u8; 64]) -> XprivAccount {
 }
 
 fn input_terminal_derivation(input: &PsttInput) -> Option<Terminal> {
-    let terminals = input
-        .bip32_derivation
-        .values()
-        .flat_map(|origin| origin.as_derivation().terminal())
-        .chain(
-            input
-                .tap_bip32_derivation
-                .values()
-                .flat_map(|derivation| derivation.origin.as_derivation().terminal()),
-        )
-        .collect::<BTreeSet<_>>();
-    if terminals.len() != 1 {
-        return None;
-    }
-    terminals.first().copied()
+    input.terminal
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -2615,16 +2568,22 @@ mod tests {
             consignment_ref: "z.rgb".to_owned(),
         }];
 
-        upsert_contract_transfer(&mut transfers, RgbTransferContract {
-            contract_id: "contract:a".to_owned(),
-            amount: "7".to_owned(),
-            consignment_ref: "a.rgb".to_owned(),
-        });
-        upsert_contract_transfer(&mut transfers, RgbTransferContract {
-            contract_id: "contract:z".to_owned(),
-            amount: "9".to_owned(),
-            consignment_ref: "z-new.rgb".to_owned(),
-        });
+        upsert_contract_transfer(
+            &mut transfers,
+            RgbTransferContract {
+                contract_id: "contract:a".to_owned(),
+                amount: "7".to_owned(),
+                consignment_ref: "a.rgb".to_owned(),
+            },
+        );
+        upsert_contract_transfer(
+            &mut transfers,
+            RgbTransferContract {
+                contract_id: "contract:z".to_owned(),
+                amount: "9".to_owned(),
+                consignment_ref: "z-new.rgb".to_owned(),
+            },
+        );
 
         assert_eq!(transfers.len(), 2);
         assert_eq!(transfers[0].contract_id, "contract:a");

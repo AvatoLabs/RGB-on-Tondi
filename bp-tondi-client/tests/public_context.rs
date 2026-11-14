@@ -1,115 +1,129 @@
 use amplify::Bytes32;
-use bp::{Datum, LockTime, ScriptPubkey, Tx, TxOut, TxVer, VarIntArray, VarIntBytes};
+use bp::Tx;
 use tondi::{
-    PublicDataKind, PublicDatum, PublicReference, ScriptPublicKey, TondiOutpoint, TondiTransaction,
-    TondiUtxoEntry, UtxosByAddressEntry,
+    PublicDataKind, PublicDatum, PublicReference, TondiOutpoint, TondiTransaction,
+    UtxosByAddressEntry,
 };
-fn tx() -> Tx {
-    Tx {
-        version: TxVer::CURRENT,
-        inputs: VarIntArray::new(),
-        outputs: VarIntArray::from_checked(vec![TxOut::p2mr(
-            ScriptPubkey::from_checked(vec![7; 32]),
-            42u64,
-        )]),
-        lock_time: LockTime::ZERO,
-        subnetwork_id: [0; 20],
-        gas: 0,
-        payload: VarIntBytes::new(),
-        mass: 0,
+use tondi_vm::{
+    builder::{DraftInput, NativeDraft},
+    ClockContext, Hash32, OutPoint, ResolvedInput, StateNote,
+};
+
+fn draft() -> NativeDraft {
+    let auth = tondi_vm::public_auth().0;
+    NativeDraft {
+        network: tondi::NetworkType::Devnet.domain(),
+        inputs: vec![DraftInput {
+            outpoint: OutPoint {
+                transaction_id: Hash32::from_bytes([7; 32]),
+                index: 0,
+            },
+            entry: ResolvedInput {
+                note: StateNote::plain(2_000_000, auth),
+                birth_daa_score: 10,
+                is_coinbase: false,
+            },
+            auth: None,
+            since: 0,
+            consume: true,
+        }],
+        outputs: vec![StateNote::plain(1_900_000, auth)],
+        programs: vec![],
+        payload: vec![],
+        cycles_limit: 100_000_000,
+        invocation_cycles_limit: 1_000_000,
     }
 }
-fn context() -> UtxosByAddressEntry {
-    let datum = PublicDatum {
-        kind: PublicDataKind::Policy,
-        data: Datum::from_checked(b"explicit policy bytes".to_vec()),
+fn context() -> (Tx, UtxosByAddressEntry) {
+    let mut creation = draft();
+    creation.outputs[0] = PublicDatum {
+        kind: PublicDataKind::Law,
+        data: b"explicit public law bytes".to_vec(),
     }
-    .encode()
+    .note(1_900_000, tondi_vm::public_auth().0)
     .unwrap();
-    UtxosByAddressEntry {
+    let creation = Tx::from_native(creation.prepare().unwrap().transaction).unwrap();
+    let entry = UtxosByAddressEntry {
         address: None,
         outpoint: TondiOutpoint {
-            transaction_id: Bytes32::from_byte_array([3; 32]),
+            transaction_id: creation.txid().to_string().parse::<Bytes32>().unwrap(),
             index: 0,
         },
-        utxo_entry: TondiUtxoEntry {
-            amount: 9000,
-            script_public_key: ScriptPublicKey {
-                version: 4,
-                script: vec![7; 32],
-            },
-            block_daa_score: 0,
+        utxo_entry: ResolvedInput {
+            note: creation.outputs[0].clone(),
+            birth_daa_score: 15,
             is_coinbase: false,
-            datum: Some(datum),
         },
-    }
+    };
+    (creation, entry)
 }
 #[test]
-fn public_reference_survives_current_rpc_bridge_and_does_not_supply_spending_value() {
-    let entry = context();
+fn reference_preserves_complete_note_and_cannot_fund_the_transaction() {
+    let (_, entry) = context();
     let pin = PublicReference::from_live(&entry).unwrap();
-    let mut tx = tx();
-    let previous = pin.append_to(&mut tx, &entry).unwrap();
-    assert_eq!(previous.value.sats(), 9000);
-    assert!(tx.inputs[0].is_reference);
-    assert_eq!(tx.inputs[0].sig_op_count, 0);
-    let native = TondiTransaction::from_bp_tx(&tx).unwrap();
-    let restored = native.to_bp_tx().unwrap();
-    assert_eq!(restored, tx);
-    assert!(pin.append_to(&mut tx, &entry).is_err());
+    let mut anchor = draft();
+    pin.append_to(&mut anchor, &entry).unwrap();
+    assert!(pin.append_to(&mut anchor, &entry).is_err());
+    let prepared = anchor.prepare().unwrap();
+    assert!(!prepared.transaction.inputs[1].consumes());
+    let report = tondi_vm::TondiVm::new(prepared.transaction.network)
+        .validate(
+            &prepared.transaction,
+            &prepared.resolved_inputs,
+            ClockContext {
+                daa_score: 100,
+                time_seconds: 1000,
+            },
+        )
+        .unwrap();
+    assert_eq!(report.validated.fee, 100_000);
+    let tx = Tx::from_native(prepared.transaction).unwrap();
+    assert_eq!(
+        TondiTransaction::from_bp_tx(&tx)
+            .unwrap()
+            .to_bp_tx()
+            .unwrap(),
+        tx
+    );
     let mut changed = entry.clone();
-    changed.utxo_entry.datum.as_mut().unwrap()[6] ^= 1;
+    changed.utxo_entry.note.state.as_mut().unwrap().datum[1] ^= 1;
     assert!(pin.authenticate(&changed).is_err());
-    changed = entry;
+    let mut changed = entry.clone();
+    changed.utxo_entry.note.value += 1;
+    assert!(pin.authenticate(&changed).is_err());
+    let mut changed = entry;
     changed.outpoint.index = 1;
     assert!(pin.authenticate(&changed).is_err());
 }
-
 #[test]
-fn bridge_rejects_sequences_it_cannot_preserve_and_non_native_anchors() {
-    let mut native = TondiTransaction::from_bp_tx(&tx()).unwrap();
-    native.inputs.push(tondi::TondiTxInput::Standard {
-        previous_outpoint: context().outpoint,
-        signature_script: vec![],
-        sequence: u32::MAX as u64,
-        sig_op_count: 1,
-    });
-    assert!(native.to_bp_tx().is_err());
-    let tondi::TondiTxInput::Standard { sequence, .. } = &mut native.inputs[0] else {
-        unreachable!()
-    };
-    *sequence = u64::MAX;
-    assert!(native.to_bp_tx().is_ok());
-    native.gas = 1;
-    assert!(native.to_bp_tx().is_err());
-}
-#[test]
-fn historical_reference_witness_remains_verifiable_after_the_live_lookup_is_gone() {
-    let mut entry = context();
-    let mut creation = tx();
-    creation.outputs[0].datum = entry.utxo_entry.datum.clone();
-    creation.outputs[0].value = 9000u64.into();
-    entry.outpoint.transaction_id = creation.txid().to_string().parse().unwrap();
+fn historical_reference_requires_exact_creation_and_reference_kind() {
+    let (creation, entry) = context();
     let pin = PublicReference::from_live(&entry).unwrap();
-    let mut anchor = tx();
+    let mut anchor = draft();
     pin.append_to(&mut anchor, &entry).unwrap();
+    let anchor = Tx::from_native(anchor.prepare().unwrap().transaction).unwrap();
     pin.verify_witness(&creation, &anchor).unwrap();
-    anchor.inputs[0].is_reference = false;
-    assert!(pin.verify_witness(&creation, &anchor).is_err());
+    let mut native = anchor.into_native();
+    native.body.inputs[1] = tondi_vm::Input::consume(pin.outpoint.into(), 0);
+    assert!(pin
+        .verify_witness(&creation, &Tx::from_native(native).unwrap())
+        .is_err());
 }
 #[test]
-fn public_data_is_bounded_explicit_and_versioned() {
+fn public_data_is_bounded_and_domain_separated() {
     let datum = PublicDatum {
         kind: PublicDataKind::Metadata,
-        data: Datum::from_checked(vec![1; 4090]),
+        data: vec![1; 4095],
     };
     assert_eq!(datum.encode().unwrap().len(), 4096);
     assert!(PublicDatum {
         kind: PublicDataKind::Metadata,
-        data: Datum::from_checked(vec![1; 4091])
+        data: vec![1; 4096]
     }
     .encode()
     .is_err());
     assert!(PublicDatum::decode(b"RGBD\0\x01x").is_err());
-    assert!(PublicDatum::decode(b"private consignment").is_err());
+    let mut note = datum.note(10_000_000, tondi_vm::public_auth().0).unwrap();
+    note.state.as_mut().unwrap().law.args = b"unrelated state domain".to_vec();
+    assert!(PublicDatum::from_note(&note).is_err());
 }

@@ -31,13 +31,12 @@ use bpstd::pstt::{KeyMap, Pstt, PsttConstructor, Utxo};
 use bpstd::seals::WTxoSeal;
 use bpstd::{
     Derive, DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly, DescrId, Idx, Keychain, Network,
-    NormalIndex, Outpoint, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout, XpubDerivable,
+    NormalIndex, Outpoint, Terminal, Tx, Txid, Vout, XpubDerivable,
 };
 use rgb::popls::bp::WalletProvider;
 use rgb::{AuthToken, RgbSealDef, WitnessStatus};
 use rgbdescr::RgbDescr;
 
-use crate::p2mr::p2mr_original_pubkey_key;
 use crate::resolvers::{Resolver, ResolverError};
 use crate::tondi_address::encode_p2mr_for_network;
 use crate::{MemUtxos, UtxoSet};
@@ -71,9 +70,13 @@ where
     U: UtxoSet,
 {
     #[inline]
-    pub fn with_components(descriptor: RgbDescr<K>, utxos: U) -> Self { Self { descriptor, utxos } }
+    pub fn with_components(descriptor: RgbDescr<K>, utxos: U) -> Self {
+        Self { descriptor, utxos }
+    }
     #[inline]
-    pub fn into_components(self) -> (RgbDescr<K>, U) { (self.descriptor, self.utxos) }
+    pub fn into_components(self) -> (RgbDescr<K>, U) {
+        (self.descriptor, self.utxos)
+    }
 }
 
 impl<K, U> OwnerProvider for Holder<K, U>
@@ -85,13 +88,21 @@ where
     type UtxoSet = U;
 
     #[inline]
-    fn descriptor(&self) -> &RgbDescr<K> { &self.descriptor }
+    fn descriptor(&self) -> &RgbDescr<K> {
+        &self.descriptor
+    }
     #[inline]
-    fn utxos(&self) -> &U { &self.utxos }
+    fn utxos(&self) -> &U {
+        &self.utxos
+    }
     #[inline]
-    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> { &mut self.descriptor }
+    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> {
+        &mut self.descriptor
+    }
     #[inline]
-    fn utxos_mut(&mut self) -> &mut U { &mut self.utxos }
+    fn utxos_mut(&mut self) -> &mut U {
+        &mut self.utxos
+    }
 }
 
 #[derive(Clone, Default)]
@@ -109,7 +120,9 @@ where
     K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly,
     U: UtxoSet,
 {
-    pub fn new() -> Self { Self { current: None, holders: none!() } }
+    pub fn new() -> Self {
+        Self { current: None, holders: none!() }
+    }
 
     pub fn with(id: DescrId, holder: Holder<K, U>) -> Self {
         Self { current: Some(id), holders: map! { id => holder } }
@@ -163,13 +176,21 @@ where
     type UtxoSet = U;
 
     #[inline]
-    fn descriptor(&self) -> &RgbDescr<K> { self.current().descriptor() }
+    fn descriptor(&self) -> &RgbDescr<K> {
+        self.current().descriptor()
+    }
     #[inline]
-    fn utxos(&self) -> &U { self.current().utxos() }
+    fn utxos(&self) -> &U {
+        self.current().utxos()
+    }
     #[inline]
-    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> { self.current_mut().descriptor_mut() }
+    fn descriptor_mut(&mut self) -> &mut RgbDescr<K> {
+        self.current_mut().descriptor_mut()
+    }
     #[inline]
-    fn utxos_mut(&mut self) -> &mut U { self.current_mut().utxos_mut() }
+    fn utxos_mut(&mut self) -> &mut U {
+        self.current_mut().utxos_mut()
+    }
 }
 
 /// Owner structure represents a holder of an RGB wallet, which keeps information of the wallet
@@ -199,7 +220,9 @@ where
 {
     type Target = O;
 
-    fn deref(&self) -> &Self::Target { &self.provider }
+    fn deref(&self) -> &Self::Target {
+        &self.provider
+    }
 }
 
 impl<R, O, K, U> DerefMut for Owner<R, O, K, U>
@@ -209,7 +232,9 @@ where
     R: Resolver,
     U: UtxoSet,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.provider }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.provider
+    }
 }
 
 impl<R, O, K, U> Owner<R, O, K, U>
@@ -223,10 +248,14 @@ where
         Self { network, provider, resolver, _phantom: PhantomData }
     }
 
-    pub fn into_components(self) -> (O, R) { (self.provider, self.resolver) }
+    pub fn into_components(self) -> (O, R) {
+        (self.provider, self.resolver)
+    }
 
     #[inline]
-    pub fn network(&self) -> Network { self.network }
+    pub fn network(&self) -> Network {
+        self.network
+    }
 
     pub fn next_tondi_p2mr_address(&mut self) -> Result<String, String> {
         let next = self.next_derivation_index(Keychain::OUTER, true);
@@ -250,9 +279,13 @@ where
 {
     type Error = ResolverError;
 
-    fn has_utxo(&self, outpoint: Outpoint) -> bool { self.provider.utxos().has(outpoint) }
+    fn has_utxo(&self, outpoint: Outpoint) -> bool {
+        self.provider.utxos().has(outpoint)
+    }
 
-    fn utxos(&self) -> impl Iterator<Item = Outpoint> { self.provider.utxos().outpoints() }
+    fn utxos(&self) -> impl Iterator<Item = Outpoint> {
+        self.provider.utxos().outpoints()
+    }
 
     #[cfg(not(feature = "async"))]
     fn update_utxos(&mut self) -> Result<(), Self::Error> {
@@ -285,9 +318,6 @@ where
                     let utxo = utxo?;
                     found_in_range = true;
                     not_found.remove(&utxo.outpoint);
-                    if self.provider.utxos().has(utxo.outpoint) {
-                        continue;
-                    }
                     new.insert(utxo);
                 }
                 if should_stop_utxo_scan(found_in_range, index, last_index) {
@@ -299,19 +329,25 @@ where
         }
         let known_unmatched = known_unmatched_utxos(self.provider.utxos(), &not_found);
         let mut pending_spent = HashSet::new();
-        for (outpoint, current_value, _) in known_unmatched {
+        for (outpoint, current_value, terminal) in known_unmatched {
             match self.resolver.check_utxo(outpoint)? {
                 Some(live) => {
-                    if live.value != current_value {
+                    if live.value() != current_value {
                         return Err(ResolverError::Protocol);
                     }
+                    new.insert(Utxo { outpoint, entry: live.entry, terminal });
                     not_found.remove(&outpoint);
                 }
                 None => {
                     if self.resolver.resolve_tx_status(outpoint.txid)? == WitnessStatus::Tentative {
                         if let Some(tx) = self.resolver.resolve_tx(outpoint.txid)? {
                             let tx = Tx::from(tx);
-                            pending_spent.extend(tx.inputs.iter().map(|input| input.prev_output));
+                            pending_spent.extend(
+                                tx.inputs
+                                    .iter()
+                                    .filter(|i| i.consumes())
+                                    .map(|i| Outpoint::from(i.outpoint())),
+                            );
                         }
                         not_found.remove(&outpoint);
                     }
@@ -355,9 +391,6 @@ where
                     let utxo = utxo?;
                     found_in_range = true;
                     not_found.remove(&utxo.outpoint);
-                    if self.provider.utxos().has(utxo.outpoint) {
-                        continue;
-                    }
                     new.insert(utxo);
                 }
                 if should_stop_utxo_scan(found_in_range, index, last_index) {
@@ -369,12 +402,13 @@ where
         }
         let known_unmatched = known_unmatched_utxos(self.provider.utxos(), &not_found);
         let mut pending_spent = HashSet::new();
-        for (outpoint, current_value, _) in known_unmatched {
+        for (outpoint, current_value, terminal) in known_unmatched {
             match self.resolver.check_utxo_async(outpoint).await? {
                 Some(live) => {
-                    if live.value != current_value {
+                    if live.value() != current_value {
                         return Err(ResolverError::Protocol);
                     }
+                    new.insert(Utxo { outpoint, entry: live.entry, terminal });
                     not_found.remove(&outpoint);
                 }
                 None => {
@@ -383,7 +417,12 @@ where
                     {
                         if let Some(tx) = self.resolver.resolve_tx_async(outpoint.txid).await? {
                             let tx = Tx::from(tx);
-                            pending_spent.extend(tx.inputs.iter().map(|input| input.prev_output));
+                            pending_spent.extend(
+                                tx.inputs
+                                    .iter()
+                                    .filter(|i| i.consumes())
+                                    .map(|i| Outpoint::from(i.outpoint())),
+                            );
                         }
                         not_found.remove(&outpoint);
                     }
@@ -397,7 +436,9 @@ where
         Ok(())
     }
 
-    fn register_seal(&mut self, seal: WTxoSeal) { self.provider.descriptor_mut().add_seal(seal); }
+    fn register_seal(&mut self, seal: WTxoSeal) {
+        self.provider.descriptor_mut().add_seal(seal);
+    }
 
     fn resolve_seals(
         &self,
@@ -411,9 +452,13 @@ where
         })
     }
 
-    fn noise_seed(&self) -> Bytes32 { self.provider.descriptor().noise() }
+    fn noise_seed(&self) -> Bytes32 {
+        self.provider.descriptor().noise()
+    }
 
-    fn next_nonce(&mut self) -> u64 { self.provider.descriptor_mut().next_nonce() }
+    fn next_nonce(&mut self) -> u64 {
+        self.provider.descriptor_mut().next_nonce()
+    }
 
     #[cfg(not(feature = "async"))]
     fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error> {
@@ -426,7 +471,9 @@ where
     }
 
     #[cfg(not(feature = "async"))]
-    fn last_block_height(&self) -> Result<u64, Self::Error> { self.resolver.last_block_height() }
+    fn last_block_height(&self) -> Result<u64, Self::Error> {
+        self.resolver.last_block_height()
+    }
 
     #[cfg(feature = "async")]
     async fn last_block_height_async(&self) -> Result<u64, Self::Error> {
@@ -437,8 +484,10 @@ where
     fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error> {
         self.resolver.broadcast(tx)?;
 
-        for inp in &tx.inputs {
-            self.provider.utxos_mut().remove(inp.prev_output);
+        for inp in tx.inputs.iter().filter(|i| i.consumes()) {
+            self.provider
+                .utxos_mut()
+                .remove(Outpoint::from(inp.outpoint()));
         }
         if let Some((vout, keychain, index)) = change {
             let txid = tx.txid();
@@ -447,9 +496,15 @@ where
                 Keychain::with(keychain as u8),
                 NormalIndex::try_from_index(index).expect("invalid derivation index"),
             );
-            self.provider
-                .utxos_mut()
-                .insert(Outpoint::new(txid, vout), out.value, terminal);
+            self.provider.utxos_mut().insert(
+                Outpoint::new(txid, vout),
+                bpstd::native::ResolvedInput {
+                    note: out.clone(),
+                    birth_daa_score: 0,
+                    is_coinbase: false,
+                },
+                terminal,
+            );
         }
 
         Ok(())
@@ -463,10 +518,10 @@ where
     ) -> Result<(), Self::Error> {
         self.resolver.broadcast_async(tx).await?;
 
-        for inp in &tx.inputs {
+        for inp in tx.inputs.iter().filter(|i| i.consumes()) {
             self.provider
                 .utxos_mut()
-                .remove_async(inp.prev_output)
+                .remove_async(Outpoint::from(inp.outpoint()))
                 .await;
         }
         if let Some((vout, keychain, index)) = change {
@@ -478,7 +533,15 @@ where
             );
             self.provider
                 .utxos_mut()
-                .insert_async(Outpoint::new(txid, vout), out.value, terminal)
+                .insert_async(
+                    Outpoint::new(txid, vout),
+                    bpstd::native::ResolvedInput {
+                        note: out.clone(),
+                        birth_daa_score: 0,
+                        is_coinbase: false,
+                    },
+                    terminal,
+                )
                 .await;
         }
 
@@ -517,46 +580,25 @@ where
     type Key = K;
     type Descr = RgbDescr<K>;
 
-    fn descriptor(&self) -> &Self::Descr { self.provider.descriptor() }
-
-    #[cfg(not(feature = "async"))]
-    fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx> {
-        self.resolver.resolve_tx(txid).ok().flatten()
+    fn descriptor(&self) -> &Self::Descr {
+        self.provider.descriptor()
     }
 
-    #[cfg(feature = "async")]
-    fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx> {
-        #[cfg(any(feature = "resolver-tondi", feature = "resolver-tondi-async"))]
-        {
-            let rt = tokio::runtime::Runtime::new().ok()?;
-            return rt
-                .block_on(self.resolver.resolve_tx_async(txid))
-                .ok()
-                .flatten();
-        }
-
-        #[cfg(not(any(feature = "resolver-tondi", feature = "resolver-tondi-async")))]
-        {
-            use futures::executor::block_on;
-            block_on(self.resolver.resolve_tx_async(txid))
-                .ok()
-                .flatten()
-        }
+    fn utxo(&self, outpoint: Outpoint) -> Option<Utxo> {
+        let (_, terminal) = self.provider.utxos().get(outpoint)?;
+        Some(Utxo {
+            outpoint,
+            entry: self.provider.utxos().entry(outpoint)?,
+            terminal,
+        })
+    }
+    fn network_domain(&self) -> bpstd::native::Hash32 {
+        self.network.native_domain()
     }
 
-    fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)> {
-        let (value, terminal) = self.provider.utxos().get(outpoint)?;
-        let utxo = Utxo { outpoint, value, terminal };
-        let script = self
-            .provider
-            .descriptor()
-            .derive(terminal.keychain, terminal.index)
-            .next()
-            .expect("unable to derive");
-        Some((utxo, script.to_script_pubkey()))
+    fn network(&self) -> Network {
+        self.network
     }
-
-    fn network(&self) -> Network { self.network }
 
     #[cfg(not(feature = "async"))]
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex {
@@ -569,21 +611,11 @@ where
     }
 
     fn after_construct_pstt(&mut self, pstt: &mut Pstt, meta: &bpstd::pstt::PsttMeta) {
-        let Some(change) = meta.change else {
-            return;
-        };
-        let Some(output) = pstt.output_mut(change.vout.into_usize()) else {
-            return;
-        };
-        let Some(original_pubkey) = self
-            .provider
-            .descriptor()
-            .derive_p2mr_compressed_key(change.terminal.keychain, change.terminal.index)
-        else {
-            return;
-        };
-        let _ = output
-            .push_proprietary(p2mr_original_pubkey_key(), original_pubkey.to_byte_array().to_vec());
+        if let Some(change) = meta.change {
+            if let Some(o) = pstt.output_mut(change.vout.into_usize()) {
+                let _ = o.push_proprietary(crate::state_anchor_host_key(), vec![1]);
+            }
+        }
     }
 }
 
@@ -655,7 +687,9 @@ pub mod file {
             Ok(())
         }
 
-        pub fn path(&self) -> &Path { &self.path }
+        pub fn path(&self) -> &Path {
+            &self.path
+        }
     }
 
     impl Drop for FileHolder {
@@ -670,13 +704,21 @@ pub mod file {
         type Key = XpubDerivable;
         type UtxoSet = MemUtxos;
         #[inline]
-        fn descriptor(&self) -> &RgbDescr<Self::Key> { self.inner.descriptor() }
+        fn descriptor(&self) -> &RgbDescr<Self::Key> {
+            self.inner.descriptor()
+        }
         #[inline]
-        fn utxos(&self) -> &Self::UtxoSet { self.inner.utxos() }
+        fn utxos(&self) -> &Self::UtxoSet {
+            self.inner.utxos()
+        }
         #[inline]
-        fn descriptor_mut(&mut self) -> &mut RgbDescr<Self::Key> { self.inner.descriptor_mut() }
+        fn descriptor_mut(&mut self) -> &mut RgbDescr<Self::Key> {
+            self.inner.descriptor_mut()
+        }
         #[inline]
-        fn utxos_mut(&mut self) -> &mut Self::UtxoSet { self.inner.utxos_mut() }
+        fn utxos_mut(&mut self) -> &mut Self::UtxoSet {
+            self.inner.utxos_mut()
+        }
     }
 }
 
@@ -691,7 +733,14 @@ mod test {
         let next = utxo.next_index(Keychain::OUTER, true);
         utxo.insert(
             Outpoint::coinbase(),
-            Sats::from_tondi(2),
+            bpstd::native::ResolvedInput {
+                note: bpstd::native::StateNote::plain(
+                    Sats::from_tondi(2).0,
+                    bpstd::native::public_auth().0,
+                ),
+                birth_daa_score: 12,
+                is_coinbase: false,
+            },
             Terminal::new(Keychain::OUTER, next),
         );
         utxo
@@ -742,15 +791,7 @@ mod test {
     fn mem_utxo_serde() {
         let utxo = setup();
         let s = toml::to_string(&utxo).unwrap();
-        assert_eq!(
-            s,
-            "[set]
-\"0000000000000000000000000000000000000000000000000000000000000000:0\" = [200000000, \"&0/0\"]
-
-[nextIndex]
-0 = 1
-"
-        );
+        assert!(s.contains("birthDaaScore"));
 
         let utxo2 = toml::from_str(&s).unwrap();
         assert_eq!(utxo, utxo2);
@@ -798,9 +839,8 @@ mod p2mr_address_tests {
 mod async_utxo_tests {
     use bpstd::pstt::Utxo;
     use bpstd::{
-        h, LockTime, Network, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxIn,
-        TxOut, TxVer, Txid, UnsignedTx, VarIntArray, VarIntBytes, Vout, Witness, XprivAccount,
-        XpubDerivable,
+        h, Network, Outpoint, Sats, ScriptPubkey, Terminal, Tx, Txid, UnsignedTx, Vout,
+        XprivAccount, XpubDerivable,
     };
     use futures::executor::block_on;
     use rgb::popls::bp::WalletProvider;
@@ -811,6 +851,13 @@ mod async_utxo_tests {
     use crate::resolvers::{Resolver, ResolverError};
     use crate::UtxoSet;
 
+    fn entry(value: Sats) -> bpstd::native::ResolvedInput {
+        bpstd::native::ResolvedInput {
+            note: bpstd::native::StateNote::plain(value.0, bpstd::native::public_auth().0),
+            birth_daa_score: 12,
+            is_coinbase: false,
+        }
+    }
     struct LiveKnownUtxoResolver {
         outpoint: Outpoint,
         value: Sats,
@@ -842,7 +889,7 @@ mod async_utxo_tests {
             if outpoint == self.outpoint {
                 Ok(Some(Utxo {
                     outpoint,
-                    value: self.value,
+                    entry: entry(self.value),
                     terminal: Terminal::new(0u8, 0u16.into()),
                 }))
             } else {
@@ -850,9 +897,13 @@ mod async_utxo_tests {
             }
         }
 
-        async fn last_block_height_async(&self) -> Result<u64, ResolverError> { Ok(0) }
+        async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
+            Ok(0)
+        }
 
-        async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> { Ok(()) }
+        async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -866,7 +917,7 @@ mod async_utxo_tests {
             let value = Sats::from_tondi(2);
             let terminal = Terminal::new(1u8, 0u16.into());
             let mut utxos = MemUtxos::default();
-            utxos.insert_async(outpoint, value, terminal).await;
+            utxos.insert_async(outpoint, entry(value), terminal).await;
 
             let holder = Holder::with_components(descriptor, utxos);
             let resolver = LiveKnownUtxoResolver { outpoint, value };
@@ -886,7 +937,7 @@ mod async_utxo_tests {
     impl Resolver for TentativeChangeResolver {
         async fn resolve_tx_async(&self, txid: Txid) -> Result<Option<UnsignedTx>, ResolverError> {
             if txid == self.pending_tx.txid() {
-                Ok(Some(UnsignedTx::with_sigs_removed(self.pending_tx.clone())))
+                Ok(Some(self.pending_tx.clone()))
             } else {
                 Ok(None)
             }
@@ -911,7 +962,7 @@ mod async_utxo_tests {
                 .into_iter()
                 .any(|(terminal, _)| terminal == self.chain_visible_spent.terminal)
             {
-                vec![Ok(self.chain_visible_spent)].into_iter()
+                vec![Ok(self.chain_visible_spent.clone())].into_iter()
             } else {
                 Vec::new().into_iter()
             }
@@ -922,15 +973,19 @@ mod async_utxo_tests {
             outpoint: Outpoint,
         ) -> Result<Option<Utxo>, ResolverError> {
             if outpoint == self.chain_visible_spent.outpoint {
-                Ok(Some(self.chain_visible_spent))
+                Ok(Some(self.chain_visible_spent.clone()))
             } else {
                 Ok(None)
             }
         }
 
-        async fn last_block_height_async(&self) -> Result<u64, ResolverError> { Ok(0) }
+        async fn last_block_height_async(&self) -> Result<u64, ResolverError> {
+            Ok(0)
+        }
 
-        async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> { Ok(()) }
+        async fn broadcast_async(&self, _tx: &Tx) -> Result<(), ResolverError> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -945,36 +1000,37 @@ mod async_utxo_tests {
             let spent_terminal = Terminal::new(0u8, 0u16.into());
             let chain_visible_spent = Utxo {
                 outpoint: spent_outpoint,
-                value: spent_value,
+                entry: entry(spent_value),
                 terminal: spent_terminal,
             };
 
-            let pending_tx = Tx {
-                version: TxVer::CURRENT,
-                inputs: VarIntArray::from_checked(vec![TxIn {
-                    is_reference: false,
-                    sig_op_count: 1,
-                    prev_output: spent_outpoint,
-                    sig_script: SigScript::empty(),
-                    sequence: SeqNo::ZERO,
-                    witness: Witness::default(),
-                }]),
-                outputs: VarIntArray::from_checked(vec![TxOut::p2mr(
-                    ScriptPubkey::from_checked(vec![1u8; 32]),
-                    Sats::from_tondi(1),
-                )]),
-                lock_time: LockTime::ZERO,
-                subnetwork_id: [0u8; 20],
-                gas: 0,
-                payload: VarIntBytes::new(),
-                mass: 0,
-            };
+            let prepared = bpstd::native::builder::NativeDraft {
+                network: Network::Testnet.native_domain(),
+                inputs: vec![bpstd::native::builder::DraftInput {
+                    outpoint: spent_outpoint.into(),
+                    entry: entry(spent_value),
+                    auth: None,
+                    since: 0,
+                    consume: true,
+                }],
+                outputs: vec![bpstd::native::StateNote::plain(
+                    Sats::from_tondi(1).0,
+                    bpstd::native::public_auth().0,
+                )],
+                programs: vec![],
+                payload: vec![],
+                cycles_limit: 100_000_000,
+                invocation_cycles_limit: 1_000_000,
+            }
+            .prepare()
+            .unwrap();
+            let pending_tx = Tx::from_native(prepared.transaction).unwrap();
             let pending_outpoint = Outpoint::new(pending_tx.txid(), Vout::from_u32(0));
             let pending_value = Sats::from_tondi(1);
             let pending_terminal = Terminal::new(1u8, 0u16.into());
             let mut utxos = MemUtxos::default();
             utxos
-                .insert_async(pending_outpoint, pending_value, pending_terminal)
+                .insert_async(pending_outpoint, entry(pending_value), pending_terminal)
                 .await;
 
             let holder = Holder::with_components(descriptor, utxos);

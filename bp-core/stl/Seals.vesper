@@ -21,4 +21,3 @@ rec WTxoSeal
     rec fallback: Outpoint, wrapped, tag 1
       bytes txid: len 32, aka Txid
       is vout: U32, aka Vout
-

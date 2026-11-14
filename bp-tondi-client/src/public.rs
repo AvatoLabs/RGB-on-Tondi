@@ -1,165 +1,130 @@
-//! Explicit public data and pinned, read-only dependencies for RGB applications.
-//! These records never contain private allocations or consignment locations automatically.
+//! Exact native StateNote pins and read-only dependencies. Provenance is an application obligation.
 use crate::{Error, Result, TondiClient, TondiOutpoint, UtxosByAddressEntry};
-use bp::{Datum, Outpoint, SeqNo, SigScript, Tx, TxIn, TxOut, Witness};
-
+use tondi_vm::{
+    builder::{DraftInput, NativeDraft},
+    AuthRoot, LawInstance, ProgramRef, ResolvedInput, StateNote, StatePayload, LAW_DATA,
+};
+const PUBLIC_ARGS: &[u8] = b"Tondi/v4/RGB/public";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PublicDataKind {
     Schema = 1,
-    Policy = 2,
+    Law = 2,
     Metadata = 3,
     StateDigest = 4,
 }
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicDatum {
     pub kind: PublicDataKind,
-    pub data: Datum,
+    pub data: Vec<u8>,
 }
 impl PublicDatum {
-    /// Wire format: RGBD | 1 | kind | public bytes, at most 4096 bytes in total.
-    pub fn encode(&self) -> Result<Datum> {
-        let mut bytes = b"RGBD\x01".to_vec();
-        bytes.push(self.kind as u8);
-        bytes.extend(self.data.as_slice());
-        Datum::try_from(bytes)
-            .map_err(|_| invalid("public Datum exceeds 4096 bytes including framing"))
+    pub fn encode(&self) -> Result<Vec<u8>> {
+        if self.data.len() > 4095 {
+            return Err(invalid("public datum exceeds capacity"));
+        }
+        let mut b = vec![self.kind as u8];
+        b.extend_from_slice(&self.data);
+        Ok(b)
     }
     pub fn decode(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 6 || bytes.len() > bp::MAX_DATUM_SIZE || &bytes[..5] != b"RGBD\x01" {
-            return Err(invalid("invalid public Datum framing"));
+        if bytes.is_empty() || bytes.len() > 4096 {
+            return Err(invalid("invalid public datum length"));
         }
-        let kind = match bytes[5] {
+        let kind = match bytes[0] {
             1 => PublicDataKind::Schema,
-            2 => PublicDataKind::Policy,
+            2 => PublicDataKind::Law,
             3 => PublicDataKind::Metadata,
             4 => PublicDataKind::StateDigest,
-            _ => return Err(invalid("unknown public Datum kind")),
+            _ => return Err(invalid("invalid public datum kind")),
         };
         Ok(Self {
             kind,
-            data: Datum::from_checked(bytes[6..].to_vec()),
+            data: bytes[1..].to_vec(),
         })
     }
+    pub fn note(&self, value: u64, auth: AuthRoot) -> Result<StateNote> {
+        let mut note = StateNote::plain(value, auth);
+        note.state = Some(StatePayload {
+            law: LawInstance {
+                program: ProgramRef::Standard(LAW_DATA),
+                args: PUBLIC_ARGS.to_vec(),
+            },
+            datum: self.encode()?,
+        });
+        Ok(note)
+    }
+    pub fn from_note(note: &StateNote) -> Result<Self> {
+        let state = note
+            .state
+            .as_ref()
+            .ok_or_else(|| invalid("missing public state"))?;
+        if state.law.program != ProgramRef::Standard(LAW_DATA) || state.law.args != PUBLIC_ARGS {
+            return Err(invalid("invalid public state domain"));
+        }
+        Self::decode(&state.datum)
+    }
 }
-
-/// Pins an exact public UTXO version. This is not a latest-state query or mint authority.
-/// The application authenticates the pin's provenance separately: anyone can fund
-/// an output to another party's script, so a destination does not prove publication authority.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PublicReference {
     pub outpoint: TondiOutpoint,
-    pub script_version: u16,
-    #[serde(with = "hex::serde")]
-    pub script: Vec<u8>,
-    pub datum: Datum,
+    pub note: StateNote,
 }
 impl PublicReference {
     pub fn from_live(entry: &UtxosByAddressEntry) -> Result<Self> {
-        entry.utxo_entry.script_public_key.validate_p2mr_root()?;
-        let datum = entry
-            .utxo_entry
-            .datum
-            .clone()
-            .ok_or_else(|| invalid("public reference has no Datum"))?;
-        PublicDatum::decode(datum.as_slice())?;
+        PublicDatum::from_note(&entry.utxo_entry.note)?;
         Ok(Self {
             outpoint: entry.outpoint,
-            script_version: entry.utxo_entry.script_public_key.version,
-            script: entry.utxo_entry.script_public_key.script.clone(),
-            datum,
+            note: entry.utxo_entry.note.clone(),
         })
     }
-    /// Authenticate a node's current UTXO response against the application-selected pin.
-    pub fn authenticate(&self, entry: &UtxosByAddressEntry) -> Result<TxOut> {
-        PublicDatum::decode(self.datum.as_slice())?;
-        if entry.outpoint != self.outpoint
-            || entry.utxo_entry.script_public_key.version != self.script_version
-            || entry.utxo_entry.script_public_key.script != self.script
-            || entry.utxo_entry.datum.as_ref() != Some(&self.datum)
-        {
-            return Err(invalid("public reference does not match live UTXO"));
+    pub fn authenticate(&self, entry: &UtxosByAddressEntry) -> Result<ResolvedInput> {
+        PublicDatum::from_note(&self.note)?;
+        if self.outpoint != entry.outpoint || self.note != entry.utxo_entry.note {
+            return Err(invalid("public reference differs from live UTXO"));
         }
-        entry.utxo_entry.script_public_key.validate_p2mr_root()?;
-        let mut prevout = TxOut::with_script_version(
-            self.script_version,
-            bp::ScriptPubkey::from_checked(self.script.clone()),
-            entry.utxo_entry.amount,
-        );
-        prevout.datum = Some(self.datum.clone());
-        Ok(prevout)
+        Ok(entry.utxo_entry.clone())
     }
-    /// Verify retained context data against its creation transaction and an anchor.
-    /// The caller separately verifies that the anchor was accepted by the native chain.
-    pub fn verify_witness(&self, creation: &Tx, anchor: &Tx) -> Result<()> {
-        PublicDatum::decode(self.datum.as_slice())?;
-        crate::ScriptPublicKey {
-            version: self.script_version,
-            script: self.script.clone(),
-        }
-        .validate_p2mr_root()?;
-        if creation.txid().to_string() != self.outpoint.transaction_id.to_string() {
-            return Err(invalid("context creation transaction ID mismatch"));
-        }
-        let output = creation
-            .outputs
-            .get(self.outpoint.index as usize)
-            .ok_or_else(|| invalid("missing context creation output"))?;
-        if output.script_pubkey_version != self.script_version
-            || output.script_pubkey.as_slice() != self.script.as_slice()
-            || output.datum.as_ref() != Some(&self.datum)
+    /// Accepted-chain membership and live status must be checked through the node independently.
+    pub fn verify_witness(&self, creation: &bp::Tx, anchor: &bp::Tx) -> Result<()> {
+        PublicDatum::from_note(&self.note)?;
+        let point: tondi_vm::OutPoint = self.outpoint.into();
+        if creation.id() != point.transaction_id
+            || creation.network != anchor.network
+            || creation.outputs.get(point.index as usize) != Some(&self.note)
         {
-            return Err(invalid("context creation output mismatch"));
+            return Err(invalid("public reference creation mismatch"));
         }
-        let point: Outpoint = self.outpoint.into();
         if !anchor
             .inputs
             .iter()
-            .any(|i| i.is_reference && i.prev_output == point)
+            .any(|i| !i.consumes() && i.outpoint() == point)
             || anchor
                 .inputs
                 .iter()
-                .any(|i| !i.is_reference && i.prev_output == point)
+                .any(|i| i.consumes() && i.outpoint() == point)
         {
-            return Err(invalid("anchor does not reference the pinned context"));
+            return Err(invalid("anchor must reference the exact context"));
         }
         Ok(())
     }
-    /// Append before sealing/signing. The returned prevout belongs at the same input index.
-    /// The caller obtains `entry` through its trusted Tondi node, not from a counterparty.
-    pub fn append_to(&self, tx: &mut Tx, entry: &UtxosByAddressEntry) -> Result<TxOut> {
-        let prevout = self.authenticate(entry)?;
-        if tx.version != bp::TxVer::CURRENT
-            || tx
-                .inputs
-                .iter()
-                .any(|i| !i.sig_script.is_empty() || !i.witness.is_empty())
-        {
-            return Err(invalid("references must be selected before signing"));
+    /// Add before preparing the body. Draft binding automatically includes the read dependency.
+    pub fn append_to(&self, draft: &mut NativeDraft, entry: &UtxosByAddressEntry) -> Result<()> {
+        let entry = self.authenticate(entry)?;
+        let outpoint = self.outpoint.into();
+        if draft.inputs.iter().any(|i| i.outpoint == outpoint) {
+            return Err(invalid("duplicate consume/reference dependency"));
         }
-        let outpoint: Outpoint = self.outpoint.into();
-        if tx.inputs.iter().any(|i| i.prev_output == outpoint) {
-            return Err(invalid("duplicate reference or reference/spend overlap"));
-        }
-        if tx.inputs.iter().filter(|i| i.is_reference).count() >= 64 {
-            return Err(invalid("more than 64 reference inputs"));
-        }
-        tx.inputs
-            .push(TxIn {
-                prev_output: outpoint,
-                is_reference: true,
-                sig_op_count: 0,
-                sig_script: SigScript::new(),
-                sequence: SeqNo::from_consensus_u32(0),
-                witness: Witness::new(),
-            })
-            .map_err(|_| invalid("too many inputs"))?;
-        Ok(prevout)
+        draft.inputs.push(DraftInput {
+            outpoint,
+            entry,
+            auth: None,
+            since: 0,
+            consume: false,
+        });
+        Ok(())
     }
-    /// Address is a lookup hint; all returned fields must still match the exact pin.
-    #[cfg(feature = "async")]
     pub async fn resolve(
         &self,
         client: &TondiClient,
@@ -170,7 +135,7 @@ impl PublicReference {
             .await?
             .into_iter()
             .find(|e| e.outpoint == self.outpoint)
-            .ok_or_else(|| invalid("referenced UTXO is no longer live"))?;
+            .ok_or_else(|| invalid("public reference is no longer live"))?;
         self.authenticate(&entry)?;
         Ok(entry)
     }

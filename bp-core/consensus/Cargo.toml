@@ -16,6 +16,9 @@ readme = "../README.md"
 name = "bc"
 
 [dependencies]
+tondi-vm.workspace = true
+borsh.workspace = true
+
 amplify = { workspace = true }
 strict_encoding = { workspace = true }
 strict_types = { workspace = true, optional = true }

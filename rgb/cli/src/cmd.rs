@@ -272,10 +272,6 @@ pub enum Cmd {
         #[clap(long, default_value = "1000")]
         fee: Sats,
 
-        /// Use PSTT version 2
-        #[clap(short = '2', long, env = "RGB_PSTT_VER2")]
-        pstt2: bool,
-
         /// Print PSTT to STDOUT
         #[clap(short, long)]
         print: bool,
@@ -337,10 +333,6 @@ pub enum Cmd {
 
         /// Fees for PSTT
         fee: Sats,
-
-        /// Use PSTT version 2
-        #[clap(short = '2', long, global = true, env = "RGB_PSTT_VER2")]
-        pstt2: bool,
 
         /// Print PSTT to STDOUT
         #[clap(short, long, global = true)]

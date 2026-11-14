@@ -47,19 +47,19 @@ pub extern crate rgbdescr as descriptors;
 
 mod utxoset;
 mod owner;
-mod p2mr;
+mod anchor;
 mod tondi_address;
 mod coinselect;
 mod runtime;
 mod info;
 pub mod resolvers;
 
+pub use anchor::state_anchor_host_key;
 pub use coinselect::CoinselectStrategy;
 pub use info::{CodexInfo, ContractInfo};
 #[cfg(feature = "fs")]
 pub use owner::file::FileHolder;
 pub use owner::{Holder, MultiHolder, Owner, OwnerProvider};
-pub use p2mr::p2mr_original_pubkey_key;
 #[cfg(feature = "fs")]
 pub use runtime::file::{ConsignmentStream, RgbpRuntimeDir, Transfer};
 pub use runtime::{FinalizeError, PayError, Payment, RgbRuntime, TransferError};

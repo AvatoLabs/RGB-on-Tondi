@@ -307,7 +307,9 @@ pub enum VerificationError<Seal: RgbSeal> {
 
 // We need manual implementation since otherwise we get an unneeded `Seal::PubWitness: Debug` bound
 impl<Seal: RgbSeal> Debug for VerificationError<Seal> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result { write!(f, "{self}") }
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self}")
+    }
 }
 
 #[cfg(test)]
@@ -319,7 +321,7 @@ mod test {
     use std::vec;
 
     use bp::seals::{TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
-    use bp::{Outpoint, Sats, ScriptPubkey, SeqNo, Tx, TxIn, TxOut, Vout};
+    use bp::{Outpoint, Tx, Vout};
     use strict_encoding::StrictDumb;
     use ultrasonic::aluvm::alu::{aluasm, CoreConfig, Lib, LibId, LibSite};
     use ultrasonic::aluvm::FIELD_ORDER_SECP;
@@ -336,7 +338,9 @@ mod test {
         }
     }
     impl TestReader {
-        pub fn new(vec: Vec<OperationSeals<TxoSeal>>) -> Self { Self(vec.into_iter()) }
+        pub fn new(vec: Vec<OperationSeals<TxoSeal>>) -> Self {
+            Self(vec.into_iter())
+        }
     }
 
     struct TestContract {
@@ -350,18 +354,34 @@ mod test {
         pub witnesses: BTreeMap<Opid, Vec<SealWitness<TxoSeal>>>,
     }
     impl Memory for TestContract {
-        fn destructible(&self, addr: CellAddr) -> Option<StateCell> { self.owned.get(&addr).cloned() }
-        fn immutable(&self, addr: CellAddr) -> Option<StateValue> { self.global.get(&addr).cloned() }
+        fn destructible(&self, addr: CellAddr) -> Option<StateCell> {
+            self.owned.get(&addr).cloned()
+        }
+        fn immutable(&self, addr: CellAddr) -> Option<StateValue> {
+            self.global.get(&addr).cloned()
+        }
     }
     impl LibRepo for TestContract {
-        fn get_lib(&self, lib_id: LibId) -> Option<&Lib> { self.libs.get(&lib_id) }
+        fn get_lib(&self, lib_id: LibId) -> Option<&Lib> {
+            self.libs.get(&lib_id)
+        }
     }
     impl ContractApi<TxoSeal> for TestContract {
-        fn contract_id(&self) -> ContractId { self.contract_id }
-        fn codex(&self) -> &Codex { &self.codex }
-        fn repo(&self) -> &impl LibRepo { self }
-        fn memory(&self) -> &impl Memory { self }
-        fn is_known(&self, opid: Opid) -> bool { self.known_ops.contains_key(&opid) }
+        fn contract_id(&self) -> ContractId {
+            self.contract_id
+        }
+        fn codex(&self) -> &Codex {
+            &self.codex
+        }
+        fn repo(&self) -> &impl LibRepo {
+            self
+        }
+        fn memory(&self) -> &impl Memory {
+            self
+        }
+        fn is_known(&self, opid: Opid) -> bool {
+            self.known_ops.contains_key(&opid)
+        }
         fn apply_operation(&mut self, op: VerifiedOperation) {
             let opid = op.opid();
             let op = op.into_operation();
@@ -556,7 +576,9 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "unknown seal definition for cell address DdIqg2TZ61AbBI5T23xEefAw8Sl3H5_Gyoj6rVOosJs:0.")]
+    #[should_panic(
+        expected = "unknown seal definition for cell address DdIqg2TZ61AbBI5T23xEefAw8Sl3H5_Gyoj6rVOosJs:0."
+    )]
     fn genesis_with_external_output() {
         let mut genesis = genesis();
         genesis.destructible_out[0].auth = SEAL_EXTERNAL_OUTPUT.auth_token();
@@ -621,11 +643,16 @@ mod test {
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
         let operation = operation();
 
-        let mut witness = Tx::strict_dumb();
-        witness
+        let mut native = Tx::strict_dumb().into_native();
+        native
+            .body
+            .inputs
+            .push(bp::native::Input::consume(Outpoint::coinbase().into(), 0));
+        native
+            .body
             .outputs
-            .push(TxOut::new(ScriptPubkey::from_checked(vec![0x42; 32]), Sats::ZERO))
-            .unwrap();
+            .push(bp::native::StateNote::plain(100_000, bp::native::public_auth().0));
+        let witness = Tx::from_native(native).unwrap();
 
         let reader = TestReader::new(vec![
             OperationSeals {
@@ -649,22 +676,12 @@ mod test {
         let genesis_op = genesis.to_operation(genesis.codex_id.to_byte_array().into());
         let operation = operation();
 
-        let mut witness = Tx::strict_dumb();
-        witness
+        let mut native = Tx::strict_dumb().into_native();
+        native
+            .body
             .inputs
-            .push(TxIn {
-                is_reference: false,
-                sig_op_count: 1,
-                prev_output: Outpoint::coinbase(),
-                sig_script: none!(),
-                sequence: SeqNo::from_consensus_u32(0),
-                witness: none!(),
-            })
-            .unwrap();
-        witness
-            .outputs
-            .push(TxOut::new(ScriptPubkey::from_checked(vec![0x42; 32]), Sats::ZERO))
-            .unwrap();
+            .push(bp::native::Input::consume(Outpoint::coinbase().into(), 0));
+        let witness = Tx::from_native(native).unwrap();
 
         let reader = TestReader::new(vec![
             OperationSeals {

@@ -40,44 +40,54 @@ use crate::Consignment;
 
 /// Strict types id for the library providing data types for RGB types.
 pub const LIB_ID_RGB: &str =
-    "stl:aTdsrBN3-p8aG8NY-ozpXxNY-8yjeqA6-EIQesi5-_SIWhs8#robert-union-honey";
+    "stl:bpSK8n2F-Nr~0vd2-14reej1-Qh_iWX1-NhjZlR5-~Nkue04#silver-normal-mile";
 
 #[allow(clippy::result_large_err)]
 fn _rgb_seals() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!("SingleUseSeals"), [
-        std_stl().to_dependency_types(),
-        commit_verify_stl().to_dependency_types(),
-        bp_consensus_stl().to_dependency_types(),
-        bp_core_stl().to_dependency_types(),
-    ])
+    LibBuilder::with(
+        libname!("SingleUseSeals"),
+        [
+            std_stl().to_dependency_types(),
+            commit_verify_stl().to_dependency_types(),
+            bp_consensus_stl().to_dependency_types(),
+            bp_core_stl().to_dependency_types(),
+        ],
+    )
     .transpile::<SealWitness<TxoSeal>>()
     .compile()
 }
 
 #[allow(clippy::result_large_err)]
 fn _rgb_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_RGB), [
-        std_stl().to_dependency_types(),
-        strict_types_stl().to_dependency_types(),
-        commit_verify_stl().to_dependency_types(),
-        aluvm_stl().to_dependency_types(),
-        finite_field_stl().to_dependency_types(),
-        usonic_stl().to_dependency_types(),
-        sonic_stl().to_dependency_types(),
-        bp_consensus_stl().to_dependency_types(),
-        bp_core_stl().to_dependency_types(),
-        rgb_seals().to_dependency_types(),
-    ])
+    LibBuilder::with(
+        libname!(LIB_NAME_RGB),
+        [
+            std_stl().to_dependency_types(),
+            strict_types_stl().to_dependency_types(),
+            commit_verify_stl().to_dependency_types(),
+            aluvm_stl().to_dependency_types(),
+            finite_field_stl().to_dependency_types(),
+            usonic_stl().to_dependency_types(),
+            sonic_stl().to_dependency_types(),
+            bp_consensus_stl().to_dependency_types(),
+            bp_core_stl().to_dependency_types(),
+            rgb_seals().to_dependency_types(),
+        ],
+    )
     .transpile::<Consignment<TxoSeal>>()
     .transpile::<PrefabBundle>()
     .compile()
 }
 
 /// Generates a version of SingleUseSeal strict type library specific for RGB.
-pub fn rgb_seals() -> TypeLib { _rgb_seals().expect("invalid strict type SingleUseSeals library") }
+pub fn rgb_seals() -> TypeLib {
+    _rgb_seals().expect("invalid strict type SingleUseSeals library")
+}
 
 /// Generates a strict type library providing data types for RGB types.
-pub fn rgb_stl() -> TypeLib { _rgb_stl().expect("invalid strict type RGB library") }
+pub fn rgb_stl() -> TypeLib {
+    _rgb_stl().expect("invalid strict type RGB library")
+}
 
 #[cfg(test)]
 mod test {

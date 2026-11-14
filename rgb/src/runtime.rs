@@ -26,13 +26,15 @@ use core::ops::{Deref, DerefMut};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use amplify::confinement::{self, KeyedCollection};
+use amplify::ByteArray;
 use amplify::MultiError;
+use bpstd::native::{ClockContext, Hash32};
 use bpstd::pstt::{
-    ConstructionError, KeyMap, MmbPsttError, MpcPsttError, PsttConstructor, PsttMeta, TxParams,
-    UnfinalizedInputs,
+    ConstructionError, KeyMap, MmbPsttError, MpcPsttError, PsttConstructor, PsttError, PsttMeta,
+    TxParams,
 };
-use bpstd::seals::{TondiP2mrError, TondiP2mrProof, TxoSeal};
-use bpstd::{CompressedPk, IdxBase, Pstt, Sats, ScriptPubkey, Tx, Vout};
+use bpstd::seals::{StateAnchorProof, TxoSeal};
+use bpstd::{IdxBase, Pstt, Sats, Tx, Vout};
 use commit_verify::mpc;
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{
@@ -43,14 +45,16 @@ use rgb::{
     AuthToken, CodexId, Contract, ContractId, Contracts, EitherSeal, Issuer, Pile, Stock, Stockpile,
 };
 use rgpstt::{RgbPstt, RgbPsttCsvError, RgbPsttPrepareError};
+use strict_encoding::StrictSerialize;
+use tondi_wallet_pstt::extensions::rgb::{RgbAnchor, RgbSidecar};
 
-use crate::p2mr::p2mr_original_pubkey_key;
+use crate::state_anchor_host_key;
 use crate::CoinselectStrategy;
 
 /// Payment structure is used in the process of RBF (replace by fee). It is returned by
 /// [`RgbRuntime::pay_invoice`] method when the original transaction is created, and then must be
 /// provided to [`RgbRuntime::rbf`] to do the RBF transaction.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 // TODO: Add Deserialize once implemented in Pstt
 //#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct Payment {
@@ -90,7 +94,9 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    fn from(wallet: RgbWallet<W, Sp, S, C>) -> Self { Self(wallet) }
+    fn from(wallet: RgbWallet<W, Sp, S, C>) -> Self {
+        Self(wallet)
+    }
 }
 
 impl<W, Sp, S, C> Deref for RgbRuntime<W, Sp, S, C>
@@ -102,7 +108,9 @@ where
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     type Target = RgbWallet<W, Sp, S, C>;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 impl<W, Sp, S, C> DerefMut for RgbRuntime<W, Sp, S, C>
 where
@@ -112,7 +120,9 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
@@ -126,8 +136,12 @@ where
     pub fn with_components(wallet: W, contracts: Contracts<Sp, S, C>) -> Self {
         Self(RgbWallet::with_components(wallet, contracts))
     }
-    pub fn into_rgb_wallet(self) -> RgbWallet<W, Sp, S, C> { self.0 }
-    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { self.0.into_components() }
+    pub fn into_rgb_wallet(self) -> RgbWallet<W, Sp, S, C> {
+        self.0
+    }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) {
+        self.0.into_components()
+    }
 }
 
 impl<W, Sp, S, C> RgbRuntime<W, Sp, S, C>
@@ -247,7 +261,15 @@ where
         let out = pstt
             .output_mut(change.vout.into_usize())
             .expect("invalid PSTT meta-information in the payment");
-        out.amount -= fee.into() - old_fee;
+        let increase =
+            fee.into().0.checked_sub(old_fee.0).ok_or_else(|| {
+                TransferError::P2mrAnchor("replacement fee must not decrease".into())
+            })?;
+        out.note.value = out
+            .note
+            .value
+            .checked_sub(increase)
+            .ok_or_else(|| TransferError::P2mrAnchor("insufficient change for fee".into()))?;
 
         Ok(self.complete(pstt, &payment.bundle)?)
     }
@@ -358,67 +380,81 @@ where
         mut pstt: Pstt,
         bundle: &PrefabBundle,
     ) -> Result<Pstt, TransferError> {
-        let (mpc, p2mr_proof) = Self::tondi_p2mr_commit(&mut pstt)?;
-        let tx = pstt.to_unsigned_tx();
-
+        let bytes = bundle
+            .to_strict_serialized::<{ 16 * 1024 * 1024 }>()
+            .map_err(|e| TransferError::P2mrAnchor(e.to_string()))?
+            .release();
+        let sidecar = RgbSidecar { network: pstt.network, transition_bundles: bytes };
+        let sidecar_id = sidecar
+            .id()
+            .map_err(|e| TransferError::P2mrAnchor(e.to_string()))?;
+        let (mpc, state_proof) = Self::native_state_commit(&mut pstt, sidecar_id)?;
+        pstt.set_rgb_sidecar(sidecar)?;
+        pstt.prepare()?;
+        let tx = pstt.to_unsigned_tx()?;
         let prevouts = pstt
             .inputs()
-            .map(|inp| inp.previous_outpoint)
+            .map(|i| i.previous_outpoint)
             .collect::<Vec<_>>();
-        self.include(bundle, &tx.into(), mpc, Some(p2mr_proof), &prevouts)?;
-
+        self.include(bundle, &tx, mpc, state_proof, &prevouts)?;
         Ok(pstt)
     }
 
-    fn tondi_p2mr_commit(
+    fn native_state_commit(
         pstt: &mut Pstt,
-    ) -> Result<(mpc::MerkleBlock, TondiP2mrProof), TransferError> {
+        sidecar_id: Hash32,
+    ) -> Result<(mpc::MerkleBlock, StateAnchorProof), TransferError> {
         if pstt.are_outputs_modifiable() {
             return Err(TransferError::P2mrAnchor(
-                "transaction outputs are still modifiable".to_string(),
+                "complete construction before sealing RGB".into(),
             ));
         }
-
         let map = pstt.mmb_complete()?;
-        let key = p2mr_original_pubkey_key();
+        let key = state_anchor_host_key();
+        if pstt.outputs().filter(|o| o.has_proprietary(&key)).count() != 1 {
+            return Err(TransferError::P2mrAnchor(
+                "exactly one RGB state anchor host required".into(),
+            ));
+        }
         let output = pstt
             .outputs_mut()
-            .find(|out| out.proprietary(&key).is_some())
-            .ok_or_else(|| {
-                TransferError::P2mrAnchor(
-                    "RGB transfer requires a Tondi P2MR change/anchor output carrying the \
-                     original pubkey"
-                        .to_string(),
-                )
-            })?;
-        let original_pubkey = output
-            .proprietary(&key)
-            .and_then(|bytes| {
-                let bytes: [u8; 33] = bytes.as_slice().try_into().ok()?;
-                CompressedPk::from_byte_array(bytes).ok()
-            })
-            .ok_or_else(|| {
-                TransferError::P2mrAnchor("invalid Tondi P2MR anchor pubkey".to_string())
-            })?;
-
+            .find(|o| o.has_proprietary(&key))
+            .expect("one host");
+        if !output.note.assets.is_empty() || output.note.state.is_some() {
+            return Err(TransferError::P2mrAnchor("RGB anchor host must be a plain Note".into()));
+        }
         for (id, msg) in map {
             output.set_mpc_message(id, msg)?;
         }
-        let (commitment, mpc_proof) = output.mpc_commit()?;
-        let p2mr_proof = TondiP2mrProof::new(original_pubkey);
-        output.script = ScriptPubkey::from_checked(p2mr_proof.p2mr_root(commitment)?.to_vec());
-
-        Ok((mpc_proof, p2mr_proof))
+        let (commitment, proof) = output.mpc_commit()?;
+        let anchor = RgbAnchor::new(Hash32::from_bytes(commitment.to_byte_array()), sidecar_id);
+        output.note = anchor
+            .note(output.note.value, output.note.auth)
+            .map_err(|e| TransferError::P2mrAnchor(e.to_string()))?;
+        if output.note.value
+            < output.note.occupied_bytes() * bpstd::native::Limits::default().capacity_per_byte
+        {
+            return Err(TransferError::P2mrAnchor(
+                "RGB anchor has insufficient occupied capacity; add native funding".into(),
+            ));
+        }
+        Ok((
+            proof,
+            StateAnchorProof {
+                output: output.index as u32,
+                sidecar_id: amplify::Bytes32::from_byte_array(sidecar_id.as_bytes()),
+            },
+        ))
     }
 
     #[allow(clippy::type_complexity)]
     fn finalize_inner(
         &mut self,
-        mut pstt: Pstt,
+        pstt: Pstt,
         meta: PsttMeta,
+        clock: ClockContext,
     ) -> Result<(Tx, Option<(Vout, u32, u32)>), FinalizeError<W::Error>> {
-        pstt.finalize(self.wallet.descriptor());
-        let tx = pstt.extract()?;
+        let tx = pstt.extract(clock)?;
         let change = meta.change.map(|change| {
             (change.vout, change.terminal.keychain.index(), change.terminal.index.index())
         });
@@ -428,8 +464,13 @@ where
     #[cfg(not(feature = "async"))]
     /// Finalizes PSTT, extracts the signed transaction, broadcasts it and updates wallet UTXO set
     /// accordingly.
-    pub fn finalize(&mut self, pstt: Pstt, meta: PsttMeta) -> Result<(), FinalizeError<W::Error>> {
-        let (tx, change) = self.finalize_inner(pstt, meta)?;
+    pub fn finalize(
+        &mut self,
+        pstt: Pstt,
+        meta: PsttMeta,
+        clock: ClockContext,
+    ) -> Result<(), FinalizeError<W::Error>> {
+        let (tx, change) = self.finalize_inner(pstt, meta, clock)?;
         self.wallet
             .broadcast(&tx, change)
             .map_err(FinalizeError::Broadcast)?;
@@ -443,8 +484,9 @@ where
         &mut self,
         pstt: Pstt,
         meta: PsttMeta,
+        clock: ClockContext,
     ) -> Result<(), FinalizeError<W::Error>> {
-        let (tx, change) = self.finalize_inner(pstt, meta)?;
+        let (tx, change) = self.finalize_inner(pstt, meta, clock)?;
         self.wallet
             .broadcast_async(&tx, change)
             .await
@@ -480,7 +522,7 @@ pub enum TransferError {
     PsttMpc(MpcPsttError),
 
     #[from]
-    PsttP2mr(TondiP2mrError),
+    PsttNative(PsttError),
 
     P2mrAnchor(String),
 
@@ -498,7 +540,7 @@ pub enum TransferError {
 #[display(inner)]
 pub enum FinalizeError<E: core::error::Error> {
     #[from]
-    UnfinalizedPstt(UnfinalizedInputs),
+    NativePstt(PsttError),
     Broadcast(E),
 }
 

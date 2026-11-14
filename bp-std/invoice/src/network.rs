@@ -22,6 +22,7 @@
 
 use std::str::FromStr;
 
+use amplify::ByteArray;
 use bc::BlockHash;
 
 use crate::AddressNetwork;
@@ -55,16 +56,25 @@ pub enum Network {
 impl Network {
     /// Detects whether the network is a kind of test network (testnet, simnet,
     /// devnet).
-    pub fn is_testnet(self) -> bool { self != Self::Mainnet }
+    pub fn is_testnet(self) -> bool {
+        self != Self::Mainnet
+    }
 
-    /// Returns the genesis block hash for the network.
-    pub const fn genesis_hash(self) -> BlockHash {
+    /// Native v4 network domain, independent of the genesis block hash.
+    pub fn native_domain(self) -> bc::native::Hash32 {
+        self.native_genesis().network_domain
+    }
+    pub fn native_genesis(self) -> tondi_consensus_core::config::genesis::GenesisBlock {
+        use tondi_consensus_core::config::genesis::*;
         match self {
-            Network::Mainnet => BlockHash::GENESIS_TONDI_MAINNET,
-            Network::Testnet => BlockHash::GENESIS_TONDI_TESTNET,
-            Network::Simnet => BlockHash::GENESIS_TONDI_SIMNET,
-            Network::Devnet => BlockHash::GENESIS_TONDI_DEVNET,
+            Self::Mainnet => GENESIS,
+            Self::Testnet => TESTNET_GENESIS,
+            Self::Simnet => SIMNET_GENESIS,
+            Self::Devnet => DEVNET_GENESIS,
         }
+    }
+    pub fn genesis_hash(self) -> BlockHash {
+        BlockHash::from_byte_array(self.native_genesis().hash.as_bytes())
     }
 }
 
@@ -87,15 +97,12 @@ impl TryFrom<BlockHash> for Network {
     type Error = UnknownGenesisBlock;
 
     fn try_from(hash: BlockHash) -> Result<Self, Self::Error> {
-        match hash {
-            BlockHash::GENESIS_TONDI_MAINNET => Ok(Network::Mainnet),
-            BlockHash::GENESIS_TONDI_TESTNET | BlockHash::GENESIS_TONDI_TESTNET_11 => {
-                Ok(Network::Testnet)
+        for network in [Self::Mainnet, Self::Testnet, Self::Simnet, Self::Devnet] {
+            if network.genesis_hash() == hash {
+                return Ok(network);
             }
-            BlockHash::GENESIS_TONDI_SIMNET => Ok(Network::Simnet),
-            BlockHash::GENESIS_TONDI_DEVNET => Ok(Network::Devnet),
-            _ => Err(UnknownGenesisBlock(hash)),
         }
+        Err(UnknownGenesisBlock(hash))
     }
 }
 

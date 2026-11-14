@@ -56,20 +56,16 @@ mod pubkeys;
 mod segwit;
 mod taproot;
 mod tx;
-mod p2mr;
-pub use p2mr::{tondi_p2mr_script_sighash, P2mrSigningError};
 mod hashtypes;
 mod sigtypes;
-mod timelocks;
 mod util;
 mod weights;
 #[cfg(feature = "stl")]
 pub mod stl;
 mod coding;
-mod sigcache;
 mod tapcode;
 
-pub use block::{Block, BlockHash, BlockHeader, BlockMerkleRoot};
+pub use block::BlockHash;
 pub use coding::{
     ByteStr, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode, LenVarInt,
     VarInt, VarIntArray, VarIntBytes,
@@ -79,27 +75,24 @@ pub use opcodes::OpCode;
 pub use pubkeys::{CompressedPk, InvalidPubkey, LegacyPk, PubkeyParseError, UncompressedPk};
 pub use script::{RedeemScript, ScriptBytes, ScriptPubkey, SigScript};
 pub use segwit::{SegwitError, Witness, WitnessProgram, WitnessScript, WitnessVer, Wtxid};
-pub use sigcache::{PrevoutMismatch, SighashCache, SighashError};
 pub use sigtypes::{Bip340Sig, LegacySig, ScriptCode, SigError, Sighash, SighashFlag, SighashType};
 pub use tapcode::TapCode;
 pub use taproot::{
-    tondi_p2mr_root_from_tapscript, tondi_tapleaf_hash_from_tapscript, Annex, AnnexError,
-    ControlBlock, FutureLeafVer, InternalKeypair, InternalPk, IntoTapHash, InvalidLeafVer,
-    InvalidParityValue, LeafScript, LeafVer, OutputPk, Parity, TapBranchHash, TapLeafHash,
-    TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, COPPEROOT_SIGHASH_TAG,
+    Annex, AnnexError, ControlBlock, FutureLeafVer, InternalKeypair, InternalPk, IntoTapHash,
+    InvalidLeafVer, InvalidParityValue, LeafScript, LeafVer, OutputPk, Parity, TapBranchHash,
+    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapSighash, XOnlyPk, COPPEROOT_SIGHASH_TAG,
     TAPROOT_ANNEX_PREFIX, TAPROOT_LEAF_MASK, TAPROOT_LEAF_TAPSCRIPT,
 };
-pub use timelocks::{
-    InvalidTimelock, LockHeight, LockTime, LockTimestamp, SeqNo, TimeLockInterval,
-    TimelockParseError, LOCKTIME_THRESHOLD, SEQ_NO_CSV_DISABLE_MASK, SEQ_NO_CSV_TYPE_MASK,
-};
+
 pub use tx::{
     BlockDataParseError, Datum, Outpoint, OutpointParseError, Sats, TondiOutpoint, TondiTxid, Tx,
-    TxIn, TxOut, TxVer, Txid, Vout, MAX_DATUM_SIZE, TONDI_CLASSIC_SCRIPT_VERSION,
-    TONDI_P2MR_SCRIPT_VERSION, TONDI_TX_VERSION,
+    TxIn, TxOut, TxVer, Txid, Vout, MAX_DATUM_SIZE, TONDI_TX_VERSION,
 };
 pub use util::NonStandardValue;
-pub use weights::{VBytes, Weight, WeightUnits};
+pub use weights::ResourceUsage;
 
 /// Tondi consensus library name for strict encoding.
 pub const LIB_NAME_TONDI: &str = "Tondi";
+
+/// The shared canonical native model, kernel and RISC-V engine.
+pub use tondi_vm as native;

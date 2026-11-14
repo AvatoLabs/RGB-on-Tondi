@@ -43,7 +43,7 @@ impl RgbPstt for Pstt {
     }
 
     fn rgb_fill_csv(&mut self, bundle: &PrefabBundle) -> Result<(), RgbPsttCsvError> {
-        if self.is_modifiable() {
+        if self.are_outputs_modifiable() {
             return Err(RgbPsttCsvError::Modifiable);
         }
         for prefab in bundle {
@@ -53,7 +53,7 @@ impl RgbPstt for Pstt {
             for outpoint in &prefab.closes {
                 let input = self
                     .inputs_mut()
-                    .find(|inp| inp.previous_outpoint == *outpoint)
+                    .find(|inp| !inp.is_reference() && inp.previous_outpoint == *outpoint)
                     .ok_or(RgbPsttCsvError::InputAbsent(*outpoint))?;
                 input.set_mmb_message(id, msg).map_err(|_| {
                     RgbPsttCsvError::InputAlreadyUsed(input.index(), prefab.operation.contract_id)
@@ -68,7 +68,7 @@ impl ScriptResolver for Pstt {
     fn script_resolver(&self) -> impl Fn(&ScriptPubkey) -> Option<Vout> {
         |spk| -> Option<Vout> {
             self.outputs()
-                .find(|inp| &inp.script == spk)
+                .find(|inp| inp.note.auth.merkle_root.as_bytes().as_slice() == spk.as_slice())
                 .map(|inp| Vout::from_u32(inp.index() as u32))
         }
     }

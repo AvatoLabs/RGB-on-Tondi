@@ -35,7 +35,7 @@ use amplify::confinement::{
 };
 use amplify::{confinement, ByteArray, Bytes32, MultiError, Wrapper};
 pub use bp::seals;
-use bp::seals::{mmb, Anchor, Noise, TondiP2mrProof, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
+use bp::seals::{mmb, Anchor, Noise, StateAnchorProof, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Txid, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, DigestExt, StrictHash, TondiBlake3};
@@ -215,11 +215,15 @@ impl<T> IntoIterator for OpRequestSet<T> {
     type Item = OpRequest<T>;
     type IntoIter = vec::IntoIter<OpRequest<T>>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<T> OpRequestSet<T> {
-    pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
+    pub fn with(request: OpRequest<T>) -> Self {
+        Self(NonEmptyVec::with(request))
+    }
 
     pub fn try_from_iter(
         requests: impl IntoIterator<Item = OpRequest<T>>,
@@ -340,19 +344,25 @@ pub struct Prefab {
 #[strict_type(lib = LIB_NAME_RGB)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PrefabBundle(SmallOrdSet<Prefab>);
+impl strict_encoding::StrictSerialize for PrefabBundle {}
+impl strict_encoding::StrictDeserialize for PrefabBundle {}
 
 impl IntoIterator for PrefabBundle {
     type Item = Prefab;
     type IntoIter = btree_set::IntoIter<Prefab>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl<'a> IntoIterator for &'a PrefabBundle {
     type Item = &'a Prefab;
     type IntoIter = btree_set::Iter<'a, Prefab>;
 
-    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
 }
 
 impl PrefabBundle {
@@ -402,9 +412,13 @@ where
         Self { wallet, contracts }
     }
 
-    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) {
+        (self.wallet, self.contracts)
+    }
 
-    pub fn switch_wallet(&mut self, new: W) -> W { mem::replace(&mut self.wallet, new) }
+    pub fn switch_wallet(&mut self, new: W) -> W {
+        mem::replace(&mut self.wallet, new)
+    }
 
     pub fn issue(
         &mut self,
@@ -877,7 +891,7 @@ where
         bundle: &PrefabBundle,
         witness: &Tx,
         mpc: mpc::MerkleBlock,
-        p2mr_proof: Option<TondiP2mrProof>,
+        state_proof: StateAnchorProof,
         prevouts: &[Outpoint],
     ) -> Result<(), IncludeError> {
         for prefab in bundle {
@@ -895,8 +909,7 @@ where
                 mmb_proof: mmb::BundleProof { map: SmallOrdMap::from_checked(map) },
                 mpc_protocol: protocol_id,
                 mpc_proof: mpc.to_merkle_proof(protocol_id)?,
-                dbc_proof: None,
-                p2mr_proof,
+                state_proof,
                 fallback_proof: default!(),
             };
             self.contracts

@@ -3,10 +3,9 @@ use std::convert::Infallible;
 use std::fs;
 use std::path::PathBuf;
 
-use amplify::confinement::Confined;
 use amplify::none;
 use bp::seals::{Anchor, TxoSeal, WTxoSeal};
-use bp::{LockTime, Tx, VarIntBytes};
+use bp::Tx;
 use commit_verify::{DigestExt, TondiBlake3};
 use hypersonic::CallParams;
 use rand::prelude::SliceRandom;
@@ -64,16 +63,7 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
         using: none!(),
         reading: none!(),
     };
-    let mut tx = Tx {
-        version: default!(),
-        inputs: Confined::from_checked(vec![]),
-        outputs: Confined::from_checked(vec![]),
-        lock_time: default!(),
-        subnetwork_id: [0u8; 20],
-        gas: 0,
-        payload: VarIntBytes::new(),
-        mass: 0,
-    };
+    let mut tx = Tx::strict_dumb();
     let anchor = Anchor::strict_dumb();
     for round in 0u16..10 {
         // shuffle outputs to create twisted DAG
@@ -101,7 +91,11 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
             new_prev.push(CellAddr::new(opid, 0));
             new_prev.push(CellAddr::new(opid, 1));
 
-            tx.lock_time = LockTime::from_consensus_u32(tx.lock_time.into_consensus_u32() + 1);
+            let mut native = tx.into_native();
+            native.body.actions[0]
+                .payload
+                .extend_from_slice(opid.as_ref());
+            tx = Tx::from_native(native).unwrap();
             contract.apply_witness(opid, SealWitness::new(tx.clone(), anchor.clone()));
         }
         prev = new_prev;

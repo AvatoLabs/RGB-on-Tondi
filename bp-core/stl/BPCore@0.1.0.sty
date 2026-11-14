@@ -1,5 +1,5 @@
 {-
-  Id: stl:n~wSRAtj-Gw_8Gg6-2FAbE7u-tCYHxgW-6V6~G68-I36qo~E#store-block-graph
+  Id: stl:e2zxG22a-UKtxg6R-opeLvEp-01Okybr-8hmP8ou-VndRgZk#swim-million-melody
   Name: BPCore
   Version: 0.1.0
   Description: Tondi client-side-validation library
@@ -11,6 +11,11 @@
 @context
 typelib BPCore
 
+import Tondi#fiona-fiction-yogurt
+  use Vout#section-regular-proxy
+  use Outpoint#child-delta-disney
+  use Txid#gibson-energy-maximum
+
 import CommitVerify#clark-blonde-karma
   use MerkleProof#aroma-mirror-match
   use MerkleHash#ivory-spoon-imitate
@@ -19,28 +24,15 @@ import CommitVerify#clark-blonde-karma
   use Message#baker-judge-miranda
   use Method#horse-justice-select
 
-import Tondi#process-poem-cobalt
-  use Vout#section-regular-proxy
-  use LeafVer#normal-deal-aspirin
-  use Outpoint#child-delta-disney
-  use CompressedPk#summer-animal-shrink
-  use InternalPk#comrade-austria-pearl
-  use LeafScript#tropic-circle-aspirin
-  use Txid#gibson-energy-maximum
-  use ScriptBytes#double-ricardo-lunar
-  use TapNodeHash#exodus-design-father
-  use XOnlyPk#input-compact-flower
-
 import Std#sister-triton-cricket
   use U5#nebula-quarter-sharon
 
 
-@mnemonic(shave-music-service)
+@mnemonic(develop-serial-spain)
 data Anchor            : mmbProof BundleProof
                        , mpcProtocol CommitVerify.ProtocolId
                        , mpcProof CommitVerify.MerkleProof
-                       , dbcProof TapretProof?
-                       , p2mrProof TondiP2mrProof?
+                       , stateProof StateAnchorProof
                        , fallbackProof CommitVerify.ReservedBytes1
 
 @mnemonic(golf-bruno-ricardo)
@@ -64,22 +56,8 @@ data Source            : minDepth Std.U5
                        , entropy U64
                        , messages MessageMap
 
-@mnemonic(pegasus-vista-bonjour)
-data TapretNodePartner : leftNode Tondi.TapNodeHash
-                       | rightLeaf Tondi.LeafScript
-                       | rightBranch TapretRightBranch
-
-@mnemonic(cool-serpent-journal)
-data TapretPathProof   : partnerNode TapretNodePartner?, nonce U8
-
-@mnemonic(stone-vertigo-between)
-data TapretProof       : pathProof TapretPathProof, internalPk Tondi.InternalPk
-
-@mnemonic(regard-nixon-morning)
-data TapretRightBranch : leftNodeHash Tondi.TapNodeHash, rightNodeHash Tondi.TapNodeHash
-
-@mnemonic(nominal-october-forward)
-data TondiP2mrProof    : originalPubkey Tondi.CompressedPk
+@mnemonic(type-hamlet-invite)
+data StateAnchorProof  : output U32, sidecarId [Byte ^ 32]
 
 @mnemonic(page-baron-robert)
 data TxoSeal           : primary Tondi.Outpoint, secondary TxoSealExt
@@ -94,5 +72,3 @@ data WOutpoint         : wout Tondi.Vout
 
 @mnemonic(isabel-phrase-monarch)
 data WTxoSeal          : primary WOutpoint, secondary TxoSealExt
-
-

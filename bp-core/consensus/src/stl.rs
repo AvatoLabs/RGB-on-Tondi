@@ -23,20 +23,22 @@
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use crate::{
-    Bip340Sig, Block, ByteStr, CompressedPk, ControlBlock, FutureLeafVer, InternalPk, LeafScript,
-    LegacyPk, LegacySig, LockHeight, LockTimestamp, OpCode, Outpoint, OutputPk, PubkeyHash,
-    RedeemScript, ScriptHash, TapCode, TapLeafHash, TapNodeHash, TapScript, TimeLockInterval,
-    TondiOutpoint, TondiTxid, Tx, Txid, UncompressedPk, VBytes, VarInt, Vout, WPubkeyHash,
-    WScriptHash, WeightUnits, WitnessProgram, WitnessScript, WitnessVer, Wtxid, LIB_NAME_TONDI,
+    Bip340Sig, ByteStr, CompressedPk, ControlBlock, FutureLeafVer, InternalPk, LeafScript,
+    LegacyPk, LegacySig, OpCode, Outpoint, OutputPk, PubkeyHash, RedeemScript, ScriptHash, TapCode,
+    TapLeafHash, TapNodeHash, TapScript, TondiOutpoint, TondiTxid, Tx, Txid, UncompressedPk,
+    VarInt, Vout, WPubkeyHash, WScriptHash, WitnessProgram, WitnessScript, WitnessVer, Wtxid,
+    LIB_NAME_TONDI,
 };
 
 pub const LIB_ID_BP_TX: &str =
-    "stl:htmUXr0Z-~ohcA7N-vxkQMgn-kprfcpj-8~ziNKJ-Hn2wmL8#process-poem-cobalt";
+    "stl:ETMP1vno-AW24hmU-IolKRhA-eEwNsTc-AIM9gd8-_LaLPuc#fiona-fiction-yogurt";
 pub const LIB_ID_BP_CONSENSUS: &str =
-    "stl:htmUXr0Z-~ohcA7N-vxkQMgn-kprfcpj-8~ziNKJ-Hn2wmL8#process-poem-cobalt";
+    "stl:ETMP1vno-AW24hmU-IolKRhA-eEwNsTc-AIM9gd8-_LaLPuc#fiona-fiction-yogurt";
 
 #[allow(clippy::result_large_err)]
-fn _bp_tx_stl() -> Result<TypeLib, CompileError> { _bp_consensus_stl() }
+fn _bp_tx_stl() -> Result<TypeLib, CompileError> {
+    _bp_consensus_stl()
+}
 
 #[allow(clippy::result_large_err)]
 fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {
@@ -65,15 +67,9 @@ fn _bp_consensus_stl() -> Result<TypeLib, CompileError> {
         .transpile::<TapCode>()
         .transpile::<TapScript>()
         .transpile::<ControlBlock>()
-        .transpile::<Block>()
-        .transpile::<TimeLockInterval>()
-        .transpile::<LockTimestamp>()
-        .transpile::<LockHeight>()
         .transpile::<Tx>()
         .transpile::<VarInt>()
         .transpile::<ByteStr>()
-        .transpile::<WeightUnits>()
-        .transpile::<VBytes>()
         .transpile::<Vout>()
         .transpile::<Txid>()
         .transpile::<TondiTxid>()

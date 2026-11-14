@@ -16,6 +16,7 @@ license = "Apache-2.0"
 name = "invoice"
 
 [dependencies]
+tondi-consensus-core.workspace = true
 amplify = { workspace = true }
 commit_verify = { workspace = true }
 strict_encoding = { workspace = true, optional = true }

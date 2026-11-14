@@ -1,40 +1,8 @@
-//! # Tondi RPC Client for RGB/BP
+//! Native RPC4 client sharing the node's complete transaction and StateNote model.
 //!
-//! This crate provides a native Tondi RPC client for the RGB protocol stack,
-//! replacing the Esplora client for Tondi blockchain integration.
-//!
-//! Tondi RGB uses native P2MR outputs with BLAKE3 transaction IDs.
-//!
-//! ## Features
-//!
-//! - Native Tondi RPC API support
-//! - UTXO queries by address
-//! - Transaction submission
-//! - Block and DAG information queries
-//! - Paginated virtual-chain replay for wallet reorg recovery
-//!
-//! ## Example
-//!
-//! ```no_run
-//! use tondi::{TondiClient, TondiConfig, DEFAULT_GRPC_PORT};
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), tondi::Error> {
-//!     // For gRPC connection (port 16210)
-//!     let config = TondiConfig::new(format!("localhost:{}", DEFAULT_GRPC_PORT));
-//!     // Or use a remote node: TondiConfig::new("38.190.226.7:16210")
-//!     let client = TondiClient::connect(config).await?;
-//!     
-//!     // Check connection
-//!     client.ping().await?;
-//!     
-//!     // Get sync status
-//!     let is_synced = client.get_sync_status().await?;
-//!     println!("Node synced: {}", is_synced);
-//!     
-//!     Ok(())
-//! }
-//! ```
+//! Supports official gRPC and Borsh wRPC transports, network verification,
+//! accepted-chain transaction status, public references and native asset queries.
+//! See the workspace README for the required sibling Tondi v4 source checkout.
 
 #![allow(clippy::result_large_err)]
 

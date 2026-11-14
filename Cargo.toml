@@ -68,6 +68,15 @@ repository = "https://github.com/AvatoLabs/RGB-X"
 homepage = "https://github.com/AvatoLabs/RGB-X"
 
 [workspace.dependencies]
+# Native Tondi v4 is shared with the sibling node; no copied wire codec.
+tondi-vm = { path = "../Tondi/vm" }
+tondi-consensus-core = { path = "../Tondi/consensus/core" }
+tondi-rpc-core = { path = "../Tondi/rpc/core" }
+tondi-grpc-client = { path = "../Tondi/rpc/grpc/client" }
+tondi-wrpc-client = { path = "../Tondi/rpc/wrpc/client" }
+tondi-wallet-pstt = { path = "../Tondi/wallet/pstt" }
+workflow-core = "0.18"
+borsh = { version = "1.8.0", features = ["derive"] }
 # External dependencies
 amplify = { version = "4.9.0", default-features = true }
 bech32 = "0.9.1"

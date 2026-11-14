@@ -25,10 +25,4 @@ pub use ::bp::{dbc, seals};
 pub use bc::{secp256k1, *};
 pub use derive::*;
 pub use descriptors::*;
-pub use pstt::{
-    self, Prevout, Pstt, PsttError, PsttParseError, PsttUnsupportedVer, PsttVer, Rejected, Signer,
-    Unmodifiable, UnsignedTx, UnsignedTxIn,
-};
-
-#[cfg(feature = "signers")]
-pub mod signers;
+pub use pstt::{self, Pstt, PsttError, PsttParseError, PsttVer, UnsignedTx};

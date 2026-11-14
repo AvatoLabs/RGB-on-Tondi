@@ -3,7 +3,7 @@
 //! ```bash
 //! TONDI_RPC=127.0.0.1:16210 \
 //! TONDI_TXID=<32-byte-hex-txid> \
-//! cargo run -p bp-tondi --features grpc --example query_status
+//! cargo run -p bp-tondi --example query_status
 //! ```
 
 use tondi::{TondiClient, TondiConfig, TondiTxid};

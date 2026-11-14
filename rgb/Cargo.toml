@@ -20,6 +20,9 @@ name = "rgbp"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+tondi-wallet-pstt.workspace = true
+tondi-consensus-core.workspace = true
+strict_encoding.workspace = true
 amplify = { workspace = true }
 bech32 = { workspace = true }
 commit_verify = { workspace = true }
@@ -80,7 +83,7 @@ resolvers-all-async = [
     "resolver-tondi",
 ]
 # Tondi client is async-only
-resolver-tondi = ["async", "bp-tondi/async", "bp-tondi/grpc", "dep:tokio"]
+resolver-tondi = ["async", "dep:bp-tondi", "dep:tokio"]
 resolver-tondi-async = ["resolver-tondi"]
 
 serde = [

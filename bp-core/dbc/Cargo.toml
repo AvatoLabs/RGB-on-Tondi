@@ -17,6 +17,8 @@ name = "dbc"
 path = "src/lib.rs"
 
 [dependencies]
+tondi-wallet-pstt.workspace = true
+
 amplify = { workspace = true }
 base85 = "=2.0.0"
 strict_encoding = { workspace = true }

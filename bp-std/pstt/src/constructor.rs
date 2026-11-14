@@ -23,19 +23,24 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use bc::Txid;
 use derive::{
-    Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
-    Sats, ScriptPubkey, SeqNo, Terminal, Vout,
+    Address, AddressNetwork, AddressParseError, Keychain, Network, NormalIndex, Outpoint, Sats,
+    ScriptPubkey, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
-use crate::{Prevout, Pstt, PsttError, PsttVer, UnsignedTx};
+use crate::{Pstt, PsttError};
+use serde::{Deserialize, Serialize};
+use tondi_vm::{
+    builder::{AuthDescriptor, DraftInput},
+    AuthRoot, Hash32, ResolvedInput, StateNote,
+};
 
 #[derive(Clone, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ConstructionError {
     #[display(inner)]
+    #[from]
     Pstt(PsttError),
 
     /// the input spending {0} is not known for the current wallet.
@@ -107,7 +112,9 @@ impl Payment {
     }
 
     #[inline]
-    pub fn is_max(&self) -> bool { *self == Payment::Max }
+    pub fn is_max(&self) -> bool {
+        *self == Payment::Max
+    }
 }
 
 impl FromStr for Payment {
@@ -145,9 +152,13 @@ impl Beneficiary {
         }
     }
     #[inline]
-    pub fn is_max(&self) -> bool { self.amount.is_max() }
+    pub fn is_max(&self) -> bool {
+        self.amount.is_max()
+    }
     #[inline]
-    pub fn script_pubkey(&self) -> ScriptPubkey { self.address.script_pubkey() }
+    pub fn script_pubkey(&self) -> ScriptPubkey {
+        self.address.script_pubkey()
+    }
 }
 
 impl FromStr for Beneficiary {
@@ -164,8 +175,8 @@ impl FromStr for Beneficiary {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxParams {
     pub fee: Sats,
-    pub lock_time: Option<LockTime>,
-    pub seq_no: SeqNo,
+    #[cfg_attr(feature = "serde", serde(with = "tondi_vm::codec::u64_decimal"))]
+    pub since: u64,
     pub change_shift: bool,
     pub change_keychain: Keychain,
 }
@@ -174,8 +185,7 @@ impl TxParams {
     pub fn with(fee: Sats) -> Self {
         TxParams {
             fee,
-            lock_time: None,
-            seq_no: SeqNo::from_consensus_u32(0),
+            since: 0,
             change_shift: true,
             change_keychain: Keychain::INNER,
         }
@@ -197,137 +207,164 @@ pub struct PsttMeta {
     pub change: Option<ChangeInfo>,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Utxo {
     pub outpoint: Outpoint,
-    pub value: Sats,
+    pub entry: ResolvedInput,
     pub terminal: Terminal,
 }
-
+impl std::hash::Hash for Utxo {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.outpoint, state)
+    }
+}
 impl Utxo {
-    #[inline]
-    pub fn to_prevout(&self) -> Prevout { Prevout::new(self.outpoint, self.value) }
+    pub fn value(&self) -> Sats {
+        Sats(self.entry.note.value)
+    }
 }
 
+/// Wallet construction is single-key and explicit about the complete resolved note.
+/// Advanced Auth/Law transactions use `Pstt::from_native` without rebuilding their Actions.
 pub trait PsttConstructor {
-    /// NB: We need this separate parameter since otherwise we will bloat trait with generics which
-    /// may be unknown upstream.
     type Key;
     type Descr: Descriptor<Self::Key>;
-
     fn descriptor(&self) -> &Self::Descr;
-    fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx>;
-    fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)>;
+    fn utxo(&self, outpoint: Outpoint) -> Option<Utxo>;
     fn network(&self) -> Network;
+    fn network_domain(&self) -> Hash32;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
-
     fn construct_pstt(
         &mut self,
         coins: impl IntoIterator<Item = Outpoint>,
         beneficiaries: impl IntoIterator<Item = Beneficiary>,
         params: TxParams,
     ) -> Result<(Pstt, PsttMeta), ConstructionError> {
-        let mut pstt = Pstt::create(PsttVer::V2);
-
-        // Set locktime
-        pstt.fallback_locktime = params.lock_time;
-
-        // Add xpubs
-        for spec in self.descriptor().xpubs() {
-            pstt.xpubs.insert(*spec.xpub(), spec.origin().clone());
-        }
-
-        // 1. Add inputs
+        let mut p = Pstt::create(self.network_domain());
         for coin in coins {
-            let prev_tx = self.prev_tx(coin.txid).ok_or(ConstructionError::UnknownInput(coin))?;
-            let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
-            if pstt.inputs().any(|inp| inp.previous_outpoint == utxo.outpoint) {
+            if p.inputs().any(|i| i.previous_outpoint == coin) {
                 continue;
             }
-            pstt.append_input_expect(
-                prev_tx,
-                utxo.to_prevout(),
-                self.descriptor(),
-                utxo.terminal,
-                spk,
-                params.seq_no,
-            );
+            let u = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
+            if !u.entry.note.assets.is_empty() {
+                return Err(PsttError(
+                    "native asset inputs require an explicit transfer draft".into(),
+                )
+                .into());
+            }
+            if u.entry.note.state.is_some()
+                && tondi_wallet_pstt::extensions::rgb::RgbAnchor::from_note(&u.entry.note)
+                    .map_err(PsttError::from)?
+                    .is_none()
+            {
+                return Err(PsttError("protocol state requires an explicit draft".into()).into());
+            }
+            let keys = self.descriptor().xonly_keyset(u.terminal);
+            if keys.len() != 1 {
+                return Err(PsttError("single-key Auth descriptor required".into()).into());
+            }
+            let key = keys.keys().next().expect("one key");
+            let (root, leaf) = tondi_vm::schnorr_auth(key.to_byte_array());
+            if root != u.entry.note.auth {
+                return Err(PsttError("resolved note Auth differs from descriptor".into()).into());
+            }
+            p.append_input(
+                DraftInput {
+                    outpoint: coin.into(),
+                    entry: u.entry,
+                    auth: Some(AuthDescriptor {
+                        leaf,
+                        merkle_path: vec![],
+                    }),
+                    since: params.since,
+                    consume: true,
+                },
+                Some(u.terminal),
+            )?;
         }
-        if pstt.inputs().count() == 0 {
+        if p.inputs().next().is_none() {
             return Err(ConstructionError::NoInputs);
         }
-
-        // 2. Add outputs
-        let input_value = pstt.input_sum();
-        let mut max = Vec::new();
-        let mut output_value = Sats::ZERO;
-        for beneficiary in beneficiaries {
-            if beneficiary.address.network != self.network().into() {
-                return Err(ConstructionError::NetworkMismatch(beneficiary.address));
+        let input_value = p.input_sum()?;
+        let mut fixed = 0u64;
+        let mut max = vec![];
+        for b in beneficiaries {
+            if b.address.network != self.network().into() {
+                return Err(ConstructionError::NetworkMismatch(b.address));
             }
-            let amount = beneficiary.amount.unwrap_or(Sats::ZERO);
-            output_value
-                .checked_add_assign(amount)
-                .ok_or(ConstructionError::Overflow(output_value))?;
-            let out = pstt.append_output_expect(beneficiary.script_pubkey(), amount);
-            if beneficiary.amount.is_max() {
-                max.push(out.index());
+            let script = b.script_pubkey();
+            let bytes: [u8; 32] = script
+                .as_slice()
+                .try_into()
+                .map_err(|_| PsttError("beneficiary must contain a native Auth root".into()))?;
+            let value = b.amount.unwrap_or(Sats::ZERO).0;
+            fixed = fixed.checked_add(value).ok_or(ConstructionError::Overflow(Sats(fixed)))?;
+            let out = p.append_output(
+                StateNote::plain(
+                    value,
+                    AuthRoot {
+                        version: tondi_vm::AUTH_P2MR,
+                        merkle_root: Hash32::from_bytes(bytes),
+                    },
+                ),
+                None,
+            )?;
+            if b.is_max() {
+                max.push(out.index);
             }
         }
-        let mut remaining_value = input_value
-            .checked_sub(output_value)
-            .ok_or(ConstructionError::OutputExceedsInputs {
-                input_value,
-                output_value,
-            })?
-            .checked_sub(params.fee)
-            .ok_or(ConstructionError::NoFundsForFee {
-                input_value,
-                output_value,
-                fee: params.fee,
-            })?;
+        let mut remaining =
+            input_value.0.checked_sub(fixed).and_then(|n| n.checked_sub(params.fee.0)).ok_or(
+                ConstructionError::NoFundsForFee {
+                    input_value,
+                    output_value: Sats(fixed),
+                    fee: params.fee,
+                },
+            )?;
         if !max.is_empty() {
-            let portion = remaining_value / max.len();
-            for out in pstt.outputs_mut() {
-                if max.contains(&out.index()) {
-                    out.amount = portion;
-                }
+            let portion = remaining / max.len() as u64;
+            let extra = remaining % max.len() as u64;
+            for (rank, index) in max.iter().enumerate() {
+                p.output_mut(*index).expect("output").note.value =
+                    portion + u64::from((rank as u64) < extra);
             }
-            remaining_value = Sats::ZERO;
+            remaining = 0;
         }
-
-        // 3. Add change - only if exceeded the dust limit
-        let change = if remaining_value > self.descriptor().class().dust_limit() {
-            let change_index =
-                self.next_derivation_index(params.change_keychain, params.change_shift);
-            let change_terminal = Terminal::new(params.change_keychain, change_index);
-            let change_vout = pstt
-                .append_change_expect(self.descriptor(), change_terminal, remaining_value)
-                .index();
+        let change = if remaining != 0 {
+            let index = self.next_derivation_index(params.change_keychain, params.change_shift);
+            let terminal = Terminal::new(params.change_keychain, index);
+            let keys = self.descriptor().xonly_keyset(terminal);
+            if keys.len() != 1 {
+                return Err(PsttError("single-key change descriptor required".into()).into());
+            }
+            let auth =
+                tondi_vm::schnorr_auth(keys.keys().next().expect("one key").to_byte_array()).0;
+            let index = p.append_output(StateNote::plain(remaining, auth), Some(terminal))?.index;
             Some(ChangeInfo {
-                vout: Vout::from_u32(change_vout as u32),
-                terminal: change_terminal,
+                vout: Vout::from_u32(index as u32),
+                terminal,
             })
         } else {
             None
         };
-
+        for output in p.outputs() {
+            if output.note.value
+                < output.note.occupied_bytes() * tondi_vm::Limits::default().capacity_per_byte
+            {
+                return Err(PsttError("output below occupied capacity".into()).into());
+            }
+        }
         let meta = PsttMeta {
             network: self.network().into(),
             fee: params.fee,
-            weight: 0, // TODO: Implement weight/size computation
+            weight: 0,
             size: 0,
             change,
         };
-        self.after_construct_pstt(&mut pstt, &meta);
-
-        Ok((pstt, meta))
+        self.after_construct_pstt(&mut p, &meta);
+        p.complete_construction();
+        Ok((p, meta))
     }
-
-    /// A hook which is called by the default `Self::construct_pstt` before returning the newly
-    /// constructed PSTT to the caller.
-    fn after_construct_pstt(&mut self, _pstt: &mut Pstt, _meta: &PsttMeta) {
-        // By default, we do not use the hook
-    }
+    fn after_construct_pstt(&mut self, _pstt: &mut Pstt, _meta: &PsttMeta) {}
 }

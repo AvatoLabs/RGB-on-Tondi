@@ -24,16 +24,11 @@ use std::io::{self, Cursor, Read, Write};
 use amplify::confinement::{Confined, MediumBlob, SmallBlob, TinyBlob, U32};
 use amplify::{confinement, ByteArray, Bytes32, IoError, Wrapper};
 
-use crate::tx::{
-    bp_sequence_from_tondi, bp_txid_from_tondi_native_bytes, tondi_native_txid_bytes,
-    tondi_sequence_from_bp,
-};
 use crate::{
-    Annex, Block, BlockHash, BlockHeader, BlockMerkleRoot, ControlBlock, InternalPk,
-    InvalidLeafVer, LeafVer, LockTime, Outpoint, Parity, RedeemScript, Sats, ScriptBytes,
-    ScriptPubkey, SeqNo, SigScript, Sighash, TapBranchHash, TapLeafHash, TapMerklePath, TapScript,
-    TondiOutpoint, TondiTxid, Tx, TxIn, TxOut, TxVer, Txid, Vout, Witness, WitnessScript,
-    LIB_NAME_TONDI, TAPROOT_ANNEX_PREFIX,
+    Annex, BlockHash, ControlBlock, InternalPk, InvalidLeafVer, LeafVer, Outpoint, Parity,
+    RedeemScript, Sats, ScriptBytes, ScriptPubkey, SigScript, Sighash, TapBranchHash, TapLeafHash,
+    TapMerklePath, TapScript, TondiOutpoint, TondiTxid, Tx, TxVer, Txid, Vout, Witness,
+    WitnessScript, LIB_NAME_TONDI, TAPROOT_ANNEX_PREFIX,
 };
 
 /// Tondi consensus allows arrays which length is encoded as VarInt to grow up
@@ -268,56 +263,6 @@ where
     }
 }
 
-impl ConsensusEncode for BlockHeader {
-    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        let mut counter = self.version.consensus_encode(writer)?;
-        counter += self.prev_block_hash.consensus_encode(writer)?;
-        counter += self.merkle_root.consensus_encode(writer)?;
-        counter += self.time.consensus_encode(writer)?;
-        counter += self.bits.consensus_encode(writer)?;
-        counter += self.nonce.consensus_encode(writer)?;
-        Ok(counter)
-    }
-}
-
-impl ConsensusDecode for BlockHeader {
-    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        let version = i32::consensus_decode(reader)?;
-        let prev_block_hash = BlockHash::consensus_decode(reader)?;
-        let merkle_root = BlockMerkleRoot::consensus_decode(reader)?;
-        let time = u32::consensus_decode(reader)?;
-        let bits = u32::consensus_decode(reader)?;
-        let nonce = u32::consensus_decode(reader)?;
-        Ok(BlockHeader {
-            version,
-            prev_block_hash,
-            merkle_root,
-            time,
-            bits,
-            nonce,
-        })
-    }
-}
-
-impl ConsensusEncode for Block {
-    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        let mut counter = self.header.consensus_encode(writer)?;
-        counter += self.transactions.consensus_encode(writer)?;
-        Ok(counter)
-    }
-}
-
-impl ConsensusDecode for Block {
-    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        let header = BlockHeader::consensus_decode(reader)?;
-        let transactions = VarIntArray::<Tx>::consensus_decode(reader)?;
-        Ok(Block {
-            header,
-            transactions,
-        })
-    }
-}
-
 impl ConsensusEncode for BlockHash {
     fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
@@ -331,218 +276,28 @@ impl ConsensusDecode for BlockHash {
     }
 }
 
-impl ConsensusEncode for BlockMerkleRoot {
-    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self.to_byte_array())?;
-        Ok(32)
-    }
-}
-
-impl ConsensusDecode for BlockMerkleRoot {
-    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        <[u8; 32]>::consensus_decode(reader).map(Self::from)
-    }
-}
-
 impl ConsensusEncode for Tx {
     fn consensus_encode(&self, w: &mut impl Write) -> Result<usize, IoError> {
-        if self.version != TxVer::CURRENT {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "unsupported Tondi transaction version",
-            )
-            .into());
-        }
-        let mut n = self.version.consensus_encode(w)?;
-        w.write_all(&(self.inputs.len() as u32).to_le_bytes())?;
-        n += 4;
-        for input in &self.inputs {
-            n += input.consensus_encode(w)?;
-        }
-        w.write_all(&(self.outputs.len() as u32).to_le_bytes())?;
-        n += 4;
-        for output in &self.outputs {
-            n += output.consensus_encode(w)?;
-        }
-        w.write_all(&self.lock_time.to_consensus_u64().to_le_bytes())?;
-        w.write_all(&self.subnetwork_id)?;
-        w.write_all(&self.gas.to_le_bytes())?;
-        w.write_all(&(self.payload.len() as u32).to_le_bytes())?;
-        w.write_all(&self.payload)?;
-        w.write_all(&self.mass.to_le_bytes())?;
-        w.write_all(&tondi_native_txid_bytes(self.txid()))?;
-        Ok(n + 8 + 20 + 8 + 4 + self.payload.len() + 8 + 32)
+        w.write_all(self.wire_bytes())?;
+        Ok(self.wire_bytes().len())
     }
 }
-
 impl ConsensusDecode for Tx {
     fn consensus_decode(r: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        let version = TxVer::from_consensus_u16(u16::from_le_bytes(read_fixed(r)?));
-        if version != TxVer::CURRENT {
-            return Err(ConsensusDataError::InvalidTondiData.into());
-        }
-        let mut inputs = Vec::new();
-        for _ in 0..read_native_count(r)? {
-            inputs.push(TxIn::consensus_decode(r)?);
-        }
-        let mut outputs = Vec::new();
-        for _ in 0..read_native_count(r)? {
-            outputs.push(TxOut::consensus_decode(r)?);
-        }
-        let lock_time = LockTime::from_consensus_u64(u64::from_le_bytes(read_fixed(r)?));
-        let subnetwork_id = read_fixed(r)?;
-        let gas = u64::from_le_bytes(read_fixed(r)?);
-        let payload = VarIntBytes::from_checked(read_native_bytes(r, 16 * 1024 * 1024)?);
-        let mass = u64::from_le_bytes(read_fixed(r)?);
-        let id: [u8; 32] = read_fixed(r)?;
-        let tx = Tx {
-            version,
-            inputs: VarIntArray::from_checked(inputs),
-            outputs: VarIntArray::from_checked(outputs),
-            lock_time,
-            subnetwork_id,
-            gas,
-            payload,
-            mass,
-        };
-        if id != tondi_native_txid_bytes(tx.txid()) {
-            return Err(ConsensusDataError::InvalidTondiData.into());
-        }
-        Ok(tx)
+        use borsh::BorshDeserialize;
+        let native = tondi_vm::Transition::deserialize_reader(&mut r.take(1048576))
+            .map_err(|_| ConsensusDataError::InvalidTondiData)?;
+        Tx::from_native(native).map_err(|_| ConsensusDataError::InvalidTondiData.into())
     }
 }
-fn read_fixed<const N: usize>(r: &mut impl Read) -> Result<[u8; N], ConsensusDecodeError> {
-    let mut bytes = [0; N];
-    r.read_exact(&mut bytes)?;
-    Ok(bytes)
-}
-fn read_native_count(r: &mut impl Read) -> Result<usize, ConsensusDecodeError> {
-    let count = u32::from_le_bytes(read_fixed(r)?) as usize;
-    if count > 65536 {
-        return Err(ConsensusDataError::InvalidTondiData.into());
-    }
-    Ok(count)
-}
-fn read_native_bytes(r: &mut impl Read, max: usize) -> Result<Vec<u8>, ConsensusDecodeError> {
-    let len = u32::from_le_bytes(read_fixed(r)?) as usize;
-    if len > max {
-        return Err(ConsensusDataError::InvalidTondiData.into());
-    }
-    let mut bytes = vec![0; len];
-    r.read_exact(&mut bytes)?;
-    Ok(bytes)
-}
-
 impl ConsensusEncode for TxVer {
-    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        // Tondi uses u16 (2 bytes) for transaction version
-        self.to_consensus_u16().consensus_encode(writer)
+    fn consensus_encode(&self, w: &mut impl Write) -> Result<usize, IoError> {
+        self.to_consensus_u16().consensus_encode(w)
     }
 }
-
 impl ConsensusDecode for TxVer {
-    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        // Tondi uses u16 (2 bytes) for transaction version
-        u16::consensus_decode(reader).map(Self::from_consensus_u16)
-    }
-}
-
-impl ConsensusEncode for TxIn {
-    fn consensus_encode(&self, w: &mut impl Write) -> Result<usize, IoError> {
-        w.write_all(&[u8::from(self.is_reference)])?;
-        w.write_all(&tondi_native_txid_bytes(self.prev_output.txid))?;
-        w.write_all(&self.prev_output.vout.to_u32().to_le_bytes())?;
-        if self.is_reference {
-            if !self.sig_script.is_empty()
-                || !self.witness.is_empty()
-                || self.sequence.to_consensus_u32() != 0
-                || self.sig_op_count != 0
-            {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "reference carries spending fields",
-                )
-                .into());
-            }
-            return Ok(37);
-        }
-        w.write_all(&tondi_sequence_from_bp(self.sequence).to_le_bytes())?;
-        w.write_all(&(self.sig_script.len() as u32).to_le_bytes())?;
-        w.write_all(self.sig_script.as_slice())?;
-        w.write_all(&[self.sig_op_count])?;
-        Ok(37 + 8 + 4 + self.sig_script.len() + 1)
-    }
-}
-
-impl ConsensusDecode for TxIn {
     fn consensus_decode(r: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        let [kind] = read_fixed(r)?;
-        if kind > 1 {
-            return Err(ConsensusDataError::InvalidTondiData.into());
-        }
-        let prev_output = Outpoint::new(
-            bp_txid_from_tondi_native_bytes(read_fixed(r)?),
-            Vout::from_u32(u32::from_le_bytes(read_fixed(r)?)),
-        );
-        if kind == 1 {
-            return Ok(TxIn {
-                prev_output,
-                is_reference: true,
-                sig_op_count: 0,
-                sequence: SeqNo::from_consensus_u32(0),
-                sig_script: SigScript::new(),
-                witness: Witness::new(),
-            });
-        }
-        let seq = u64::from_le_bytes(read_fixed(r)?);
-        let sequence =
-            bp_sequence_from_tondi(seq).ok_or(ConsensusDataError::InvalidTondiSequence(seq))?;
-        let sig_script = SigScript::from_checked(read_native_bytes(r, 16 * 1024 * 1024)?);
-        let [sig_op_count] = read_fixed(r)?;
-        Ok(TxIn {
-            prev_output,
-            is_reference: false,
-            sig_op_count,
-            sequence,
-            sig_script,
-            witness: Witness::new(),
-        })
-    }
-}
-
-impl ConsensusEncode for TxOut {
-    fn consensus_encode(&self, w: &mut impl Write) -> Result<usize, IoError> {
-        w.write_all(&self.value.sats().to_le_bytes())?;
-        w.write_all(&self.script_pubkey_version.to_le_bytes())?;
-        w.write_all(&(self.script_pubkey.len() as u32).to_le_bytes())?;
-        w.write_all(self.script_pubkey.as_slice())?;
-        w.write_all(&[u8::from(self.datum.is_some())])?;
-        let mut n = 8 + 2 + 4 + self.script_pubkey.len() + 1;
-        if let Some(data) = &self.datum {
-            w.write_all(&(data.len() as u32).to_le_bytes())?;
-            w.write_all(data.as_slice())?;
-            n += 4 + data.len();
-        }
-        Ok(n)
-    }
-}
-
-impl ConsensusDecode for TxOut {
-    fn consensus_decode(r: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        let value = Sats::from_sats(u64::from_le_bytes(read_fixed(r)?));
-        let script_pubkey_version = u16::from_le_bytes(read_fixed(r)?);
-        let script_pubkey = ScriptPubkey::from_checked(read_native_bytes(r, 16 * 1024 * 1024)?);
-        let datum = match read_fixed::<1>(r)? {
-            [0] => None,
-            [1] => Some(crate::Datum::from_checked(read_native_bytes(r, crate::MAX_DATUM_SIZE)?)),
-            _ => return Err(ConsensusDataError::InvalidTondiData.into()),
-        };
-        Ok(TxOut {
-            value,
-            script_pubkey_version,
-            script_pubkey,
-            datum,
-        })
+        u16::consensus_decode(r).map(Self::from_consensus_u16)
     }
 }
 
@@ -615,35 +370,6 @@ impl ConsensusEncode for Vout {
 impl ConsensusDecode for Vout {
     fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
         u32::consensus_decode(reader).map(Self::from)
-    }
-}
-
-impl ConsensusEncode for SeqNo {
-    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.to_consensus_u32().consensus_encode(writer)
-    }
-}
-
-impl ConsensusDecode for SeqNo {
-    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        u32::consensus_decode(reader).map(Self::from_consensus_u32)
-    }
-}
-
-impl ConsensusEncode for LockTime {
-    fn consensus_encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Tondi
-        writer.write_all(&self.to_consensus_u64().to_le_bytes())?;
-        Ok(8)
-    }
-}
-
-impl ConsensusDecode for LockTime {
-    fn consensus_decode(reader: &mut impl Read) -> Result<Self, ConsensusDecodeError> {
-        // Tondi uses u64 (8 bytes) for lock time, not u32 (4 bytes) like Tondi
-        let mut bytes = [0u8; 8];
-        reader.read_exact(&mut bytes)?;
-        Ok(LockTime::from_consensus_u64(u64::from_le_bytes(bytes)))
     }
 }
 

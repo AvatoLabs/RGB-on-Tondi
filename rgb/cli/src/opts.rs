@@ -28,7 +28,7 @@ use clap::ValueHint;
 
 use crate::cmd::RGB_WALLET_ENV;
 
-pub const DEFAULT_TONDI: &str = "localhost:17110";
+pub const DEFAULT_TONDI: &str = "grpc://127.0.0.1:16210";
 
 #[derive(Args, Clone, PartialEq, Eq, Debug)]
 pub struct ResolverOpt {

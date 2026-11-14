@@ -29,16 +29,16 @@ use crate::{
 };
 
 /// Strict types id for the library providing data types for RGB contracts.
-pub const LIB_ID_RGB_INTERFACES: &str = "stl:cgbpLcDE-KMoWKHA-7xVHvYs-Zy5Hp4z-IWe7xZ7-v9u70aw#frog-bison-speech";
+pub const LIB_ID_RGB_INTERFACES: &str = "stl:qcacbLs4-Is_L401-BZ20GVC-Fa8ifQ0-2jCxnqH-~O6ZaeA#hand-arsenal-morris";
 
 /// Strict types id for the library providing data types for RGB21.
-pub const LIB_ID_RGB21: &str = "stl:OWEcrg7s-Tdq6NSw-ouRq23O-v6nOIbM-~M5j4ft-ACohakw#madrid-alpine-hammer";
+pub const LIB_ID_RGB21: &str = "stl:g7xiTpn5-YtfAx6g-MU7_n9F-Zv9KWVZ-Kaf2ya9-pw5Ih~c#icon-anita-plate";
 
 pub fn rgb_contract_stl() -> TypeLib {
-    LibBuilder::with(libname!(LIB_NAME_RGB_CONTRACT), [
-        std_stl().to_dependency_types(),
-        bp_consensus_stl().to_dependency_types(),
-    ])
+    LibBuilder::with(
+        libname!(LIB_NAME_RGB_CONTRACT),
+        [std_stl().to_dependency_types(), bp_consensus_stl().to_dependency_types()],
+    )
     .transpile::<Amount>()
     .transpile::<Precision>()
     .transpile::<Ticker>()
@@ -50,12 +50,15 @@ pub fn rgb_contract_stl() -> TypeLib {
 }
 
 pub fn rgb21_stl() -> TypeLib {
-    LibBuilder::with(libname!(LIB_NAME_RGB21), [
-        std_stl().to_dependency_types(),
-        rgb_contract_stl().to_dependency_types(),
-        commit_verify_stl().to_dependency_types(),
-        bp_consensus_stl().to_dependency_types(),
-    ])
+    LibBuilder::with(
+        libname!(LIB_NAME_RGB21),
+        [
+            std_stl().to_dependency_types(),
+            rgb_contract_stl().to_dependency_types(),
+            commit_verify_stl().to_dependency_types(),
+            bp_consensus_stl().to_dependency_types(),
+        ],
+    )
     .transpile::<Nft>()
     .transpile::<OwnedNft>()
     .transpile::<NftSpec>()
@@ -68,7 +71,9 @@ pub fn rgb21_stl() -> TypeLib {
 pub struct CommonTypes(SymbolicSys);
 
 impl Default for CommonTypes {
-    fn default() -> Self { CommonTypes::new() }
+    fn default() -> Self {
+        CommonTypes::new()
+    }
 }
 
 impl CommonTypes {
@@ -104,7 +109,9 @@ impl CommonTypes {
 pub struct Rgb21Types(SymbolicSys);
 
 impl Default for Rgb21Types {
-    fn default() -> Self { Rgb21Types::new() }
+    fn default() -> Self {
+        Rgb21Types::new()
+    }
 }
 
 impl Rgb21Types {

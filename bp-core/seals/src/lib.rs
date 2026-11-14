@@ -51,8 +51,8 @@ extern crate serde;
 mod txout;
 mod wtxout;
 
+pub use dbc::{StateAnchorError, StateAnchorProof};
 pub use txout::{
-    mmb, mpc, Anchor, AnchorError, AnchorMergeError, Noise, TondiP2mrError, TondiP2mrProof,
-    TxoSeal, TxoSealError, TxoSealExt,
+    mmb, mpc, Anchor, AnchorError, AnchorMergeError, Noise, TxoSeal, TxoSealError, TxoSealExt,
 };
 pub use wtxout::{WOutpoint, WTxoSeal};
