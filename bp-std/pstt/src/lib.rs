@@ -39,6 +39,7 @@ mod coders;
 mod csval;
 pub mod constructor;
 mod sign;
+mod tondi;
 
 pub use coders::{Decode, DecodeError, Encode, PsttError};
 pub use constructor::{
@@ -93,7 +94,9 @@ impl PsttVer {
         })
     }
 
-    pub const fn to_standard_u32(&self) -> u32 { *self as u32 }
+    pub const fn to_standard_u32(&self) -> u32 {
+        *self as u32
+    }
 
     pub const fn max() -> Self {
         // this is a special syntax construct to get compiler error each time we add a new version
@@ -104,7 +107,9 @@ impl PsttVer {
     }
 
     /// Returns true if this version supports payload field (V1+)
-    pub const fn supports_payload(&self) -> bool { matches!(self, PsttVer::V1 | PsttVer::V2) }
+    pub const fn supports_payload(&self) -> bool {
+        matches!(self, PsttVer::V1 | PsttVer::V2)
+    }
 }
 
 impl TryFrom<usize> for PsttVer {

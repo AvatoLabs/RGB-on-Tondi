@@ -12,16 +12,10 @@ use bpstd::{
     secp256k1, tondi_tapleaf_hash_from_tapscript, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo,
     SigScript, Tx, TxIn, TxOut, TxVer, Txid, VarIntArray, VarIntBytes, Vout, Witness,
 };
-use sha2::{Digest, Sha256};
-use tondi::{
-    NetworkType, ScriptPublicKey, TondiClient, TondiConfig, TondiOutpoint, TondiTransaction,
-    TondiTxInput, TondiTxOutput,
-};
+use tondi::{NetworkType, TondiClient, TondiConfig, TondiTransaction};
 
 const OP_PUSHBYTES_32: u8 = 0x20;
 const OP_CHECKSIG: u8 = 0xac;
-const TONDI_TAPSIGHASH_TAG: &str = "TapSighash";
-const TONDI_TAPROOT_KEY_VERSION_0: u8 = 0;
 const TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF: [u8; 1] = [0xc1];
 const P2MR_ADDRESS_VERSION: u8 = 216;
 const BECH32M_CONST: u32 = 0x2bc830a3;
@@ -63,6 +57,8 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let inputs = vec![TxIn {
+        is_reference: false,
+        sig_op_count: 1,
         prev_output: source_outpoint,
         sig_script: SigScript::default(),
         sequence: SeqNo::from_consensus_u32(sequence),
@@ -76,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         .collect::<Vec<_>>();
 
     let mut tx = Tx {
-        version: TxVer::V0,
+        version: TxVer::CURRENT,
         inputs: VarIntArray::from_checked(inputs),
         outputs: VarIntArray::from_checked(outputs),
         lock_time: LockTime::ZERO,
@@ -300,158 +296,15 @@ fn sign_input(
 fn p2mr_script_sighash(
     tx: &Tx,
     prevouts: &[TxOut],
-    input_index: usize,
+    index: usize,
     leaf_hash: bpstd::TapLeafHash,
 ) -> anyhow::Result<[u8; 32]> {
-    if tx.inputs.len() != prevouts.len() {
-        bail!(
-            "transaction input count ({}) does not match prevout count ({})",
-            tx.inputs.len(),
-            prevouts.len()
-        );
-    }
-    if input_index >= tx.inputs.len() {
-        bail!(
-            "input index {input_index} is out of bounds for {} inputs",
-            tx.inputs.len()
-        );
-    }
-
-    let mut preimage = Vec::new();
-    preimage.push(0);
-    preimage.push(0);
-    append_le_u16(&mut preimage, tx.version.to_consensus_u16());
-    append_le_u64(&mut preimage, tx.lock_time.to_consensus_u64());
-    preimage.extend_from_slice(&sha256_digest(&encode_prevouts(tx)?));
-    preimage.extend_from_slice(&sha256_digest(&encode_prevout_amounts(prevouts)));
-    preimage.extend_from_slice(&sha256_digest(&encode_prevout_script_pubkeys(prevouts)?));
-    preimage.extend_from_slice(&sha256_digest(&encode_sequences(tx)));
-    preimage.extend_from_slice(&sha256_digest(&encode_outputs(tx)?));
-    preimage.push(2);
-    append_le_u32(
-        &mut preimage,
-        u32::try_from(input_index).context("input index exceeds u32")?,
-    );
-    preimage.extend_from_slice(&leaf_hash.to_byte_array());
-    preimage.push(TONDI_TAPROOT_KEY_VERSION_0);
-    append_le_u32(&mut preimage, u32::MAX);
-    Ok(sha256_tagged_hash(TONDI_TAPSIGHASH_TAG, &preimage))
-}
-
-fn encode_prevouts(tx: &Tx) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    for input in tx.inputs.iter() {
-        let txid = input.prev_output.txid.to_string().parse::<Bytes32>()?;
-        bytes.extend_from_slice(&txid.to_byte_array());
-        append_le_u32(&mut bytes, input.prev_output.vout.to_u32());
-    }
-    Ok(bytes)
-}
-
-fn encode_prevout_amounts(prevouts: &[TxOut]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for prevout in prevouts {
-        append_le_u64(&mut bytes, prevout.value.sats());
-    }
-    bytes
-}
-
-fn encode_prevout_script_pubkeys(prevouts: &[TxOut]) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    for prevout in prevouts {
-        append_script_public_key(
-            &mut bytes,
-            prevout.script_pubkey_version,
-            prevout.script_pubkey.as_slice(),
-        )?;
-    }
-    Ok(bytes)
-}
-
-fn encode_sequences(tx: &Tx) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for input in tx.inputs.iter() {
-        append_le_u64(
-            &mut bytes,
-            tondi_wire_sequence(input.sequence.to_consensus_u32()),
-        );
-    }
-    bytes
-}
-
-fn encode_outputs(tx: &Tx) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    for output in tx.outputs.iter() {
-        append_le_u64(&mut bytes, output.value.sats());
-        append_script_public_key(
-            &mut bytes,
-            output.script_pubkey_version,
-            output.script_pubkey.as_slice(),
-        )?;
-    }
-    Ok(bytes)
-}
-
-fn append_script_public_key(
-    bytes: &mut Vec<u8>,
-    script_pubkey_version: u16,
-    script: &[u8],
-) -> anyhow::Result<()> {
-    append_le_u16(bytes, script_pubkey_version);
-    append_compact_size(bytes, script.len(), "Tondi script public key length")?;
-    bytes.extend_from_slice(script);
-    Ok(())
-}
-
-fn bp_tx_to_tondi(tx: &Tx) -> anyhow::Result<TondiTransaction> {
-    let inputs = tx
-        .inputs
-        .iter()
-        .map(|input| {
-            Ok(TondiTxInput::Standard {
-                previous_outpoint: TondiOutpoint {
-                    transaction_id: input.prev_output.txid.to_string().parse::<Bytes32>()?,
-                    index: input.prev_output.vout.to_u32(),
-                },
-                signature_script: input.sig_script.to_vec(),
-                sequence: tondi_wire_sequence(input.sequence.to_consensus_u32()),
-                sig_op_count: if input.sig_script.is_empty() { 0 } else { 1 },
-            })
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    let outputs = tx
-        .outputs
-        .iter()
-        .map(|output| {
-            let script_public_key = ScriptPublicKey {
-                version: output.script_pubkey_version,
-                script: output.script_pubkey.to_vec(),
-            };
-            script_public_key
-                .validate_p2mr_root()
-                .map_err(|err| anyhow!("{err}"))?;
-            Ok(TondiTxOutput::Standard {
-                value: output.value.sats(),
-                script_public_key,
-            })
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    let mut subnetwork_id = [0u8; 32];
-    subnetwork_id[0..20].copy_from_slice(&tx.subnetwork_id);
-    let native = TondiTransaction {
-        version: tx.version.to_consensus_u16(),
-        inputs,
-        outputs,
-        lock_time: tx.lock_time.to_consensus_u64(),
-        subnetwork_id: Bytes32::from_byte_array(subnetwork_id),
-        gas: tx.gas,
-        payload: Vec::new(),
-        mass: tx.mass,
-    };
-    native
-        .validate_tondi_native_rgb()
-        .map_err(|err| anyhow!("{err}"))?;
-    Ok(native)
+    Ok(bpstd::tondi_p2mr_script_sighash(
+        tx,
+        prevouts,
+        index,
+        leaf_hash.to_byte_array(),
+    )?)
 }
 
 fn encode_p2mr_witness_stack(items: impl IntoIterator<Item = Vec<u8>>) -> anyhow::Result<Vec<u8>> {
@@ -471,56 +324,10 @@ fn encode_p2mr_witness_stack(items: impl IntoIterator<Item = Vec<u8>>) -> anyhow
     Ok(bytes)
 }
 
-fn sha256_digest(bytes: &[u8]) -> [u8; 32] {
-    let digest = Sha256::digest(bytes);
-    digest.into()
-}
-
-fn sha256_tagged_hash(tag: &str, msg: &[u8]) -> [u8; 32] {
-    let tag_hash = sha256_digest(tag.as_bytes());
-    let mut hasher = Sha256::new();
-    hasher.update(tag_hash);
-    hasher.update(tag_hash);
-    hasher.update(msg);
-    hasher.finalize().into()
-}
-
-fn append_le_u16(bytes: &mut Vec<u8>, value: u16) {
-    bytes.extend_from_slice(&value.to_le_bytes());
-}
-
 fn append_le_u32(bytes: &mut Vec<u8>, value: u32) {
     bytes.extend_from_slice(&value.to_le_bytes());
 }
 
-fn append_le_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend_from_slice(&value.to_le_bytes());
-}
-
-fn append_compact_size(bytes: &mut Vec<u8>, len: usize, what: &str) -> anyhow::Result<()> {
-    let len = u64::try_from(len).with_context(|| format!("{what} exceeds u64"))?;
-    match len {
-        0..=0xFC => bytes.push(len as u8),
-        0xFD..=0xFFFF => {
-            bytes.push(0xFD);
-            append_le_u16(bytes, len as u16);
-        }
-        0x10000..=0xFFFF_FFFF => {
-            bytes.push(0xFE);
-            append_le_u32(bytes, len as u32);
-        }
-        _ => {
-            bytes.push(0xFF);
-            append_le_u64(bytes, len);
-        }
-    }
-    Ok(())
-}
-
-fn tondi_wire_sequence(sequence: u32) -> u64 {
-    if sequence == u32::MAX {
-        u64::MAX
-    } else {
-        sequence as u64
-    }
+fn bp_tx_to_tondi(tx: &Tx) -> anyhow::Result<TondiTransaction> {
+    Ok(TondiTransaction::from_bp_tx(tx)?)
 }

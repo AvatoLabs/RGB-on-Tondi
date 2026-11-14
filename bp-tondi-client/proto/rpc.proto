@@ -75,12 +75,7 @@ message RpcTransactionInput {
   RpcTransactionInputVerboseData verboseData = 4;
   oneof input {
     RpcStandardInput standard = 2;
-    RpcChannelStateSpendInput channelStateSpend = 5;
-    RpcChannelFundSpendInput channelFundSpend = 6;
-    RpcChannelFundRefInput channelFundRef = 7;
-    RpcIngotSpendInput ingotSpend = 8;
-    RpcIngotRefInput ingotRef = 9;
-    RpcChannelOpenSpendInput channelOpenSpend = 10;
+    RpcReferenceInput reference = 3;
   }
 }
 
@@ -90,31 +85,8 @@ message RpcStandardInput {
   uint32 sigOpCount = 3;
 }
 
-message RpcChannelStateSpendInput {
-  uint64 sequence = 1;
-  string signatureScript = 2;
-}
-
-message RpcChannelFundSpendInput {
-  uint64 sequence = 1;
-  string signatureScript = 2;
-}
-
-message RpcChannelFundRefInput {
-}
-
-message RpcChannelOpenSpendInput {
-  uint64 sequence = 1;
-  string signatureScript = 2;
-  optional uint32 sigOpCount = 3;
-}
-
-message RpcIngotSpendInput {
-  uint64 sequence = 1;
-  string signatureScript = 2;
-}
-
-message RpcIngotRefInput {
+message RpcReferenceInput {
+  // No additional fields - just a reference
 }
 
 message RpcScriptPublicKey {
@@ -124,75 +96,9 @@ message RpcScriptPublicKey {
 
 message RpcTransactionOutput {
   uint64 amount = 1;
-  RpcTransactionOutputVerboseData verboseData = 2;
-  oneof output {
-    RpcStandardOutput standard = 3;
-    RpcChannelFundOutput channelFund = 4;
-    RpcChannelStateOutput channelState = 5;
-    RpcIngotOutputData ingot = 6;
-  }
-}
-
-message RpcStandardOutput {
-  RpcScriptPublicKey scriptPublicKey = 1;
-}
-
-message RpcChannelFundOutput {
-  string channelId = 1;
-  bytes aggVk = 2;
-  string participantsRoot = 3;
-  uint32 policyFlags = 4;
-  uint32 csvDelay = 5;
-  bytes settlementDescriptorRoot = 6;
-  uint32 stateLayoutVersion = 7;
-  bytes assetTotalsRoot = 8;
-  bytes assetTotals = 9;
-  optional string parentChannelId = 10;
-  uint32 depth = 11;
-}
-
-message RpcChannelStateOutput {
-  string channelId = 1;
-  uint64 stateNumber = 2;
-  bytes balancesRoot = 3;
-  bytes ptlcsRoot = 4;
-  uint64 creationDaaScore = 5;
-}
-
-message RpcIngotOutputData {
-  uint32 version = 1;
-  string schemaId = 2;
-  RpcIngotLock lock = 3;
-  RpcIngotState state = 4;
-  string mastRoot = 5;
-}
-
-message RpcIngotLock {
-  oneof lock {
-    RpcIngotLockNone none = 1;
-    RpcIngotLockPubKey pubKey = 2;
-    RpcIngotLockScriptHash scriptHash = 3;
-    RpcIngotLockMastOnly mastOnly = 4;
-  }
-}
-
-message RpcIngotLockNone {
-}
-
-message RpcIngotLockPubKey {
-  bytes pubKey = 1;
-}
-
-message RpcIngotLockScriptHash {
-  string scriptHash = 1;
-}
-
-message RpcIngotLockMastOnly {
-}
-
-message RpcIngotState {
-  uint64 amount = 1;
-  bytes metadata = 2;
+  RpcScriptPublicKey scriptPublicKey = 2;
+  optional bytes datum = 3;
+  RpcTransactionOutputVerboseData verboseData = 4;
 }
 
 message RpcOutpoint {
@@ -205,6 +111,7 @@ message RpcUtxoEntry {
   RpcScriptPublicKey scriptPublicKey = 2;
   uint64 blockDaaScore = 3;
   bool isCoinbase = 4;
+  optional bytes datum = 5;
 }
 
 message RpcTransactionVerboseData{
@@ -253,6 +160,7 @@ message SubmitBlockResponseMessage{
     NONE = 0;
     BLOCK_INVALID = 1;
     IS_IN_IBD = 2;
+    ROUTE_IS_FULL = 3;
   }
   RejectReason rejectReason = 1;
   RPCError error = 1000;
@@ -694,23 +602,6 @@ message RpcUtxosByAddressesEntry {
   RpcUtxoEntry utxoEntry = 3;
 }
 
-// StopNotifyingUtxosChangedRequestMessage unregisters this connection for utxoChanged notifications
-// for the given addresses.
-//
-// This call is only available when this Tondid was started with `--utxoindex`
-//
-// See: UtxosChangedNotificationMessage
-//
-// This message only exists for backward compatibility reason with Tondid and is deprecated.
-// Use instead UtxosChangedNotificationMessage with command = NOTIFY_STOP.
-message StopNotifyingUtxosChangedRequestMessage {
-  repeated string addresses = 1;
-}
-
-message StopNotifyingUtxosChangedResponseMessage {
-  RPCError error = 1000;
-}
-
 message GetUtxosByAddressRequestMessage {
   string address = 1;
   uint64 start = 2;
@@ -840,23 +731,6 @@ message NotifyPruningPointUtxoSetOverrideResponseMessage {
 message PruningPointUtxoSetOverrideNotificationMessage {
 }
 
-// StopNotifyingPruningPointUtxoSetOverrideRequestMessage unregisters this connection for
-// pruning point UTXO set override notifications.
-//
-// This call is only available when this Tondid was started with `--utxoindex`
-//
-// See: PruningPointUtxoSetOverrideNotificationMessage
-//
-// This message only exists for backward compatibility reason with Tondid and is deprecated.
-// Use instead NotifyPruningPointUtxoSetOverrideRequestMessage with command = NOTIFY_STOP.
-message StopNotifyingPruningPointUtxoSetOverrideRequestMessage {
-}
-
-message StopNotifyingPruningPointUtxoSetOverrideResponseMessage {
-  RPCError error = 1000;
-}
-
-// BanRequestMessage bans the given ip.
 message BanRequestMessage{
   string ip = 1;
 }
@@ -884,8 +758,6 @@ message GetInfoResponseMessage{
   string serverVersion = 3;
   bool isUtxoIndexed = 4;
   bool isSynced = 5;
-  bool hasNotifyCommand = 11;
-  bool hasMessageId = 12;
   RPCError error = 1000;
 }
 

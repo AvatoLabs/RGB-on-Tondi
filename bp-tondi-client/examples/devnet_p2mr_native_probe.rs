@@ -13,9 +13,10 @@ use tondi::{
 
 fn native_p2mr_probe_tx() -> TondiTransaction {
     TondiTransaction {
-        version: 0,
+        version: 1,
         inputs: Vec::new(),
-        outputs: vec![TondiTxOutput::Standard {
+        outputs: vec![TondiTxOutput {
+            datum: None,
             value: 1,
             script_public_key: ScriptPublicKey {
                 version: TONDI_P2MR_SCRIPT_VERSION,
@@ -42,12 +43,7 @@ fn verify_native_policy() -> Result<(), tondi::Error> {
     );
 
     let mut legacy_tx = tx;
-    let TondiTxOutput::Standard {
-        script_public_key, ..
-    } = &mut legacy_tx.outputs[0]
-    else {
-        unreachable!("probe tx has one standard output")
-    };
+    let script_public_key = &mut legacy_tx.outputs[0].script_public_key;
     script_public_key.version = 0;
     assert!(
         legacy_tx.validate_tondi_native_rgb().is_err(),

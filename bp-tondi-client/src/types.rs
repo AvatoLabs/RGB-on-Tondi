@@ -51,10 +51,8 @@ pub struct TxStatus {
     /// Whether the transaction is accepted (confirmed)
     pub accepted: bool,
     /// Whether the transaction is currently known in the mempool or orphan pool.
-    #[serde(default)]
     pub in_mempool: bool,
     /// Whether the node knows the transaction but it is no longer accepted by the selected chain.
-    #[serde(default)]
     pub removed: bool,
     /// The accepting block hash if accepted
     pub accepting_block_hash: Option<TondiBlockHash>,
@@ -137,6 +135,7 @@ pub struct TondiUtxoEntry {
     pub block_daa_score: DaaScore,
     /// Whether this is a coinbase output
     pub is_coinbase: bool,
+    pub datum: Option<bp::Datum>,
 }
 
 /// Script public key type for Tondi
@@ -223,114 +222,42 @@ pub struct BalanceByAddressEntry {
     pub balance: Option<u64>,
 }
 
-/// Transaction input (enum-based, following Tondi's UTXO-Native architecture)
-///
-/// RGB on Tondi only supports Standard inputs. Other input types (ChannelStateSpend,
-/// ChannelFundSpend, IngotSpend, IngotRef) are not supported in RGB Purist Mode.
-///
-/// # Serialization Format
-///
-/// Uses externally tagged format (default) to match Tondi node's JSON format:
-/// ```json
-/// {"standard": {"previousOutpoint": {...}, "signatureScript": "...", ...}}
-/// ```
+/// A consuming input or an authenticated, read-only UTXO dependency.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TondiTxInput {
-    /// Tondi Standard input (RGB must use this)
     #[serde(rename = "standard")]
     Standard {
-        /// Previous outpoint
         previous_outpoint: TondiOutpoint,
-        /// Signature script (note: no witness field in Standard input)
         #[serde(with = "hex::serde")]
         signature_script: Vec<u8>,
-        /// Sequence number
         sequence: u64,
-        /// Signature operation count
         sig_op_count: u8,
     },
-    /// Channel state spend input (not supported in RGB Purist Mode)
-    #[serde(rename = "channelStateSpend")]
-    ChannelStateSpend {
-        /// Previous outpoint
-        previous_outpoint: TondiOutpoint,
-        /// Additional channel-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
-    /// Channel fund spend input (not supported in RGB Purist Mode)
-    #[serde(rename = "channelFundSpend")]
-    ChannelFundSpend {
-        /// Previous outpoint
-        previous_outpoint: TondiOutpoint,
-        /// Additional channel-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
-    /// Ingot (native asset) spend input (not supported in RGB Purist Mode)
-    #[serde(rename = "ingotSpend")]
-    IngotSpend {
-        /// Previous outpoint
-        previous_outpoint: TondiOutpoint,
-        /// Additional ingot-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
-    /// Ingot reference input (read-only reference, not supported in RGB Purist Mode)
-    #[serde(rename = "ingotRef")]
-    IngotRef {
-        /// Previous outpoint
-        previous_outpoint: TondiOutpoint,
-        /// Additional ingot-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
+    #[serde(rename = "reference")]
+    Reference { previous_outpoint: TondiOutpoint },
+}
+impl TondiTxInput {
+    pub fn previous_outpoint(&self) -> TondiOutpoint {
+        match self {
+            Self::Standard {
+                previous_outpoint, ..
+            }
+            | Self::Reference { previous_outpoint } => *previous_outpoint,
+        }
+    }
+    pub fn is_reference(&self) -> bool {
+        matches!(self, Self::Reference { .. })
+    }
 }
 
-/// Transaction output (enum-based, following Tondi's UTXO-Native architecture)
-///
-/// RGB on Tondi only supports Standard outputs. Other output types (ChannelFund,
-/// ChannelState, Ingot) are not supported in RGB Purist Mode.
-///
-/// # Serialization Format
-///
-/// Uses externally tagged format (default) to match Tondi node's JSON format:
-/// ```json
-/// {"standard": {"value": 1000, "scriptPublicKey": {...}}}
-/// ```
+/// Native output record. Datum is public; RGB private state stays in consignments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum TondiTxOutput {
-    /// Standard output (RGB must use this)
-    #[serde(rename = "standard")]
-    Standard {
-        /// Value in saus
-        value: u64,
-        /// Script public key
-        script_public_key: ScriptPublicKey,
-    },
-    /// Channel fund output (not supported in RGB Purist Mode)
-    #[serde(rename = "channelFund")]
-    ChannelFund {
-        /// Additional channel-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
-    /// Channel state output (not supported in RGB Purist Mode)
-    #[serde(rename = "channelState")]
-    ChannelState {
-        /// Additional channel-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
-    /// Ingot (native asset) output (not supported in RGB Purist Mode)
-    #[serde(rename = "ingot")]
-    Ingot {
-        /// Additional ingot-specific fields
-        #[serde(flatten)]
-        extra: serde_json::Value,
-    },
+pub struct TondiTxOutput {
+    pub value: u64,
+    pub script_public_key: ScriptPublicKey,
+    pub datum: Option<bp::Datum>,
 }
 
 /// Tondi transaction
@@ -357,49 +284,118 @@ pub struct TondiTransaction {
 }
 
 impl TondiTransaction {
+    /// Preserve current native fields when crossing the RGB transaction bridge.
+    pub fn from_bp_tx(tx: &Transaction) -> Result<Self> {
+        let inputs = tx
+            .inputs
+            .iter()
+            .map(|input| {
+                if !input.witness.is_empty() {
+                    return Err(Error::InvalidNativeTransaction(
+                        "P2MR unlock data must be in signature_script".into(),
+                    ));
+                }
+                let point = TondiOutpoint {
+                    transaction_id: input
+                        .prev_output
+                        .txid
+                        .to_string()
+                        .parse()
+                        .map_err(|_| Error::InvalidServerResponse)?,
+                    index: input.prev_output.vout.to_u32(),
+                };
+                if input.is_reference {
+                    if !input.sig_script.is_empty()
+                        || input.sig_op_count != 0
+                        || input.sequence.to_consensus_u32() != 0
+                    {
+                        return Err(Error::InvalidNativeTransaction(
+                            "reference carries spending fields".into(),
+                        ));
+                    }
+                    Ok(TondiTxInput::Reference {
+                        previous_outpoint: point,
+                    })
+                } else {
+                    Ok(TondiTxInput::Standard {
+                        previous_outpoint: point,
+                        signature_script: input.sig_script.to_vec(),
+                        sequence: if input.sequence.to_consensus_u32() == u32::MAX {
+                            u64::MAX
+                        } else {
+                            input.sequence.to_consensus_u32() as u64
+                        },
+                        sig_op_count: input.sig_op_count,
+                    })
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let outputs = tx
+            .outputs
+            .iter()
+            .map(|output| TondiTxOutput {
+                value: output.value.sats(),
+                script_public_key: ScriptPublicKey {
+                    version: output.script_pubkey_version,
+                    script: output.script_pubkey.to_vec(),
+                },
+                datum: output.datum.clone(),
+            })
+            .collect();
+        let mut subnetwork = [0; 32];
+        subnetwork[..20].copy_from_slice(&tx.subnetwork_id);
+        let result = Self {
+            version: tx.version.to_consensus_u16(),
+            inputs,
+            outputs,
+            lock_time: tx.lock_time.to_consensus_u64(),
+            subnetwork_id: Bytes32::from_byte_array(subnetwork),
+            gas: tx.gas,
+            payload: tx.payload.to_vec(),
+            mass: tx.mass,
+        };
+        result.validate_tondi_native_rgb()?;
+        Ok(result)
+    }
+
     /// Validates the Tondi-native RGB wire contract.
     ///
-    /// RGB commitments must be carried by P2MR outputs. Legacy compatibility
-    /// carriers such as payload-encoded Annex data are rejected.
+    /// RGB commitments use P2MR outputs; private state stays in consignments.
     pub fn validate_tondi_native_rgb(&self) -> Result<()> {
-        if self.version != 0 {
+        if self.version != bp::TONDI_TX_VERSION {
             return Err(Error::InvalidNativeTransaction(format!(
-                "RGB-on-Tondi standard transactions must use Tondi tx version 0, got {}",
+                "unsupported transaction version {}",
                 self.version
             )));
         }
-
         if !self.payload.is_empty() {
             return Err(Error::InvalidNativeTransaction(
-                "payload/Annex commitment carriers are forbidden; RGB commitments must be embedded in P2MR outputs".to_string(),
+                "RGB private state belongs in consignments, not transaction payload".into(),
             ));
         }
-
-        for (index, input) in self.inputs.iter().enumerate() {
-            if !matches!(input, TondiTxInput::Standard { .. }) {
-                return Err(Error::InvalidNativeTransaction(format!(
-                    "input {index} is not a Tondi Standard input; RGB-on-Tondi does not accept Channel/Ingot compatibility inputs"
-                )));
-            }
+        if self.subnetwork_id.to_byte_array() != [0; 32] || self.gas != 0 {
+            return Err(Error::InvalidNativeTransaction(
+                "RGB anchors require the native subnetwork and zero gas".into(),
+            ));
         }
-
-        for (index, output) in self.outputs.iter().enumerate() {
-            match output {
-                TondiTxOutput::Standard {
-                    script_public_key, ..
-                } => {
-                    script_public_key.validate_p2mr_root().map_err(|err| {
-                        Error::InvalidNativeTransaction(format!(
-                            "output {index} is not Tondi-native P2MR: {err}"
-                        ))
-                    })?;
-                }
-                _ => {
-                    return Err(Error::InvalidNativeTransaction(format!(
-                        "output {index} is not a Tondi Standard output; RGB-on-Tondi does not accept Channel/Ingot compatibility outputs"
-                    )));
-                }
+        let mut points = std::collections::HashSet::new();
+        let mut references = 0;
+        for input in &self.inputs {
+            let point = input.previous_outpoint();
+            if !points.insert((point.transaction_id.to_byte_array(), point.index)) {
+                return Err(Error::InvalidNativeTransaction(
+                    "duplicate input or reference/spend overlap".into(),
+                ));
             }
+            references += usize::from(input.is_reference());
+        }
+        if references > 64 {
+            return Err(Error::InvalidNativeTransaction(
+                "more than 64 reference inputs".into(),
+            ));
+        }
+        for output in &self.outputs {
+            output.script_public_key.validate_p2mr_root()?;
         }
 
         Ok(())
@@ -408,56 +404,50 @@ impl TondiTransaction {
     /// Convert to BP Transaction type
     ///
     /// This is only an in-memory bridge for the RGB runtime. The Tondi wire
-    /// contract is validated first and remains Tondi-native: Standard inputs,
-    /// P2MR v4 outputs, and no payload/Annex/witness commitment carrier.
+    /// contract is validated first: consuming/reference inputs, P2MR outputs
+    /// and an empty private-state payload.
     pub fn to_bp_tx(&self) -> Result<Transaction> {
         use amplify::confinement::Confined;
 
         self.validate_tondi_native_rgb()?;
 
-        // Convert inputs: only Standard inputs are supported in Tondi-native mode.
         let inputs: Vec<TxIn> = self
             .inputs
             .iter()
-            .map(|input| {
-                let (previous_outpoint, signature_script, sequence) = match input {
-                    TondiTxInput::Standard {
-                        previous_outpoint,
-                        signature_script,
-                        sequence,
-                        ..
-                    } => (previous_outpoint, signature_script, sequence),
-                    _ => unreachable!("validate_tondi_native_rgb rejects non-standard inputs"),
-                };
-
-                Ok(TxIn {
+            .map(|input| match input {
+                TondiTxInput::Standard {
+                    previous_outpoint,
+                    signature_script,
+                    sequence,
+                    sig_op_count,
+                } => Ok(TxIn {
                     prev_output: (*previous_outpoint).into(),
                     sig_script: SigScript::from_checked(signature_script.clone()),
                     sequence: SeqNo::from_consensus_u32(bp_sequence_from_tondi(*sequence)?),
                     witness: Witness::new(),
-                })
+                    is_reference: false,
+                    sig_op_count: *sig_op_count,
+                }),
+                TondiTxInput::Reference { previous_outpoint } => Ok(TxIn {
+                    prev_output: (*previous_outpoint).into(),
+                    sig_script: SigScript::new(),
+                    sequence: SeqNo::from_consensus_u32(0),
+                    witness: Witness::new(),
+                    is_reference: true,
+                    sig_op_count: 0,
+                }),
             })
-            .collect::<Result<Vec<_>>>()?;
-
-        // Convert outputs: only Standard P2MR roots are supported.
-        let outputs = self
+            .collect::<Result<_>>()?;
+        let outputs: Vec<TxOut> = self
             .outputs
             .iter()
-            .map(|output| match output {
-                TondiTxOutput::Standard {
-                    value,
-                    script_public_key,
-                } => {
-                    script_public_key.validate_p2mr_root()?;
-                    Ok(TxOut {
-                        value: (*value).into(),
-                        script_pubkey_version: script_public_key.version,
-                        script_pubkey: ScriptPubkey::from_checked(script_public_key.script.clone()),
-                    })
-                }
-                _ => unreachable!("validate_tondi_native_rgb rejects non-standard outputs"),
+            .map(|output| TxOut {
+                value: output.value.into(),
+                script_pubkey_version: output.script_public_key.version,
+                script_pubkey: ScriptPubkey::from_checked(output.script_public_key.script.clone()),
+                datum: output.datum.clone(),
             })
-            .collect::<Result<Vec<TxOut>>>()?;
+            .collect();
 
         let payload = VarIntBytes::try_from(Vec::new()).map_err(|err| {
             Error::Serialization(format!(
@@ -476,9 +466,7 @@ impl TondiTransaction {
                     "too many transaction outputs for RGB bridge: {err}"
                 ))
             })?,
-            // Tondi-specific fields (required for Tondi consensus)
-            // Tondi uses 20 bytes for subnetwork_id, but RPC may return Bytes32 (32 bytes)
-            // Take only the first 20 bytes
+            // The adapter's hash-sized wrapper is zero-padded; the native ID is 20 bytes.
             subnetwork_id: {
                 let bytes32 = self.subnetwork_id.to_byte_array();
                 let mut subnetwork_id_20 = [0u8; 20];
@@ -495,12 +483,12 @@ impl TondiTransaction {
 fn bp_sequence_from_tondi(sequence: u64) -> Result<u32> {
     if sequence == u64::MAX {
         Ok(u32::MAX)
+    } else if sequence >= u32::MAX as u64 {
+        Err(Error::Serialization(format!(
+            "Tondi sequence {sequence} cannot be represented losslessly by the BP bridge"
+        )))
     } else {
-        u32::try_from(sequence).map_err(|_| {
-            Error::Serialization(format!(
-                "Tondi sequence {sequence} exceeds the BP sequence bridge width"
-            ))
-        })
+        Ok(sequence as u32)
     }
 }
 
@@ -656,21 +644,6 @@ pub struct ServerInfo {
     pub is_synced: bool,
     /// Virtual DAA score
     pub virtual_daa_score: DaaScore,
-}
-
-#[cfg(feature = "grpc")]
-impl From<crate::client::proto::GetInfoResponseMessage> for ServerInfo {
-    fn from(info: crate::client::proto::GetInfoResponseMessage) -> Self {
-        ServerInfo {
-            rpc_api_version: 0,
-            rpc_api_revision: 0,
-            server_version: info.server_version,
-            network_id: String::new(),
-            has_utxo_index: info.is_utxo_indexed,
-            is_synced: info.is_synced,
-            virtual_daa_score: 0,
-        }
-    }
 }
 
 #[cfg(feature = "grpc")]
@@ -869,90 +842,87 @@ impl From<crate::client::proto::RpcBlockVerboseData> for BlockVerboseData {
 }
 
 #[cfg(feature = "grpc")]
-fn proto_rpc_tx_to_tondi_tx(
+pub(crate) fn proto_rpc_tx_to_tondi_tx(
     rpc_tx: &crate::client::proto::RpcTransaction,
 ) -> Result<TondiTransaction> {
-    use crate::types::{TondiOutpoint, TondiTxInput, TondiTxOutput};
-
-    let inputs: Vec<TondiTxInput> = rpc_tx
+    use crate::client::proto::rpc_transaction_input::Input;
+    let inputs = rpc_tx
         .inputs
         .iter()
-        .map(|rpc_input| {
-            let previous_outpoint = rpc_input
+        .map(|input| {
+            let point = input
                 .previous_outpoint
                 .as_ref()
-                .ok_or_else(|| Error::InvalidServerResponse)?;
-            let Some(crate::client::proto::rpc_transaction_input::Input::Standard(standard)) =
-                rpc_input.input.as_ref()
-            else {
-                return Err(Error::InvalidNativeTransaction(
-                    "RGB-on-Tondi only supports Tondi Standard inputs".to_string(),
-                ));
+                .ok_or(Error::InvalidServerResponse)?;
+            let previous_outpoint = TondiOutpoint {
+                transaction_id: point
+                    .transaction_id
+                    .parse()
+                    .map_err(|_| Error::InvalidServerResponse)?,
+                index: point.index,
             };
-
-            Ok(TondiTxInput::Standard {
-                previous_outpoint: TondiOutpoint {
-                    transaction_id: parse_hash_or_zero(&previous_outpoint.transaction_id),
-                    index: previous_outpoint.index,
+            Ok(
+                match input.input.as_ref().ok_or(Error::InvalidServerResponse)? {
+                    Input::Standard(s) => TondiTxInput::Standard {
+                        previous_outpoint,
+                        signature_script: decode_hex_field(
+                            &s.signature_script,
+                            "signature_script",
+                        )?,
+                        sequence: s.sequence,
+                        sig_op_count: s
+                            .sig_op_count
+                            .try_into()
+                            .map_err(|_| Error::InvalidServerResponse)?,
+                    },
+                    Input::Reference(_) => TondiTxInput::Reference { previous_outpoint },
                 },
-                signature_script: decode_hex_field(&standard.signature_script, "signature_script")?,
-                sequence: standard.sequence,
-                sig_op_count: standard.sig_op_count as u8,
-            })
+            )
         })
         .collect::<Result<Vec<_>>>()?;
-
-    let outputs: Vec<TondiTxOutput> = rpc_tx
+    let outputs = rpc_tx
         .outputs
         .iter()
-        .map(|rpc_output| {
-            let Some(crate::client::proto::rpc_transaction_output::Output::Standard(standard)) =
-                rpc_output.output.as_ref()
-            else {
-                return Err(Error::InvalidNativeTransaction(
-                    "RGB-on-Tondi only supports Tondi Standard outputs".to_string(),
-                ));
-            };
-            let script_pubkey = standard
+        .map(|output| {
+            let spk = output
                 .script_public_key
                 .as_ref()
-                .ok_or_else(|| Error::InvalidServerResponse)?;
-
-            Ok(TondiTxOutput::Standard {
-                value: rpc_output.amount,
+                .ok_or(Error::InvalidServerResponse)?;
+            Ok(TondiTxOutput {
+                value: output.amount,
                 script_public_key: ScriptPublicKey {
-                    version: script_pubkey.version as u16,
-                    script: decode_hex_field(
-                        &script_pubkey.script_public_key,
-                        "script_public_key",
-                    )?,
+                    version: spk
+                        .version
+                        .try_into()
+                        .map_err(|_| Error::InvalidServerResponse)?,
+                    script: decode_hex_field(&spk.script_public_key, "script_public_key")?,
                 },
+                datum: output
+                    .datum
+                    .clone()
+                    .map(bp::Datum::try_from)
+                    .transpose()
+                    .map_err(|_| Error::InvalidServerResponse)?,
             })
         })
         .collect::<Result<Vec<_>>>()?;
-
-    let subnetwork_id = {
-        let bytes = decode_hex_field(&rpc_tx.subnetwork_id, "subnetwork_id")?;
-        if bytes.len() != 20 {
-            return Err(Error::InvalidServerResponse);
-        }
-        let mut bytes32 = [0u8; 32];
-        bytes32[0..20].copy_from_slice(&bytes);
-        Bytes32::from_byte_array(bytes32)
-    };
-
+    let subnet = decode_hex_field(&rpc_tx.subnetwork_id, "subnetwork_id")?;
+    if subnet.len() != 20 {
+        return Err(Error::InvalidServerResponse);
+    }
+    let mut subnetwork = [0; 32];
+    subnetwork[..20].copy_from_slice(&subnet);
     Ok(TondiTransaction {
-        version: rpc_tx.version as u16,
+        version: rpc_tx
+            .version
+            .try_into()
+            .map_err(|_| Error::InvalidServerResponse)?,
         inputs,
         outputs,
         lock_time: rpc_tx.lock_time,
-        subnetwork_id,
+        subnetwork_id: Bytes32::from_byte_array(subnetwork),
         gas: rpc_tx.gas,
-        payload: if rpc_tx.payload.is_empty() {
-            Vec::new()
-        } else {
-            decode_hex_field(&rpc_tx.payload, "payload")?
-        },
+        payload: decode_hex_field(&rpc_tx.payload, "payload")?,
         mass: rpc_tx.mass,
     })
 }
@@ -964,39 +934,24 @@ fn decode_hex_field(value: &str, field: &str) -> Result<Vec<u8>> {
 }
 
 #[cfg(feature = "grpc")]
-impl From<crate::client::proto::RpcUtxosByAddressesEntry> for UtxosByAddressEntry {
-    fn from(entry: crate::client::proto::RpcUtxosByAddressesEntry) -> Self {
-        let outpoint = entry.outpoint.as_ref();
-        UtxosByAddressEntry {
-            address: if entry.address.is_empty() {
-                None
-            } else {
-                Some(entry.address)
-            },
+impl TryFrom<crate::client::proto::RpcUtxosByAddressesEntry> for UtxosByAddressEntry {
+    type Error = Error;
+    fn try_from(entry: crate::client::proto::RpcUtxosByAddressesEntry) -> Result<Self> {
+        let point = entry.outpoint.ok_or(Error::InvalidServerResponse)?;
+        Ok(Self {
+            address: (!entry.address.is_empty()).then_some(entry.address),
             outpoint: TondiOutpoint {
-                transaction_id: outpoint
-                    .and_then(|op| {
-                        op.transaction_id
-                            .trim_start_matches("0x")
-                            .parse::<TondiBlockHash>()
-                            .ok()
-                    })
-                    .unwrap_or_else(|| TondiBlockHash::from_byte_array([0u8; 32])),
-                index: outpoint.map(|op| op.index).unwrap_or(0),
+                transaction_id: point
+                    .transaction_id
+                    .parse()
+                    .map_err(|_| Error::InvalidServerResponse)?,
+                index: point.index,
             },
             utxo_entry: entry
                 .utxo_entry
-                .map(TondiUtxoEntry::from)
-                .unwrap_or_else(|| TondiUtxoEntry {
-                    amount: 0,
-                    script_public_key: ScriptPublicKey {
-                        version: 0,
-                        script: Vec::new(),
-                    },
-                    block_daa_score: 0,
-                    is_coinbase: false,
-                }),
-        }
+                .ok_or(Error::InvalidServerResponse)?
+                .try_into()?,
+        })
     }
 }
 
@@ -1015,23 +970,28 @@ impl From<crate::client::proto::RpcBalancesByAddressesEntry> for BalanceByAddres
 }
 
 #[cfg(feature = "grpc")]
-impl From<crate::client::proto::RpcUtxoEntry> for TondiUtxoEntry {
-    fn from(entry: crate::client::proto::RpcUtxoEntry) -> Self {
-        TondiUtxoEntry {
+impl TryFrom<crate::client::proto::RpcUtxoEntry> for TondiUtxoEntry {
+    type Error = Error;
+    fn try_from(entry: crate::client::proto::RpcUtxoEntry) -> Result<Self> {
+        let spk = entry
+            .script_public_key
+            .ok_or(Error::InvalidServerResponse)?;
+        Ok(Self {
             amount: entry.amount,
-            script_public_key: entry
-                .script_public_key
-                .map(|spk| ScriptPublicKey {
-                    version: spk.version as u16,
-                    script: hex::decode(spk.script_public_key.trim_start_matches("0x"))
-                        .unwrap_or_else(|_| Vec::new()),
-                })
-                .unwrap_or_else(|| ScriptPublicKey {
-                    version: 0,
-                    script: Vec::new(),
-                }),
+            script_public_key: ScriptPublicKey {
+                version: spk
+                    .version
+                    .try_into()
+                    .map_err(|_| Error::InvalidServerResponse)?,
+                script: decode_hex_field(&spk.script_public_key, "script_public_key")?,
+            },
             block_daa_score: entry.block_daa_score,
             is_coinbase: entry.is_coinbase,
-        }
+            datum: entry
+                .datum
+                .map(bp::Datum::try_from)
+                .transpose()
+                .map_err(|_| Error::InvalidServerResponse)?,
+        })
     }
 }

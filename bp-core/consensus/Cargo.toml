@@ -51,3 +51,6 @@ features = ["all"]
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
+
+[dev-dependencies]
+serde_json.workspace = true

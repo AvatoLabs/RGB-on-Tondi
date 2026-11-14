@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 #[cfg(feature = "grpc")]
-use amplify::{hex::ToHex, ByteArray, Bytes32};
+use amplify::{hex::ToHex, ByteArray};
 
 use crate::{
     BalanceByAddressEntry, DagInfo, Error, FeeBucket, FeeEstimate, MempoolEntry, NetworkType,
@@ -31,90 +31,59 @@ fn next_request_id() -> Result<u64> {
 
 #[cfg(feature = "grpc")]
 fn tondi_tx_to_proto(tx: &TondiTransaction) -> Result<proto::RpcTransaction> {
-    use crate::types::{TondiTxInput, TondiTxOutput};
-
+    use crate::TondiTxInput;
     tx.validate_tondi_native_rgb()?;
-
-    // Tondi v1.22.0 compatible proto format: flat fields without oneof wrappers.
-    let rpc_inputs: Vec<proto::RpcTransactionInput> = tx
+    let inputs = tx
         .inputs
         .iter()
-        .map(|input| match input {
-            TondiTxInput::Standard {
-                previous_outpoint,
-                signature_script,
-                sequence,
-                sig_op_count,
-            } => Ok(proto::RpcTransactionInput {
+        .map(|input| {
+            let point = input.previous_outpoint();
+            let kind = match input {
+                TondiTxInput::Standard {
+                    signature_script,
+                    sequence,
+                    sig_op_count,
+                    ..
+                } => proto::rpc_transaction_input::Input::Standard(proto::RpcStandardInput {
+                    signature_script: hex::encode(signature_script),
+                    sequence: *sequence,
+                    sig_op_count: (*sig_op_count).into(),
+                }),
+                TondiTxInput::Reference { .. } => {
+                    proto::rpc_transaction_input::Input::Reference(proto::RpcReferenceInput {})
+                }
+            };
+            proto::RpcTransactionInput {
                 previous_outpoint: Some(proto::RpcOutpoint {
-                    transaction_id: previous_outpoint.transaction_id.to_hex(),
-                    index: previous_outpoint.index,
+                    transaction_id: point.transaction_id.to_hex(),
+                    index: point.index,
                 }),
                 verbose_data: None,
-                input: Some(proto::rpc_transaction_input::Input::Standard(
-                    proto::RpcStandardInput {
-                        signature_script: signature_script.to_hex(),
-                        sequence: *sequence,
-                        sig_op_count: *sig_op_count as u32,
-                    },
-                )),
-            }),
-            _ => Err(Error::InvalidNativeTransaction(
-                "RGB-on-Tondi only supports Tondi Standard inputs".to_string(),
-            )),
+                input: Some(kind),
+            }
         })
-        .collect::<Result<Vec<_>>>()?;
-
-    let rpc_outputs: Vec<proto::RpcTransactionOutput> = tx
+        .collect();
+    let outputs = tx
         .outputs
         .iter()
-        .map(|output| match output {
-            TondiTxOutput::Standard {
-                value,
-                script_public_key,
-            } => Ok(proto::RpcTransactionOutput {
-                amount: *value,
-                verbose_data: None,
-                output: Some(proto::rpc_transaction_output::Output::Standard(
-                    proto::RpcStandardOutput {
-                        script_public_key: Some(proto::RpcScriptPublicKey {
-                            version: script_public_key.version as u32,
-                            script_public_key: script_public_key.script.to_hex(),
-                        }),
-                    },
-                )),
+        .map(|output| proto::RpcTransactionOutput {
+            amount: output.value,
+            script_public_key: Some(proto::RpcScriptPublicKey {
+                version: output.script_public_key.version.into(),
+                script_public_key: hex::encode(&output.script_public_key.script),
             }),
-            _ => Err(Error::InvalidNativeTransaction(
-                "RGB-on-Tondi only supports Tondi Standard P2MR outputs".to_string(),
-            )),
+            datum: output.datum.as_ref().map(|d| d.to_vec()),
+            verbose_data: None,
         })
-        .collect::<Result<Vec<_>>>()?;
-
-    // Keep subnetwork ID and payload encoding compatible with the Tondi gRPC server.
-    // Hex string fields are sent without a 0x prefix.
-    let subnetwork_id_hex = {
-        let bytes32 = tx.subnetwork_id.to_byte_array();
-        let mut subnetwork_id_20 = [0u8; 20];
-        subnetwork_id_20.copy_from_slice(&bytes32[..20]);
-        // Always send 40 plain hex characters.
-        hex::encode(subnetwork_id_20)
-    };
-
-    // Empty payloads are encoded as an empty string; non-empty payloads use plain hex.
-    let payload_encoded = if tx.payload.is_empty() {
-        "".to_string()
-    } else {
-        tx.payload.to_hex()
-    };
-
+        .collect();
     Ok(proto::RpcTransaction {
-        version: tx.version as u32,
-        inputs: rpc_inputs,
-        outputs: rpc_outputs,
+        version: tx.version.into(),
+        inputs,
+        outputs,
         lock_time: tx.lock_time,
-        subnetwork_id: subnetwork_id_hex,
+        subnetwork_id: hex::encode(&tx.subnetwork_id.to_byte_array()[..20]),
         gas: tx.gas,
-        payload: payload_encoded,
+        payload: hex::encode(&tx.payload),
         mass: tx.mass,
         verbose_data: None,
     })
@@ -122,121 +91,8 @@ fn tondi_tx_to_proto(tx: &TondiTransaction) -> Result<proto::RpcTransaction> {
 
 /// Convert proto::RpcTransaction back to TondiTransaction
 #[cfg(feature = "grpc")]
-fn proto_to_tondi_tx(rpc_tx: &proto::RpcTransaction) -> Result<TondiTransaction> {
-    use crate::types::{ScriptPublicKey, TondiOutpoint, TondiTxInput, TondiTxOutput};
-
-    // Convert inputs
-    let inputs: Vec<TondiTxInput> = rpc_tx
-        .inputs
-        .iter()
-        .map(|rpc_input| {
-            let previous_outpoint = rpc_input
-                .previous_outpoint
-                .as_ref()
-                .ok_or_else(|| Error::RpcCall("Missing previous_outpoint".into()))?;
-
-            let txid = hex::decode(&previous_outpoint.transaction_id)
-                .map_err(|e| Error::RpcCall(format!("Failed to decode transaction_id: {}", e)))?;
-
-            if txid.len() != 32 {
-                return Err(Error::RpcCall(format!(
-                    "Invalid transaction_id length: {} (expected 32)",
-                    txid.len()
-                )));
-            }
-
-            let txid_bytes: [u8; 32] = txid
-                .try_into()
-                .map_err(|_| Error::RpcCall("Failed to convert txid to array".into()))?;
-
-            let Some(proto::rpc_transaction_input::Input::Standard(standard)) =
-                rpc_input.input.as_ref()
-            else {
-                return Err(Error::InvalidNativeTransaction(
-                    "RGB-on-Tondi only supports Tondi Standard inputs".to_string(),
-                ));
-            };
-
-            let signature_script = hex::decode(&standard.signature_script)
-                .map_err(|e| Error::RpcCall(format!("Failed to decode signature_script: {}", e)))?;
-
-            Ok(TondiTxInput::Standard {
-                previous_outpoint: TondiOutpoint {
-                    transaction_id: Bytes32::from_byte_array(txid_bytes),
-                    index: previous_outpoint.index,
-                },
-                signature_script,
-                sequence: standard.sequence,
-                sig_op_count: standard.sig_op_count as u8,
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    // Convert outputs
-    let outputs: Vec<TondiTxOutput> = rpc_tx
-        .outputs
-        .iter()
-        .map(|rpc_output| {
-            let Some(proto::rpc_transaction_output::Output::Standard(standard)) =
-                rpc_output.output.as_ref()
-            else {
-                return Err(Error::InvalidNativeTransaction(
-                    "RGB-on-Tondi only supports Tondi Standard outputs".to_string(),
-                ));
-            };
-            let script_pubkey = standard
-                .script_public_key
-                .as_ref()
-                .ok_or_else(|| Error::RpcCall("Missing script_public_key".into()))?;
-
-            let script = hex::decode(&script_pubkey.script_public_key)
-                .map_err(|e| Error::RpcCall(format!("Failed to decode script: {}", e)))?;
-
-            Ok(TondiTxOutput::Standard {
-                value: rpc_output.amount,
-                script_public_key: ScriptPublicKey {
-                    version: script_pubkey.version as u16,
-                    script,
-                },
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    // Convert subnetwork_id (from 40-char hex string to Bytes32)
-    let subnetwork_id = {
-        let subnetwork_bytes = hex::decode(&rpc_tx.subnetwork_id)
-            .map_err(|e| Error::RpcCall(format!("Failed to decode subnetwork_id: {}", e)))?;
-
-        if subnetwork_bytes.len() != 20 {
-            return Err(Error::RpcCall(format!(
-                "Invalid subnetwork_id length: {} (expected 20)",
-                subnetwork_bytes.len()
-            )));
-        }
-
-        let mut bytes32 = [0u8; 32];
-        bytes32[0..20].copy_from_slice(&subnetwork_bytes);
-        Bytes32::from_byte_array(bytes32)
-    };
-
-    // Convert payload (from hex string to bytes)
-    let payload = if rpc_tx.payload.is_empty() {
-        Vec::new()
-    } else {
-        hex::decode(&rpc_tx.payload)
-            .map_err(|e| Error::RpcCall(format!("Failed to decode payload: {}", e)))?
-    };
-
-    Ok(TondiTransaction {
-        version: rpc_tx.version as u16,
-        inputs,
-        outputs,
-        lock_time: rpc_tx.lock_time,
-        subnetwork_id,
-        gas: rpc_tx.gas,
-        payload,
-        mass: rpc_tx.mass,
-    })
+fn proto_to_tondi_tx(tx: &proto::RpcTransaction) -> Result<TondiTransaction> {
+    crate::types::proto_rpc_tx_to_tondi_tx(tx)
 }
 
 #[cfg(feature = "grpc")]
@@ -436,10 +292,12 @@ impl TondiClient {
 
             let inner = proto::rpc_client::RpcClient::new(channel);
 
-            Ok(Self {
+            let client = Self {
                 config,
                 inner: Some(inner),
-            })
+            };
+            client.get_server_info().await?;
+            Ok(client)
         }
 
         #[cfg(not(feature = "grpc"))]
@@ -481,59 +339,59 @@ impl TondiClient {
             let mut client = self
                 .inner
                 .as_ref()
-                .ok_or_else(|| {
-                    Error::Connection("Client not connected. Call connect() first.".into())
-                })?
+                .ok_or_else(|| Error::Connection("not connected".into()))?
                 .clone();
-
-            let request_id = next_request_id()?;
-
-            let get_info_request = proto::GetInfoRequestMessage {};
-
-            let tondid_request = proto::TondidRequest {
-                id: request_id,
-                payload: Some(proto::tondid_request::Payload::GetInfoRequest(
-                    get_info_request,
+            let id = next_request_id()?;
+            let request = proto::TondidRequest {
+                id,
+                payload: Some(proto::tondid_request::Payload::GetServerInfoRequest(
+                    proto::GetServerInfoRequestMessage {},
                 )),
             };
-
-            let response = client.message_stream(tonic::Request::new(tokio_stream::once(tondid_request))).await.map_err(|e| {
-                Error::RpcCall(format!(
-                    "Failed to establish message stream: {}. Make sure the node is accessible at {}",
-                    e, self.config.endpoint
+            let (sender, receiver) = tokio::sync::mpsc::channel(1);
+            sender
+                .send(request)
+                .await
+                .map_err(|_| Error::Connection("request stream closed".into()))?;
+            let mut stream = client
+                .message_stream(tonic::Request::new(
+                    tokio_stream::wrappers::ReceiverStream::new(receiver),
                 ))
-            })?;
-
-            let mut response_stream = response.into_inner();
-            use tokio_stream::StreamExt;
-
-            while let Some(response_result) = response_stream.next().await {
-                let tondid_response = response_result.map_err(|e| {
-                    Error::RpcCall(format!("Failed to receive response from stream: {}", e))
-                })?;
-
-                if tondid_response.id != request_id {
+                .await
+                .map_err(|e| Error::RpcCall(e.to_string()))?
+                .into_inner();
+            loop {
+                let msg = tokio::time::timeout(
+                    self.config.timeout.unwrap_or(Duration::from_secs(30)),
+                    stream.message(),
+                )
+                .await
+                .map_err(|_| Error::RpcCall("GetServerInfo timed out".into()))?
+                .map_err(|e| Error::RpcCall(e.to_string()))?
+                .ok_or_else(|| Error::RpcCall("GetServerInfo stream closed".into()))?;
+                if msg.id != id {
                     continue;
                 }
-
-                if let Some(proto::tondid_response::Payload::GetInfoResponse(info_response)) =
-                    tondid_response.payload
-                {
-                    return Ok(ServerInfo::from(info_response));
+                let Some(proto::tondid_response::Payload::GetServerInfoResponse(info)) =
+                    msg.payload
+                else {
+                    return Err(Error::InvalidServerResponse);
+                };
+                if let Some(error) = info.error {
+                    return Err(Error::RpcCall(error.message));
                 }
+                if info.rpc_api_version != 2 {
+                    return Err(Error::InvalidNativeTransaction(format!(
+                        "unsupported node RPC API {}, expected 2",
+                        info.rpc_api_version
+                    )));
+                }
+                return Ok(info.into());
             }
-
-            Err(Error::RpcCall(format!(
-                "No response received for GetInfo request ID {}",
-                request_id
-            )))
         }
-
         #[cfg(not(feature = "grpc"))]
         {
-            Err(Error::Connection(
-                "gRPC feature not enabled. Enable it with 'grpc' feature flag.".into(),
-            ))
+            Err(Error::Connection("gRPC feature is required".into()))
         }
     }
 
@@ -1666,8 +1524,8 @@ impl TondiClient {
                     let entries: Vec<UtxosByAddressEntry> = utxos_response
                         .entries
                         .into_iter()
-                        .map(UtxosByAddressEntry::from)
-                        .collect();
+                        .map(UtxosByAddressEntry::try_from)
+                        .collect::<Result<_>>()?;
 
                     return Ok((entries, utxos_response.total));
                 }
@@ -1788,8 +1646,8 @@ impl TondiClient {
                     let entries = utxos_response
                         .entries
                         .into_iter()
-                        .map(UtxosByAddressEntry::from)
-                        .collect();
+                        .map(UtxosByAddressEntry::try_from)
+                        .collect::<Result<_>>()?;
                     return Ok(entries);
                 }
             }
@@ -2176,5 +2034,60 @@ mod tests {
         assert!(!is_virtual_chain_cursor_unavailable(&Error::RpcCall(
             "GetVirtualChainFromBlock failed: node is not synced".to_string()
         )));
+    }
+}
+
+#[cfg(all(test, feature = "grpc"))]
+mod current_native_rpc_tests {
+    use super::*;
+    use crate::{ScriptPublicKey, TondiOutpoint, TondiTxInput, TondiTxOutput};
+    #[test]
+    fn current_rpc_preserves_reference_kind_and_all_datum_presence_states() {
+        for datum in [
+            None,
+            Some(bp::Datum::from_checked(vec![])),
+            Some(bp::Datum::from_checked(vec![1; 4096])),
+        ] {
+            let tx = TondiTransaction {
+                version: bp::TONDI_TX_VERSION,
+                inputs: vec![TondiTxInput::Reference {
+                    previous_outpoint: TondiOutpoint {
+                        transaction_id: amplify::Bytes32::from_byte_array([1; 32]),
+                        index: 0,
+                    },
+                }],
+                outputs: vec![TondiTxOutput {
+                    value: 1000,
+                    script_public_key: ScriptPublicKey {
+                        version: 4,
+                        script: vec![3; 32],
+                    },
+                    datum: datum.clone(),
+                }],
+                lock_time: 0,
+                subnetwork_id: amplify::Bytes32::from_byte_array([0; 32]),
+                gas: 0,
+                payload: vec![],
+                mass: 0,
+            };
+            let wire = tondi_tx_to_proto(&tx).unwrap();
+            assert_eq!(wire.outputs[0].datum, datum.as_ref().map(|d| d.to_vec()));
+            let restored = proto_to_tondi_tx(&wire).unwrap();
+            assert!(restored.inputs[0].is_reference());
+            assert_eq!(restored.to_bp_tx().unwrap(), tx.to_bp_tx().unwrap());
+        }
+    }
+    #[test]
+    fn missing_or_oversized_utxo_fields_are_errors() {
+        assert!(crate::TondiUtxoEntry::try_from(proto::RpcUtxoEntry::default()).is_err());
+        let entry = proto::RpcUtxoEntry {
+            script_public_key: Some(proto::RpcScriptPublicKey {
+                version: 4,
+                script_public_key: hex::encode([3; 32]),
+            }),
+            datum: Some(vec![0; 4097]),
+            ..Default::default()
+        };
+        assert!(crate::TondiUtxoEntry::try_from(entry).is_err());
     }
 }

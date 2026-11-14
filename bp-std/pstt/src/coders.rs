@@ -74,6 +74,8 @@ impl From<ConsensusDecodeError> for DecodeError {
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PsttError {
+    /// invalid or missing current Tondi PSTT fields.
+    InvalidTondiFields,
     /// unexpected end of data.
     UnexpectedEod,
 
@@ -187,11 +189,14 @@ pub trait Encode {
 }
 
 impl<T: Encode> Encode for &T {
-    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> { (*self).encode(writer) }
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        (*self).encode(writer)
+    }
 }
 
 pub trait Decode
-where Self: Sized
+where
+    Self: Sized,
 {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError>;
     fn deserialize(bytes: impl AsRef<[u8]>) -> Result<Self, PsttError> {
@@ -209,6 +214,8 @@ impl Pstt {
     const MAGIC: [u8; 5] = *b"pstt\xFF";
 
     pub fn encode(&self, ver: PsttVer, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.validate_native()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
         let mut counter = Self::MAGIC.len();
         writer.write_all(&Self::MAGIC)?;
 
@@ -262,6 +269,7 @@ impl Pstt {
             output.parse_map(version, map)?;
         }
 
+        pstt.validate_native()?;
         Ok(pstt)
     }
 
@@ -647,26 +655,17 @@ impl Decode for UnsignedTx {
 
 impl Encode for UnsignedTxIn {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        let mut counter = 0;
-        counter += self.prev_output.encode(writer)?;
-        counter += VarInt::new(0).encode(writer)?;
-        counter += self.sequence.encode(writer)?;
-        Ok(counter)
+        let txin: derive::TxIn = self.clone().into();
+        txin.consensus_encode(&mut WriteWrap(writer))
     }
 }
-
 impl Decode for UnsignedTxIn {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let prev_output = Outpoint::decode(reader)?;
-        let sig_script_len = VarInt::decode(reader)?;
-        if sig_script_len != 0u64 {
+        let input = derive::TxIn::consensus_decode(reader)?;
+        if !input.sig_script.is_empty() {
             return Err(PsttError::SignedTx.into());
         }
-        let sequence = SeqNo::decode(reader)?;
-        Ok(UnsignedTxIn {
-            prev_output,
-            sequence,
-        })
+        Ok(input.into())
     }
 }
 
@@ -679,8 +678,12 @@ macro_rules! pstt_code_using_consensus {
 
 struct WriteWrap<'a>(&'a mut dyn Write);
 impl Write for WriteWrap<'_> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> { self.0.write(buf) }
-    fn flush(&mut self) -> io::Result<()> { self.0.flush() }
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
 }
 
 macro_rules! pstt_encode_from_consensus {
@@ -997,9 +1000,13 @@ impl<A: Decode, B: Decode> Decode for (A, B) {
 }
 
 impl Encode for () {
-    fn encode(&self, _writer: &mut dyn Write) -> Result<usize, IoError> { Ok(0) }
+    fn encode(&self, _writer: &mut dyn Write) -> Result<usize, IoError> {
+        Ok(0)
+    }
 }
 
 impl Decode for () {
-    fn decode(_reader: &mut impl Read) -> Result<Self, DecodeError> { Ok(()) }
+    fn decode(_reader: &mut impl Read) -> Result<Self, DecodeError> {
+        Ok(())
+    }
 }

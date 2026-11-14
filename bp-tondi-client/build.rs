@@ -1,8 +1,8 @@
 fn main() {
     #[cfg(feature = "grpc")]
     {
-        // Use local proto files compatible with the Tondi v1.22.0 server format.
-        // RpcTransactionInput and RpcTransactionOutput use flat fields without oneof wrappers.
+        // Build the current Tondi RPC contract. Older node formats are unsupported.
+        // Outputs are plain records; inputs distinguish consuming and read-only references.
         let local_proto_path = "proto";
 
         let rpc_proto = format!("{}/rpc.proto", local_proto_path);

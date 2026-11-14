@@ -2,7 +2,9 @@
 
 This workspace contains the Tondi-native RGB client-side validation stack. It keeps the RGB contract model while making Tondi P2MR outputs, Tondi RPC, and PSTT transaction handling the production path.
 
-The active design goal is simple: contract state stays private with the client, while the public chain only carries a compact P2MR commitment in a spendable Tondi output.
+Private contract state remains with the client. Current Tondi version-1 transactions anchor it through P2MR; bounded public Datum and pinned read-only UTXO references are explicit opt-in application facilities.
+
+See [the current design and capability boundaries](docs/RGB_ON_TONDI.md). This is prelaunch development software; old transaction and store formats are not supported.
 
 ## Architecture
 

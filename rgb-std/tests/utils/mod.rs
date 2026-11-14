@@ -1,27 +1,21 @@
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::fs;
-use std::io::{self, Read};
 use std::path::PathBuf;
 
-use aluvm::{aluasm, Lib};
-use amplify::confinement::{Confined, SmallOrdSet, U24 as U24MAX};
+use amplify::confinement::Confined;
 use amplify::none;
-use binfile::BinFile;
 use bp::seals::{Anchor, TxoSeal, WTxoSeal};
 use bp::{LockTime, Tx, VarIntBytes};
 use commit_verify::{DigestExt, TondiBlake3};
 use hypersonic::CallParams;
 use rand::prelude::SliceRandom;
 use rand::rng;
-use rgb::{
-    Assignment, CellAddr, Codex, Contract, CoreParams, CreateParams, Issuer, NamedState, Outpoint,
-    Semantics, ISSUER_MAGIC_NUMBER, ISSUER_VERSION,
-};
+use rgb::{Assignment, CellAddr, Contract, CoreParams, CreateParams, Issuer, NamedState, Outpoint};
 use rgb_persist_fs::{PileFs, StockFs};
 use rgbcore::{ContractApi, RgbSealDef};
 use single_use_seals::SealWitness;
-use strict_encoding::{vname, StreamReader, StrictDecode, StrictDumb};
+use strict_encoding::{vname, StrictDumb};
 
 pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
     let mut noise_engine = TondiBlake3::default();
@@ -127,36 +121,6 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
 }
 
 fn load_test_issuer() -> Issuer {
-    let path = "tests/data/Test.issuer";
-    if let Ok(issuer) = Issuer::load(path, |_, _, _| -> Result<_, Infallible> { unreachable!() }) {
-        return issuer;
-    }
-
-    let file = BinFile::<ISSUER_MAGIC_NUMBER, ISSUER_VERSION>::open(path).unwrap();
-    let mut reader = StreamReader::new::<U24MAX>(file);
-    let mut codex = Codex::strict_read(&mut reader).unwrap();
-    let mut semantics = Semantics::strict_read(&mut reader).unwrap();
-    let verifier = Lib::assemble(&aluasm! { stop; }).unwrap();
-    let verifier_id = verifier.lib_id();
-    for site in codex.verifiers.values_mut() {
-        site.lib_id = verifier_id;
-        site.offset = 0;
-    }
-
-    let codex_id = codex.codex_id();
-    semantics.default.codex_id = codex_id;
-    for api in semantics.custom.values_mut() {
-        api.codex_id = codex_id;
-    }
-    semantics.codex_libs =
-        SmallOrdSet::try_from_iter(semantics.codex_libs.iter().cloned().chain([verifier])).unwrap();
-
-    let _sig = Option::<rgb::SigBlob>::strict_read(&mut reader).unwrap();
-    match reader.unconfine().read_exact(&mut [0u8; 1]) {
-        Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {}
-        Err(err) => panic!("failed to read test issuer fixture: {err}"),
-        Ok(()) => panic!("test issuer fixture has trailing data"),
-    }
-
-    Issuer::new(codex, semantics).unwrap()
+    Issuer::load("tests/data/Test.issuer", |_, _, _| -> Result<_, Infallible> { unreachable!() })
+        .expect("bundled development issuer uses the current format")
 }

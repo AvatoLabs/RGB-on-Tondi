@@ -56,6 +56,8 @@ mod pubkeys;
 mod segwit;
 mod taproot;
 mod tx;
+mod p2mr;
+pub use p2mr::{tondi_p2mr_script_sighash, P2mrSigningError};
 mod hashtypes;
 mod sigtypes;
 mod timelocks;
@@ -92,8 +94,9 @@ pub use timelocks::{
     TimelockParseError, LOCKTIME_THRESHOLD, SEQ_NO_CSV_DISABLE_MASK, SEQ_NO_CSV_TYPE_MASK,
 };
 pub use tx::{
-    BlockDataParseError, Outpoint, OutpointParseError, Sats, TondiOutpoint, TondiTxid, Tx, TxIn,
-    TxOut, TxVer, Txid, Vout, TONDI_CLASSIC_SCRIPT_VERSION, TONDI_P2MR_SCRIPT_VERSION,
+    BlockDataParseError, Datum, Outpoint, OutpointParseError, Sats, TondiOutpoint, TondiTxid, Tx,
+    TxIn, TxOut, TxVer, Txid, Vout, MAX_DATUM_SIZE, TONDI_CLASSIC_SCRIPT_VERSION,
+    TONDI_P2MR_SCRIPT_VERSION, TONDI_TX_VERSION,
 };
 pub use util::NonStandardValue;
 pub use weights::{VBytes, Weight, WeightUnits};

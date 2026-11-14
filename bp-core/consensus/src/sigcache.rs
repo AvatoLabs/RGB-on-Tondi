@@ -20,6 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use amplify::ByteArray;
 use std::borrow::Borrow;
 
 use amplify::{Bytes32, IoError};
@@ -49,6 +50,8 @@ pub struct PrevoutMismatch {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum SighashError {
+    /// unsupported native P2MR signing context; use Default script-path signing without annex.
+    InvalidTondiP2mrContext,
     /// invalid input index {index} in {txid} which has only {inputs} inputs.
     InvalidInputIndex {
         txid: Txid,
@@ -66,7 +69,9 @@ pub enum SighashError {
 }
 
 impl From<IoError> for SighashError {
-    fn from(_: IoError) -> Self { unreachable!("in-memory I/O doesn't error in Rust") }
+    fn from(_: IoError) -> Self {
+        unreachable!("in-memory I/O doesn't error in Rust")
+    }
 }
 
 /// Efficiently calculates signature hash message for legacy, segwit and taproot
@@ -150,6 +155,27 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
         leaf_hash_code_separator: Option<(TapLeafHash, u32)>,
         sighash_type: Option<SighashType>,
     ) -> Result<TapSighash, SighashError> {
+        if self
+            .prevouts
+            .get(input_index)
+            .is_some_and(|p| p.borrow().script_pubkey_version == crate::TONDI_P2MR_SCRIPT_VERSION)
+        {
+            let Some((leaf, u32::MAX)) = leaf_hash_code_separator else {
+                return Err(SighashError::InvalidTondiP2mrContext);
+            };
+            if annex.is_some() || sighash_type.is_some() {
+                return Err(SighashError::InvalidTondiP2mrContext);
+            }
+            let previous = self.prevouts.iter().map(|p| p.borrow().clone()).collect::<Vec<TxOut>>();
+            let hash = crate::tondi_p2mr_script_sighash(
+                self.tx.borrow(),
+                &previous,
+                input_index,
+                leaf.to_byte_array(),
+            )
+            .map_err(|_| SighashError::InvalidTondiP2mrContext)?;
+            return Ok(TapSighash::from_byte_array(hash));
+        }
         let mut hasher = TapSighash::engine();
 
         let SighashType {
@@ -410,6 +436,8 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
         let sig_script = script_pubkey.as_script_bytes().clone().into();
         if anyone_can_pay {
             tx.inputs = VarIntArray::from_checked(vec![TxIn {
+                is_reference: tx_src.inputs[input_index].is_reference,
+                sig_op_count: tx_src.inputs[input_index].sig_op_count,
                 prev_output: tx_src.inputs[input_index].prev_output,
                 sig_script,
                 sequence: tx_src.inputs[input_index].sequence,
@@ -417,6 +445,8 @@ impl<Prevout: Borrow<TxOut>, Tx: Borrow<Transaction>> SighashCache<Prevout, Tx> 
             }]);
         } else {
             let inputs = tx_src.inputs.iter().enumerate().map(|(n, input)| TxIn {
+                is_reference: input.is_reference,
+                sig_op_count: input.sig_op_count,
                 prev_output: input.prev_output,
                 sig_script: if n == input_index { sig_script.clone() } else { SigScript::new() },
                 sequence: if n != input_index

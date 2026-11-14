@@ -117,7 +117,9 @@ impl TondiResolver {
     }
 
     /// Get the current network
-    pub fn network(&self) -> AddressNetwork { self.network }
+    pub fn network(&self) -> AddressNetwork {
+        self.network
+    }
 
     /// Get a full Tondi-native transaction.
     ///
@@ -181,12 +183,8 @@ impl TondiResolver {
         }
 
         let output = &tx.outputs[tondi_outpoint.index as usize];
-        let (expected_value, address) = match output {
-            tondi::TondiTxOutput::Standard { value, script_public_key } => {
-                (*value, tondi_script_public_key_address(self.network, script_public_key)?)
-            }
-            _ => return Ok(None),
-        };
+        let expected_value = output.value;
+        let address = tondi_script_public_key_address(self.network, &output.script_public_key)?;
 
         let live_utxo = client
             .get_utxos_by_address(&address)
@@ -197,7 +195,11 @@ impl TondiResolver {
         let Some(live_utxo) = live_utxo else {
             return Ok(None);
         };
-        if live_utxo.utxo_entry.amount != expected_value {
+        if live_utxo.utxo_entry.amount != expected_value
+            || live_utxo.utxo_entry.script_public_key.version != output.script_public_key.version
+            || live_utxo.utxo_entry.script_public_key.script != output.script_public_key.script
+            || live_utxo.utxo_entry.datum != output.datum
+        {
             return Err(ResolverError::Protocol);
         }
 
@@ -482,78 +484,7 @@ impl TondiResolver {
 /// must arrive here with Tondi P2MR roots in every output script and final
 /// Tondi unlock data in `sig_script`; witness and payload must be empty.
 fn convert_bp_to_tondi_tx(tx: &Tx) -> Result<tondi::TondiTransaction, ResolverError> {
-    use tondi::{ScriptPublicKey, TondiOutpoint, TondiTransaction, TondiTxInput, TondiTxOutput};
-
-    if !tx.payload.is_empty() {
-        return Err(ResolverError::Protocol);
-    }
-
-    let inputs: Vec<TondiTxInput> = tx
-        .inputs
-        .iter()
-        .map(|input| {
-            if !input.witness.is_empty() {
-                return Err(ResolverError::Protocol);
-            }
-
-            let signature_script = input.sig_script.to_vec();
-            let sig_op_count = if signature_script.is_empty() { 0 } else { 1 };
-
-            Ok(TondiTxInput::Standard {
-                previous_outpoint: TondiOutpoint {
-                    transaction_id: tondi_txid_from_bp_txid(input.prev_output.txid)?,
-                    index: input.prev_output.vout.to_u32(),
-                },
-                signature_script,
-                sequence: tondi_wire_sequence(input.sequence.to_consensus_u32()),
-                sig_op_count,
-            })
-        })
-        .collect::<Result<Vec<_>, ResolverError>>()?;
-
-    let outputs: Vec<TondiTxOutput> = tx
-        .outputs
-        .iter()
-        .map(|output| {
-            let script_public_key = ScriptPublicKey {
-                version: output.script_pubkey_version,
-                script: output.script_pubkey.to_vec(),
-            };
-            script_public_key
-                .validate_p2mr_root()
-                .map_err(|_| ResolverError::Protocol)?;
-
-            Ok(TondiTxOutput::Standard { value: output.value.sats(), script_public_key })
-        })
-        .collect::<Result<Vec<_>, ResolverError>>()?;
-
-    let transaction = TondiTransaction {
-        version: tx.version.to_consensus_u16(),
-        inputs,
-        outputs,
-        lock_time: tx.lock_time.to_consensus_u64(),
-        subnetwork_id: {
-            let mut bytes32 = [0u8; 32];
-            bytes32[0..20].copy_from_slice(&tx.subnetwork_id);
-            amplify::Bytes32::from_byte_array(bytes32)
-        },
-        gas: tx.gas,
-        payload: Vec::new(),
-        mass: tx.mass,
-    };
-    transaction
-        .validate_tondi_native_rgb()
-        .map_err(|_| ResolverError::Protocol)?;
-
-    Ok(transaction)
-}
-
-fn tondi_wire_sequence(sequence: u32) -> u64 {
-    if sequence == u32::MAX {
-        u64::MAX
-    } else {
-        sequence as u64
-    }
+    tondi::TondiTransaction::from_bp_tx(tx).map_err(|_| ResolverError::Protocol)
 }
 
 fn tondi_txid_from_bp_txid(txid: Txid) -> Result<amplify::Bytes32, ResolverError> {

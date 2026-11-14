@@ -44,7 +44,9 @@ extern crate amplify;
 mod api;
 mod client;
 mod error;
+mod public;
 mod types;
+pub use public::{PublicDataKind, PublicDatum, PublicReference};
 
 pub use api::*;
 pub use client::*;

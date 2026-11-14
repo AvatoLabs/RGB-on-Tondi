@@ -79,7 +79,7 @@ pub enum Cmd {
 
     /// Generate a development RGB issuer fixture for local Tondi devnet workflows
     DevIssuer {
-        /// Existing issuer-like fixture to repair into a valid development issuer
+        /// Current-format issuer fixture to copy; defaults to the bundled development issuer
         #[clap(long, value_hint = ValueHint::FilePath)]
         source: Option<PathBuf>,
 

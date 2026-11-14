@@ -8,7 +8,8 @@ publication workflow stays the same.
 ## Invariants
 
 - Use Tondi P2MR outputs for RGB anchors.
-- Keep RGB state, consignments, proofs, and sidecars off-chain.
+- Keep private RGB state, consignments, proofs, and sidecars off-chain.
+- Public Datum and pinned references are explicit opt-in application context; see [the current design](docs/RGB_ON_TONDI.md). A reference never closes a seal or authorizes minting.
 - Do not place RGB commitments, contract ids, transition ids, allocation data,
   consignment pointers, or Annex-style metadata in Tondi payloads,
   signature scripts, or witness data.

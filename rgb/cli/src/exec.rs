@@ -27,16 +27,12 @@ extern crate alloc;
 use std::convert::Infallible;
 use std::fs;
 use std::fs::File;
-use std::io::{self, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
-use aluvm::{aluasm, Lib};
-use amplify::confinement::{SmallOrdSet, U24 as U24MAX};
 use amplify::hex::{FromHex, ToHex};
 use amplify::ByteArray;
 use anyhow::Context;
-use binfile::BinFile;
 use bpstd::pstt::{PsttConstructor, TxParams};
 use bpstd::{
     secp256k1, tondi_tapleaf_hash_from_tapscript, ConsensusEncode, Idx, NormalIndex, Outpoint,
@@ -44,14 +40,9 @@ use bpstd::{
 };
 use rgb::invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::popls::bp::{PaymentScript, PrefabBundle, WalletProvider};
-use rgb::{
-    CallScope, Codex, Consensus, CreateParams, Issuer, Semantics, SigBlob, ISSUER_MAGIC_NUMBER,
-    ISSUER_VERSION,
-};
+use rgb::{CallScope, Consensus, CreateParams, Issuer};
 use rgbp::descriptors::RgbDescr;
 use rgbp::{ContractInfo, FileHolder};
-use sha2::{Digest, Sha256};
-use strict_encoding::{StreamReader, StrictDecode};
 use strict_types::StrictVal;
 
 use crate::args::Args;
@@ -136,9 +127,10 @@ impl Args {
 
             Cmd::DevIssuer { source, force, output } => {
                 let source = source.clone().unwrap_or_else(default_dev_issuer_source);
-                let issuer = load_or_repair_dev_issuer(&source).with_context(|| {
-                    format!("unable to generate development issuer from '{}'", source.display())
-                })?;
+                let issuer = Issuer::load(&source, |_, _, _| Result::<_, Infallible>::Ok(()))
+                    .with_context(|| {
+                        format!("unable to generate development issuer from '{}'", source.display())
+                    })?;
                 if output.exists() {
                     anyhow::ensure!(
                         *force,
@@ -661,45 +653,8 @@ fn default_dev_issuer_source() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../rgb-std/tests/data/Test.issuer")
 }
 
-fn load_or_repair_dev_issuer(path: &Path) -> anyhow::Result<Issuer> {
-    if let Ok(issuer) = Issuer::load(path, |_, _, _| Result::<_, Infallible>::Ok(())) {
-        return Ok(issuer);
-    }
-
-    let file = BinFile::<ISSUER_MAGIC_NUMBER, ISSUER_VERSION>::open(path)?;
-    let mut reader = StreamReader::new::<U24MAX>(file);
-    let mut codex = Codex::strict_read(&mut reader)?;
-    let mut semantics = Semantics::strict_read(&mut reader)?;
-
-    let verifier = Lib::assemble(&aluasm! { stop; })?;
-    let verifier_id = verifier.lib_id();
-    for site in codex.verifiers.values_mut() {
-        site.lib_id = verifier_id;
-        site.offset = 0;
-    }
-
-    let codex_id = codex.codex_id();
-    semantics.default.codex_id = codex_id;
-    for api in semantics.custom.values_mut() {
-        api.codex_id = codex_id;
-    }
-    semantics.codex_libs =
-        SmallOrdSet::try_from_iter(semantics.codex_libs.iter().cloned().chain([verifier]))?;
-
-    let _sig = Option::<SigBlob>::strict_read(&mut reader)?;
-    match reader.unconfine().read_exact(&mut [0u8; 1]) {
-        Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {}
-        Err(err) => return Err(err.into()),
-        Ok(()) => anyhow::bail!("issuer fixture has trailing data"),
-    }
-
-    Issuer::new(codex, semantics).map_err(Into::into)
-}
-
 const OP_PUSHBYTES_32: u8 = 0x20;
 const OP_CHECKSIG: u8 = 0xac;
-const TONDI_TAPSIGHASH_TAG: &str = "TapSighash";
-const TONDI_TAPROOT_KEY_VERSION_0: u8 = 0;
 const TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF: [u8; 1] = [0xc1];
 
 struct TondiP2mrSigner {
@@ -718,6 +673,7 @@ pub(crate) fn sign_tondi_p2mr_inputs(pstt: &mut Pstt, secret_keys: &str) -> anyh
         .collect::<anyhow::Result<Vec<_>>>()?;
     anyhow::ensure!(!signers.is_empty(), "at least one Tondi P2MR secret key is required");
 
+    pstt.validate_native()?;
     let tx = Tx::from(pstt.to_unsigned_tx());
     let prevouts = pstt
         .inputs()
@@ -726,7 +682,7 @@ pub(crate) fn sign_tondi_p2mr_inputs(pstt: &mut Pstt, secret_keys: &str) -> anyh
 
     let mut signed = 0usize;
     for input in pstt.inputs_mut() {
-        if input.final_script_sig.is_some() {
+        if input.is_reference() || input.final_script_sig.is_some() {
             continue;
         }
         let prev_script = input.prev_txout().script_pubkey.as_slice();
@@ -788,155 +744,11 @@ fn tondi_p2mr_single_key_leaf_script(xonly_public_key: &[u8; 32]) -> Vec<u8> {
 fn tondi_p2mr_script_sighash(
     tx: &Tx,
     prevouts: &[TxOut],
-    input_index: usize,
+    index: usize,
     leaf_hash: bpstd::TapLeafHash,
 ) -> anyhow::Result<[u8; 32]> {
-    anyhow::ensure!(
-        tx.inputs.len() == prevouts.len(),
-        "transaction input count ({}) does not match prevout count ({})",
-        tx.inputs.len(),
-        prevouts.len()
-    );
-    anyhow::ensure!(
-        input_index < tx.inputs.len(),
-        "input index {input_index} is out of bounds for {} inputs",
-        tx.inputs.len()
-    );
-
-    let mut preimage = Vec::new();
-
-    // Tondi follows BIP341 TapSighash framing for P2MR script spends.
-    preimage.push(0);
-    preimage.push(0);
-    append_le_u16(&mut preimage, tx.version.to_consensus_u16());
-    append_le_u64(&mut preimage, tx.lock_time.to_consensus_u64());
-
-    preimage.extend_from_slice(&sha256_digest(&encode_tondi_prevouts(tx)?));
-    preimage.extend_from_slice(&sha256_digest(&encode_tondi_prevout_amounts(prevouts)));
-    preimage.extend_from_slice(&sha256_digest(&encode_tondi_prevout_script_pubkeys(prevouts)?));
-    preimage.extend_from_slice(&sha256_digest(&encode_tondi_sequences(tx)));
-    preimage.extend_from_slice(&sha256_digest(&encode_tondi_outputs(tx)?));
-
-    preimage.push(2);
-    append_le_u32(&mut preimage, u32::try_from(input_index).context("input index exceeds u32")?);
-    preimage.extend_from_slice(&leaf_hash.to_byte_array());
-    preimage.push(TONDI_TAPROOT_KEY_VERSION_0);
-    append_le_u32(&mut preimage, u32::MAX);
-
-    Ok(sha256_tagged_hash(TONDI_TAPSIGHASH_TAG, &preimage))
+    Ok(bpstd::tondi_p2mr_script_sighash(tx, prevouts, index, leaf_hash.to_byte_array())?)
 }
-
-fn encode_tondi_prevouts(tx: &Tx) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    for input in tx.inputs.iter() {
-        let txid = input
-            .prev_output
-            .txid
-            .to_string()
-            .parse::<amplify::Bytes32>()
-            .context("invalid Tondi transaction id in PSTT input")?;
-        bytes.extend_from_slice(&txid.to_byte_array());
-        append_le_u32(&mut bytes, input.prev_output.vout.to_u32());
-    }
-    Ok(bytes)
-}
-
-fn encode_tondi_prevout_amounts(prevouts: &[TxOut]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for prevout in prevouts {
-        append_le_u64(&mut bytes, prevout.value.sats());
-    }
-    bytes
-}
-
-fn encode_tondi_prevout_script_pubkeys(prevouts: &[TxOut]) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    for prevout in prevouts {
-        append_tondi_script_public_key(
-            &mut bytes,
-            prevout.script_pubkey_version,
-            prevout.script_pubkey.as_slice(),
-        )?;
-    }
-    Ok(bytes)
-}
-
-fn encode_tondi_sequences(tx: &Tx) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for input in tx.inputs.iter() {
-        append_le_u64(&mut bytes, tondi_wire_sequence(input.sequence.to_consensus_u32()));
-    }
-    bytes
-}
-
-fn tondi_wire_sequence(sequence: u32) -> u64 {
-    if sequence == u32::MAX {
-        u64::MAX
-    } else {
-        sequence as u64
-    }
-}
-
-fn encode_tondi_outputs(tx: &Tx) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    for output in tx.outputs.iter() {
-        append_le_u64(&mut bytes, output.value.sats());
-        append_tondi_script_public_key(
-            &mut bytes,
-            output.script_pubkey_version,
-            output.script_pubkey.as_slice(),
-        )?;
-    }
-    Ok(bytes)
-}
-
-fn append_tondi_script_public_key(
-    bytes: &mut Vec<u8>,
-    script_pubkey_version: u16,
-    script: &[u8],
-) -> anyhow::Result<()> {
-    append_le_u16(bytes, script_pubkey_version);
-    append_compact_size(bytes, script.len(), "Tondi script public key length")?;
-    bytes.extend_from_slice(script);
-    Ok(())
-}
-
-fn sha256_digest(payload: &[u8]) -> [u8; 32] { Sha256::digest(payload).into() }
-
-fn sha256_tagged_hash(tag: &str, payload: &[u8]) -> [u8; 32] {
-    let tag_hash = Sha256::digest(tag.as_bytes());
-    let mut hasher = Sha256::new();
-    hasher.update(tag_hash);
-    hasher.update(tag_hash);
-    hasher.update(payload);
-    hasher.finalize().into()
-}
-
-fn append_compact_size(bytes: &mut Vec<u8>, len: usize, what: &str) -> anyhow::Result<()> {
-    let len = u64::try_from(len).with_context(|| format!("{what} exceeds u64"))?;
-    match len {
-        0..=0xFC => bytes.push(len as u8),
-        0xFD..=0xFFFF => {
-            bytes.push(0xFD);
-            append_le_u16(bytes, len as u16);
-        }
-        0x10000..=0xFFFF_FFFF => {
-            bytes.push(0xFE);
-            append_le_u32(bytes, len as u32);
-        }
-        _ => {
-            bytes.push(0xFF);
-            append_le_u64(bytes, len);
-        }
-    }
-    Ok(())
-}
-
-fn append_le_u16(bytes: &mut Vec<u8>, value: u16) { bytes.extend_from_slice(&value.to_le_bytes()); }
-
-fn append_le_u32(bytes: &mut Vec<u8>, value: u32) { bytes.extend_from_slice(&value.to_le_bytes()); }
-
-fn append_le_u64(bytes: &mut Vec<u8>, value: u64) { bytes.extend_from_slice(&value.to_le_bytes()); }
 
 fn encode_tondi_p2mr_witness_stack(
     stack: impl IntoIterator<Item = Vec<u8>>,
@@ -1007,9 +819,13 @@ mod tests {
         let input_value = Sats::from_sats(10_000u64);
         let outpoint = Outpoint::new(Txid::from_byte_array([1u8; 32]), Vout::from_u32(0));
         let prev_tx = Tx {
-            version: TxVer::V0,
+            version: TxVer::CURRENT,
             inputs: VarIntArray::new(),
-            outputs: VarIntArray::from_checked(vec![TxOut::new(input_script.clone(), input_value)]),
+            outputs: VarIntArray::from_checked(vec![{
+                let mut output = TxOut::new(input_script.clone(), input_value);
+                output.datum = Some(bpstd::Datum::from_checked(vec![77]));
+                output
+            }]),
             lock_time: LockTime::ZERO,
             subnetwork_id: [0u8; 20],
             gas: 0,
@@ -1054,11 +870,13 @@ mod tests {
         );
         assert_eq!(stack[2], TONDI_P2MR_CONTROL_BLOCK_SINGLE_LEAF);
 
+        pstt.validate_native().unwrap();
         let tx = Tx::from(pstt.to_unsigned_tx());
         let prevouts = pstt
             .inputs()
             .map(|input| input.prev_txout().clone())
             .collect::<Vec<_>>();
+        assert_eq!(prevouts[0].datum, Some(bpstd::Datum::from_checked(vec![77])));
         assert_eq!(prevouts[0].script_pubkey_version, TONDI_P2MR_SCRIPT_VERSION);
         assert_eq!(tx.outputs[0].script_pubkey_version, TONDI_P2MR_SCRIPT_VERSION);
         let sighash = tondi_p2mr_script_sighash(

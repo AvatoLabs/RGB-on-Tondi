@@ -86,6 +86,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ ! "$PREALLOC_UTXOS" =~ ^[0-9]+$ ]] || (( PREALLOC_UTXOS < 4 )); then
+  echo "PREALLOC_UTXOS must be at least 4 for funding and public-context probes" >&2
+  exit 2
+fi
+
 if [[ ! -d "$TONDI_REPO" ]]; then
   echo "TONDI_REPO does not exist: $TONDI_REPO" >&2
   exit 2
@@ -105,7 +110,7 @@ mkdir -p "$DATA_ROOT"
 
 cd "$ROOT"
 
-echo "[1/7] Build RGB CLI and generate deterministic workflow material"
+echo "[1/8] Build RGB CLI and generate deterministic workflow material"
 cargo build --bin rgb
 ALICE_DEV_KEYS="$(cargo run --quiet --bin rgb -- dev-keys --seed-hex "$ALICE_DEV_SEED")"
 BOB_DEV_KEYS="$(cargo run --quiet --bin rgb -- dev-keys --seed-hex "$BOB_DEV_SEED")"
@@ -121,7 +126,7 @@ RGB_FAUCET=(cargo run --quiet --bin rgb -- --data-dir "$DATA_ROOT/faucet" --netw
 RGB_ALICE=(cargo run --quiet --bin rgb -- --data-dir "$DATA_ROOT/alice" --network "$NETWORK" --tondi="$TONDI_RPC")
 RGB_BOB=(cargo run --quiet --bin rgb -- --data-dir "$DATA_ROOT/bob" --network "$NETWORK" --tondi="$TONDI_RPC")
 
-echo "[2/7] Create P2MR wallets before node start"
+echo "[2/8] Create P2MR wallets before node start"
 "${RGB_FAUCET[@]}" init --quiet || true
 "${RGB_ALICE[@]}" init --quiet || true
 "${RGB_BOB[@]}" init --quiet || true
@@ -135,12 +140,12 @@ echo "  Faucet prealloc address: $FAUCET_FUND_ADDR"
 echo "  Alice funding address:   $ALICE_FUND_ADDR"
 echo "  Bob funding address:     $BOB_FUND_ADDR"
 
-echo "[3/7] Build patched Tondi node and local devnet miner"
+echo "[3/8] Build patched Tondi node and local devnet miner"
 (cd "$TONDI_REPO" && cargo build -p tondid --features devnet-prealloc && cargo build --bin tondi-devnet-miner)
 TONDID_BIN="$TONDI_REPO/target/debug/tondid"
 MINER_BIN="$TONDI_REPO/target/debug/tondi-devnet-miner"
 
-echo "[4/7] Start local Tondi devnet with faucet P2MR preallocation"
+echo "[4/8] Start local Tondi devnet with faucet P2MR preallocation"
 "$TONDID_BIN" \
   --devnet \
   --utxoindex \
@@ -160,7 +165,7 @@ echo "  Tondi RPC: $TONDI_RPC"
 echo "  Tondi wRPC: $TONDI_WRPC"
 echo "  Tondi log: $TONDID_LOG"
 
-echo "[5/7] Mine local devnet and fund Alice/Bob with a real transaction"
+echo "[5/8] Mine local devnet and fund Alice/Bob with a real transaction"
 "$MINER_BIN" "$TONDI_WRPC" "$FAUCET_FUND_ADDR" "$MINER_THREADS" >"$MINER_LOG" 2>&1 &
 MINER_PID=$!
 sleep 2
@@ -180,7 +185,14 @@ if [[ -z "$FUNDING_TXID" ]]; then
 fi
 wait_for_tx_accepted "$FUNDING_TXID"
 
-echo "[6/7] Run full RGB-on-Tondi workflow with real broadcast"
+echo "[6/8] Verify public Datum, reusable read-only context and spent-reference rejection"
+TONDI_RPC="$TONDI_RPC" \
+FAUCET_P2MR_ADDRESS="$FAUCET_FUND_ADDR" \
+FAUCET_P2MR_SECRET_KEY="$FAUCET_P2MR_SECRET_KEY" \
+FAUCET_PREALLOC_AMOUNT="$PREALLOC_AMOUNT" \
+cargo run --quiet -p bp-tondi --features grpc --example devnet_public_context
+
+echo "[7/8] Run full RGB-on-Tondi workflow with real broadcast"
 AUTO_DEV_KEYS=0 \
 WAIT_FOR_FUNDING=1 \
 NON_INTERACTIVE=1 \
@@ -204,7 +216,7 @@ BOB_XPUB="$BOB_XPUB" \
 ALICE_P2MR_SECRET_KEY="$ALICE_P2MR_SECRET_KEY" \
 "$ROOT/test_full_workflow.sh"
 
-echo "[7/7] Local devnet broadcast workflow completed"
+echo "[8/8] Local devnet broadcast workflow completed"
 echo "  Data root: $DATA_ROOT"
 cleanup
 trap - EXIT

@@ -950,8 +950,10 @@ mod async_utxo_tests {
             };
 
             let pending_tx = Tx {
-                version: TxVer::V0,
+                version: TxVer::CURRENT,
                 inputs: VarIntArray::from_checked(vec![TxIn {
+                    is_reference: false,
+                    sig_op_count: 1,
                     prev_output: spent_outpoint,
                     sig_script: SigScript::empty(),
                     sequence: SeqNo::ZERO,

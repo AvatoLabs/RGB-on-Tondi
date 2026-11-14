@@ -69,7 +69,9 @@ pub struct TondiP2mrProof {
 
 impl TondiP2mrProof {
     /// Construct a proof from the untweaked compressed public key.
-    pub fn new(original_pubkey: CompressedPk) -> Self { Self { original_pubkey } }
+    pub fn new(original_pubkey: CompressedPk) -> Self {
+        Self { original_pubkey }
+    }
 
     /// Computes the RGB tweak used by Tondi PSTT RGB outputs.
     pub fn rgb_tweak(
@@ -193,11 +195,15 @@ pub mod mmb {
         const TAG: &'static str = "urn:tondi:mmb:bundle#2025-01-01";
     }
     impl From<TondiBlake3> for Commitment {
-        fn from(hasher: TondiBlake3) -> Self { hasher.finish().into() }
+        fn from(hasher: TondiBlake3) -> Self {
+            hasher.finish().into()
+        }
     }
 
     impl From<Commitment> for mpc::Message {
-        fn from(msg: Commitment) -> Self { mpc::Message::from_byte_array(msg.to_byte_array()) }
+        fn from(msg: Commitment) -> Self {
+            mpc::Message::from_byte_array(msg.to_byte_array())
+        }
     }
 
     /// The proof that each message is associated with a separate subset of witness transaction
@@ -218,7 +224,9 @@ pub mod mmb {
         pub fn verify(&self, seal: Outpoint, msg: Message, tx: &Tx) -> bool {
             // Verify that there is a witness transaction input which spends a TxO matching the
             // single-use seal definition.
-            let Some(input_index) = tx.inputs().position(|input| input.prev_output == seal) else {
+            let Some(input_index) =
+                tx.inputs().position(|input| !input.is_reference && input.prev_output == seal)
+            else {
                 return false;
             };
             let Ok(input_index) = u32::try_from(input_index) else {
@@ -359,7 +367,9 @@ impl Anchor {
     /// In the current version fallback proofs are not implemented, and this method always returns
     /// `false`.
     // TODO: (v0.13) Change when the fallback proofs are ready
-    pub fn is_fallback(&self) -> bool { false }
+    pub fn is_fallback(&self) -> bool {
+        false
+    }
 
     /// Verify the fallback proof.
     ///
@@ -368,7 +378,9 @@ impl Anchor {
     /// In the current version fallback proofs are not implemented, and this method always returns
     /// `Ok(()) `(since if there is no fallback proof defined, it is a case of a valid situation).
     // TODO: (v0.13) Change when the fallback proofs are ready
-    pub fn verify_fallback(&self) -> Result<(), AnchorError> { Ok(()) }
+    pub fn verify_fallback(&self) -> Result<(), AnchorError> {
+        Ok(())
+    }
 }
 
 /// Proof data for verification of deterministic tondi commitment produced from anchor.
@@ -405,7 +417,9 @@ pub enum TxoSealExt {
 }
 
 impl StrictDumb for TxoSealExt {
-    fn strict_dumb() -> Self { TxoSealExt::Noise(Noise::from(Bytes::from_byte_array([0u8; 40]))) }
+    fn strict_dumb() -> Self {
+        TxoSealExt::Noise(Noise::from(Bytes::from_byte_array([0u8; 40])))
+    }
 }
 
 /// The tondi TxO-based single-use seal protocol (see [`SingleUseSeal`]).
@@ -450,7 +464,9 @@ impl PublishedWitness<TxoSeal> for Tx {
     type PubId = Txid;
     type Error = TxoSealError;
 
-    fn pub_id(&self) -> Txid { self.txid() }
+    fn pub_id(&self) -> Txid {
+        self.txid()
+    }
 
     fn verify_commitment(&self, proof: Proof) -> Result<(), Self::Error> {
         let out = self
@@ -506,7 +522,9 @@ impl ClientSideWitness for Anchor {
     }
 
     fn merge(&mut self, other: Self) -> Result<(), impl Error>
-    where Self: Sized {
+    where
+        Self: Sized,
+    {
         if self.mpc_protocol != other.mpc_protocol
             || self.mpc_proof != other.mpc_proof
             || self.dbc_proof != other.dbc_proof
@@ -698,6 +716,8 @@ mod test {
         let tx = Tx {
             version: default!(),
             inputs: Confined::from_iter_checked(messages.iter().map(|msg| TxIn {
+                is_reference: false,
+                sig_op_count: 1,
                 prev_output: outpoints[msg[0] as usize],
                 sig_script: none!(),
                 sequence: SeqNo::ZERO,
@@ -819,6 +839,14 @@ mod test {
             witness.verify_seal_closing(seals[2], messages[2]).unwrap_err(),
             SealError::Published(TxoSealError::InvalidProofType)
         ));
+    }
+
+    #[test]
+    fn a_read_only_reference_cannot_close_a_single_use_seal() {
+        let (messages, bundle, seals, mut witness) = setup_p2mr();
+        assert!(bundle.verify(seals[0].primary, messages[0], &witness.published));
+        witness.published.inputs[0].is_reference = true;
+        assert!(!bundle.verify(seals[0].primary, messages[0], &witness.published));
     }
 
     #[test]

@@ -653,6 +653,8 @@ mod test {
         witness
             .inputs
             .push(TxIn {
+                is_reference: false,
+                sig_op_count: 1,
                 prev_output: Outpoint::coinbase(),
                 sig_script: none!(),
                 sequence: SeqNo::from_consensus_u32(0),

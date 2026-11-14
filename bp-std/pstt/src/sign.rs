@@ -33,6 +33,8 @@ pub struct Rejected;
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum SignError {
+    /// unsupported current Tondi P2MR signing context.
+    InvalidTondiP2mrContext,
     /// the transaction was rejected by the signer.
     #[from(Rejected)]
     Rejected,
@@ -49,6 +51,7 @@ pub enum SignError {
 impl From<SighashError> for SignError {
     fn from(err: SighashError) -> Self {
         match err {
+            SighashError::InvalidTondiP2mrContext => Self::InvalidTondiP2mrContext,
             SighashError::InvalidInputIndex { .. } => unreachable!(
                 "sign PSTT algorithm ensures that we iterate only over existing input indexes"
             ),
@@ -73,7 +76,8 @@ impl From<SighashError> for SignError {
 pub trait Signer {
     /// Type which does the actual signatures. See [`Sign`] trait for the details.
     type Sign<'s>: Sign
-    where Self: 's;
+    where
+        Self: 's;
 
     /// In the implementation of this method signers must ensure that transaction is checked by the
     /// user. If the transaction passes the check, they must provide the caller with [`Satisfier`]
@@ -89,6 +93,7 @@ impl Pstt {
     /// See [`Signer`] and [`Sign`] traits for details on how the interaction with `signer`
     /// happens.
     pub fn sign(&mut self, signer: &impl Signer) -> Result<usize, SignError> {
+        self.validate_native().map_err(|_| SignError::InvalidTondiP2mrContext)?;
         let satisfier = signer.approve(self)?;
 
         let tx = self.to_unsigned_tx();
@@ -98,6 +103,9 @@ impl Pstt {
         let mut sig_count = 0usize;
 
         for input in &mut self.inputs {
+            if input.is_reference() {
+                continue;
+            }
             sig_count += input.sign(&satisfier, &mut sig_hasher)?;
         }
 
@@ -156,10 +164,15 @@ impl Input {
     ) -> Result<usize, SighashError> {
         let mut signature_count = 0usize;
         let sighash_type = self.sighash_type;
+        let native = self.prev_txout().script_pubkey_version == derive::TONDI_P2MR_SCRIPT_VERSION;
 
         // Sign all script paths
         for (control_block, leaf_script) in &self.tap_leaf_script {
-            let tapleaf_hash = leaf_script.tap_leaf_hash();
+            let tapleaf_hash = if native {
+                derive::tondi_tapleaf_hash_from_tapscript(leaf_script.script.as_slice())
+            } else {
+                leaf_script.tap_leaf_hash()
+            };
 
             if !signer.should_sign_script_path(
                 self.index,
@@ -169,11 +182,7 @@ impl Input {
                 continue;
             }
 
-            let sighash = sig_hasher.tap_sighash_script(
-                self.index,
-                leaf_script.tap_leaf_hash(),
-                sighash_type,
-            )?;
+            let sighash = sig_hasher.tap_sighash_script(self.index, tapleaf_hash, sighash_type)?;
 
             for (pk, tap) in &self.tap_bip32_derivation {
                 if !tap.leaf_hashes.contains(&tapleaf_hash) {
@@ -189,6 +198,9 @@ impl Input {
             }
         }
 
+        if native {
+            return Ok(signature_count);
+        }
         // Sign keypath
         if !signer.should_sign_key_path(self.index) {
             return Ok(signature_count);
